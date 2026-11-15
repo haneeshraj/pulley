@@ -7,7 +7,7 @@
   "editorType": ["figma"],
   "documentAccess": "dynamic-page",
   "networkAccess": {
-    "allowedDomains": ["ws://127.0.0.1:47290", "ws://localhost:47290"],
-    "reasoning": "Pulley sends the layers you select to the Pulley bridge, a small app running on your own computer (127.0.0.1, port 47290), which hands them to After Effects. The plugin connects to nothing else."
+    "allowedDomains": ["ws://localhost:47290"],
+    "reasoning": "Pulley sends the layers you select to the Pulley bridge, a small app running on your own computer (localhost, port 47290), which hands them to After Effects. The plugin connects to nothing else."
   }
 }

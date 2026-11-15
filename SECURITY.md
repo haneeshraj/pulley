@@ -21,7 +21,7 @@ marked *tested* are covered by the automated tests named in [docs/VERIFICATION.m
 | Pulley bridge (Rust) | your user account | WebSocket server on `127.0.0.1` only (default port 47290) |
 | After Effects and Illustrator extensions (CEP 12, Chromium) | inside the Adobe apps | the bridge; their app through fixed ExtendScript functions |
 | Figma plugin main thread | Figma's plugin sandbox | the plugin UI only (no network) |
-| Figma plugin UI (iframe, opaque origin) | Figma | the bridge only (`networkAccess` lists `ws://127.0.0.1:47290` and `ws://localhost:47290`) |
+| Figma plugin UI (iframe, opaque origin) | Figma | the bridge only (`networkAccess` lists `ws://localhost:47290`; Figma rejects IP addresses there) |
 
 Every scene is untrusted data, wherever it comes from: an Illustrator document, a Figma file, a
 `.pulley` file, or a client of the bridge.

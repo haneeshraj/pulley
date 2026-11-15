@@ -500,7 +500,7 @@ All of these are untested here.
 | Illustrator: PathPoint slowdown over repeated pushes | Not seen over 5 repeated 500 × 20 captures; a 50-push run was not done. |
 | Illustrator: SVG fidelity, symbols via a temporary document, no traces in the user's document | Built; the document is never marked modified (*tested* on 13 fixtures). |
 | Illustrator: `uuid` persistence across save/reopen | Not tested; uuids are used only within one capture. |
-| Figma: `ws://127.0.0.1` vs `ws://localhost`, Origin sent, WASM under Figma's CSP, file download | Both addresses are in the manifest; the rest is tested only in a browser stand-in (Part 1), not in Figma. |
+| Figma: `ws://127.0.0.1` vs `ws://localhost`, Origin sent, WASM under Figma's CSP, file download | Figma refuses IP addresses: importing the manifest with `ws://127.0.0.1:47290` failed with "Invalid value for allowedDomains. 'ws://127.0.0.1:47290' must be a valid URL" (Figma desktop, 2026-11-15). The plugin now lists and uses `ws://localhost:47290` only; the browser test confirms `localhost` reaches the bridge, which listens on 127.0.0.1 only. The rest is tested only in the browser stand-in (Part 1). |
 | `.ffx` gradient generator | Built and *tested* in After Effects 25.5. |
 | Offset Paths stroke alignment | Built; checked in the suite (inside stroke: Offset Paths −6 for a 12 px stroke). |
 | leading / autoLeading | Leading is set per run when the source has a fixed value; otherwise After Effects' auto leading is kept. |

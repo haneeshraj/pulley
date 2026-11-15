@@ -18,7 +18,7 @@ function figmaClient(port, initialSecret) {
   runScript(ctx, path.join(root, 'panels', 'shared', 'js', 'bridge-client.js'));
   const log = { states: [], messages: [], secret: initialSecret, unpaired: 0 };
   const client = new ctx.PulleyBridgeClient({
-    url: `ws://127.0.0.1:${port}`, role: 'figma', clientVersion: '0.1.0', appVersion: 'figma', instance: 'test', pairing: true,
+    url: `ws://localhost:${port}`, role: 'figma', clientVersion: '0.1.0', appVersion: 'figma', instance: 'test', pairing: true,
     getToken: () => log.secret,
     onState: (s, d) => log.states.push([s, d]),
     onPaired: (s) => { log.secret = s; },

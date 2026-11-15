@@ -2,7 +2,7 @@
  * Pulley Figma plugin: UI (the plugin's iframe).
  *
  * Asks the main thread for the selection, converts it to a pulley-scene with pulley-core
- * (WebAssembly, inlined in this page) and sends it to the Pulley bridge on 127.0.0.1. The
+ * (WebAssembly, inlined in this page) and sends it to the Pulley bridge on localhost. The
  * bridge passes it to After Effects. If the bridge can't be reached (Safari, blocked local
  * network access), "Save .pulley file" writes the same scene to a file instead.
  *
@@ -36,7 +36,9 @@ declare const PulleyBridgeClient: new (opts: Record<string, unknown>) => BridgeC
 declare const PulleyMakeId: () => string;
 declare const __PULLEY_VERSION__: string;
 
-const BRIDGE_URL = 'ws://127.0.0.1:47290';
+// "localhost", not 127.0.0.1: Figma's manifest check rejects IP addresses in allowedDomains
+// ("must be a valid URL"). The bridge listens on 127.0.0.1, which localhost resolves to.
+const BRIDGE_URL = 'ws://localhost:47290';
 const RESULT_TIMEOUT_MS = 10 * 60 * 1000;
 
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;

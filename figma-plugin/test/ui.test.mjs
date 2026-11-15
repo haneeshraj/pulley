@@ -56,7 +56,10 @@ test('plugin UI: pair, send, save a .pulley file, answer a pull', { skip: !brows
 
   const b = await startBridge();
   // The UI connects to the bridge's default port; point it at this test's bridge.
-  const uiHtml = fs.readFileSync(uiPath, 'utf8').replace('ws://127.0.0.1:47290', `ws://127.0.0.1:${b.port}`);
+  // Connects by name like the real plugin, so this also checks that "localhost" reaches a bridge
+  // listening on 127.0.0.1 only.
+  const uiHtml = fs.readFileSync(uiPath, 'utf8').replace('ws://localhost:47290', `ws://localhost:${b.port}`);
+  assert.notEqual(uiHtml, fs.readFileSync(uiPath, 'utf8'), 'the built UI connects to ws://localhost:47290');
   const server = http.createServer((req, res) => {
     const body = req.url === '/' ? HOST : req.url === '/ui.html' ? uiHtml : null;
     res.writeHead(body ? 200 : 404, { 'Content-Type': 'text/html; charset=utf-8' });

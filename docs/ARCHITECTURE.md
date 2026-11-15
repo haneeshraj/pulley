@@ -225,10 +225,12 @@ marks it saved).
   nodes. Limits: 100,000 nodes, depth 48. It also stores the pairing key in
   `figma.clientStorage`. It has no network access.
 - **UI** (`ui.ts`, built into one `dist/ui.html` with the WebAssembly core and the shared bridge
-  client inlined): converts with `figmaToScene`, sends over `ws://127.0.0.1:47290`, shows pairing,
+  client inlined): converts with `figmaToScene`, sends over `ws://localhost:47290`, shows pairing,
   progress and results, answers pulls, and offers *Save .pulley file* (a download of the scene).
-- **Manifest:** `networkAccess.allowedDomains` = `ws://127.0.0.1:47290`, `ws://localhost:47290`,
-  with a `reasoning` string, as Figma requires for local addresses in published plugins.
+- **Manifest:** `networkAccess.allowedDomains` = `ws://localhost:47290`, with a `reasoning`
+  string, as Figma requires for local addresses in published plugins. Figma rejects IP addresses
+  in that list ("must be a valid URL"), so the plugin connects by name; `localhost` resolves to
+  the 127.0.0.1 the bridge listens on.
 - **Conversion** (`pulley-core/src/figma.rs`): shapes are rebuilt from their parameters so
   strokes stay editable center lines; gradient handles are `inverse(gradientTransform)` applied
   to (0, .5), (1, .5) and (0, 1) of the node box.

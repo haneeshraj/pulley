@@ -1,6 +1,8 @@
 [package]
 name = "pulley-fuzz"
 version = "0.0.0"
+authors = ["Haneesh Raj Banisetti"]
+license = "MIT"
 publish = false
 edition = "2024"
 

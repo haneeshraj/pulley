@@ -82,7 +82,9 @@ capture: no capture marked it modified, and the selection was kept. Timings are 
 
 ### Figma plugin
 
-Not run inside Figma. What is tested instead:
+Imported into the Figma desktop app by the author (2026-11-15). Pairing, sending and pulling
+have not been confirmed from inside Figma yet: the bridge log shows no Figma connection on this
+machine. What is tested instead:
 
 - The reader (`read.ts`) on objects built to the Figma Plugin API documentation (every node type
   Pulley handles, mixed values, limits), with its output converted by the real WebAssembly core.
@@ -149,9 +151,12 @@ libFuzzer runtime, which needs nightly and sanitizers this machine lacks); they 
 
 - macOS: nothing has been built or run.
 - After Effects 2026 and Illustrator 2026.
-- The Figma plugin inside Figma (desktop or browser).
-- Signed ZXPs: the signing script exists but was not run in this session (the self-signed
-  certificate step was blocked by the environment's permission policy).
+- The Figma plugin's pairing, sending and pulling from inside Figma (desktop or browser).
+- Installing the signed ZXPs. The author created the self-signed certificate and signed them
+  with `tools/package-zxp.mjs --self-signed` (the build session was not allowed to create the
+  certificate); they were re-signed with the same certificate after the license was added. Both
+  signatures verify with `ZXPSignCmd -verify` (self-signed certificate "Pulley development",
+  valid until 2027-11-15, no timestamp).
 - Bridge installers on a clean machine.
 - CI: the workflow has never run (no remote repository).
 

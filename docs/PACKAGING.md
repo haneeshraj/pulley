@@ -122,7 +122,7 @@ Publishing (organization-private or Community):
 |---|---|
 | CEP extensions built (`dist/cep/`) | yes, and used by all After Effects/Illustrator tests (with PlayerDebugMode) |
 | ZXPSignCmd downloaded, hash matched GitHub's listing | yes (Windows 4.1.103) |
-| ZXP signing (`package-zxp.mjs --self-signed`) | **no**: running it was blocked by this session's permission policy; run it yourself |
+| ZXP signing (`package-zxp.mjs --self-signed`) | yes: the author created the self-signed certificate and signed both packages; they were re-signed with the same certificate once the license was added (both now contain `LICENSE`). Both signatures verify (`ZXPSignCmd -verify`). Self-signed, no timestamp: for testing only. Not installed yet |
 | NSIS installer built | yes: `pulley-bridge_0.1.0_x64-setup.exe`, 2.3 MB, unsigned. The generated NSIS script installs per user into `%LOCALAPPDATA%\Pulley` (checked). **Not run**: it would install software on this machine |
 | Installer run on a clean machine; signed installers; macOS app and dmg; notarization | no |
-| Figma plugin built | yes (`figma-plugin/dist/`); not imported into Figma |
+| Figma plugin built | yes (`figma-plugin/dist/`); imported into the Figma desktop app by the author |

@@ -2,6 +2,8 @@
 name = "pulley-bridge"
 description = "Pulley bridge: local WebSocket hub between Illustrator, Figma and After Effects."
 version.workspace = true
+authors.workspace = true
+license.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
@@ -52,7 +54,11 @@ serde_json.workspace = true
 [package.metadata.packager]
 product-name = "Pulley"
 identifier = "dev.pulley.bridge"
-publisher = "Pulley"
+publisher = "Haneesh Raj Banisetti"
+copyright = "Copyright (c) 2026 Haneesh Raj Banisetti"
+# The installer shows the license and installs it next to the app.
+license-file = "../LICENSE"
+resources = ["../LICENSE"]
 category = "GraphicsAndDesign"
 out-dir = "../dist/installers"
 binaries = [{ path = "pulley-bridge", main = true }]

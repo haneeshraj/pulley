@@ -2,8 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
-First development build. Tested on Windows 11 with After Effects 25.5 and Illustrator 29.5; see
-the README for what is and isn't tested.
+First development build. Created by Haneesh Raj Banisetti; MIT License. Tested on Windows 11
+with After Effects 25.5 and Illustrator 29.5; see the README for what is and isn't tested.
 
 ### Added
 

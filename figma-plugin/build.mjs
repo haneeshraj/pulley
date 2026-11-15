@@ -23,17 +23,19 @@ if (args.includes('--wasm') || !fs.existsSync(path.join(wasmDir, 'pulley_wasm_by
 const dist = path.join(here, 'dist');
 fs.mkdirSync(dist, { recursive: true });
 const define = { __PULLEY_VERSION__: JSON.stringify(version) };
+// The copyright notice travels with the built files (MIT License).
+const banner = { js: '/* Pulley ' + version + '. Copyright (c) 2026 Haneesh Raj Banisetti. MIT License. */' };
 
 // Main thread: Figma's plugin sandbox, so a conservative syntax target.
 await esbuild.build({
   entryPoints: [path.join(here, 'src', 'code.ts')],
-  bundle: true, format: 'iife', target: 'es2017', outfile: path.join(dist, 'code.js'), define, logLevel: 'warning',
+  bundle: true, format: 'iife', target: 'es2017', outfile: path.join(dist, 'code.js'), define, banner, logLevel: 'warning',
 });
 
 // UI: one HTML file with everything inlined (Figma loads the UI as a single document).
 const ui = await esbuild.build({
   entryPoints: [path.join(here, 'src', 'ui.ts')],
-  bundle: true, format: 'iife', target: 'es2020', write: false, define, logLevel: 'warning',
+  bundle: true, format: 'iife', target: 'es2020', write: false, define, banner, logLevel: 'warning',
 });
 const read = (...p) => fs.readFileSync(path.join(...p), 'utf8');
 // Inline <script> content must never contain "</script".
@@ -54,6 +56,7 @@ for (const [key, value] of Object.entries(parts)) {
   html = html.split(marker).join(value);
 }
 fs.writeFileSync(path.join(dist, 'ui.html'), html);
+fs.copyFileSync(path.join(root, 'LICENSE'), path.join(dist, 'LICENSE'));
 const kb = (f) => (fs.statSync(path.join(dist, f)).size / 1024).toFixed(0) + ' KB';
 console.log(`figma-plugin ${version}: dist/code.js ${kb('code.js')}, dist/ui.html ${kb('ui.html')}`);
 

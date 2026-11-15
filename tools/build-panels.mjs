@@ -75,6 +75,8 @@ function build(app, bundleId, slotPrefix) {
   copyDir(path.join(root, 'panels', 'shared', 'css'), path.join(out, 'css'));
   for (const f of fs.readdirSync(path.join(root, 'panels', 'shared', 'jsx'))) fs.copyFileSync(path.join(root, 'panels', 'shared', 'jsx', f), path.join(out, 'jsx', f));
   for (const f of ['pulley_wasm.js', 'pulley_wasm_bytes.js']) fs.copyFileSync(path.join(wasmOut, f), path.join(out, 'js', f));
+  // The MIT License notice ships inside every extension.
+  fs.copyFileSync(path.join(root, 'LICENSE'), path.join(out, 'LICENSE'));
   // Manifest icons: every slot with this prefix, copied with its @2X variant.
   const lines = [];
   fs.mkdirSync(path.join(out, 'icons'), { recursive: true });

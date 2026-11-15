@@ -2,6 +2,8 @@
   "name": "pulley-figma-plugin",
   "version": "0.1.0",
   "private": true,
+  "author": "Haneesh Raj Banisetti",
+  "license": "MIT",
   "description": "Pulley Figma plugin: sends the selection to After Effects through the local Pulley bridge.",
   "type": "module",
   "scripts": {

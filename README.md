@@ -1,5 +1,7 @@
 # Pulley
 
+Created by **Haneesh Raj Banisetti**. [MIT License](LICENSE).
+
 Pulley moves vector artwork from **Adobe Illustrator 2025** and **Figma** into **Adobe After
 Effects 2025** as native, editable shape and text layers: paths stay paths, strokes stay strokes,
 gradients stay gradients, text stays live text.
@@ -16,10 +18,10 @@ internet access. The pieces talk through a small local app, the **Pulley bridge*
 `127.0.0.1` only.
 
 > **Status: 0.1.0, development build.** Tested on Windows 11 with After Effects 25.5 and
-> Illustrator 29.5. **Not tested:** macOS, the 2026 versions of After Effects and Illustrator, and
-> the Figma plugin inside Figma itself (it is tested in a headless browser that loads it the way
-> Figma does). See [What has been tested](#what-has-been-tested) and
-> [Known limitations](#known-limitations). No license has been chosen yet.
+> Illustrator 29.5. **Not tested:** macOS, the 2026 versions of After Effects and Illustrator,
+> and the plugin's connection to the bridge from inside Figma (the plugin has been imported into
+> Figma; its bridge connection is tested in a headless browser that loads it the way Figma does).
+> See [What has been tested](#what-has-been-tested) and [Known limitations](#known-limitations).
 
 ## How it fits together
 
@@ -201,15 +203,18 @@ On Windows 11 (i9-13900H, 16 GB), After Effects 25.5, Illustrator 29.5; details 
   scene push into a running After Effects (gradient colors included).
 - Illustrator capture of 13 fixture documents: correct scenes (golden tests), the document never
   marked as changed, the selection kept.
-- Figma plugin outside Figma (see the table above). **Not run inside Figma.**
+- Figma plugin: imported into the Figma desktop app by the author; pairing, sending and pulling
+  tested outside Figma (see the table above), **not yet from inside Figma**.
+- Signed packages: both `.zxp` files signed by the author with a self-signed certificate; the
+  signatures verify (`ZXPSignCmd -verify`). Not yet installed from the signed packages.
 - Bridge: handshake checks (Host, Origin), tokens, pairing, routing, chunking, limits, protocol
   mismatches.
 - Fuzzing: 500,000 mutated inputs across the five parsers, no crashes; it found one quadratic
   slowdown on very long names, now fixed ([docs/VERIFICATION.md](docs/VERIFICATION.md#fuzzing)).
   A short pass runs in every `cargo test`.
 
-Not tested: macOS; After Effects 2026 / Illustrator 2026; the Figma plugin in Figma; the signed
-ZXP packages and the installers on a clean machine; CI.
+Not tested: macOS; After Effects 2026 / Illustrator 2026; pairing and sending from inside Figma;
+installing the signed ZXP packages and the bridge installer on a clean machine; CI.
 
 ## Known limitations
 
@@ -300,3 +305,11 @@ selections.
 - [docs/ICONS.md](docs/ICONS.md) and [docs/ICON_HANDOFF.md](docs/ICON_HANDOFF.md): the icon
   system and how to deliver final icons.
 - [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+[MIT](LICENSE). Copyright (c) 2026 Haneesh Raj Banisetti.
+
+You may use, copy, change and redistribute Pulley for any purpose, including commercially, as
+long as the copyright notice and the license text stay with it. The extensions, the Figma plugin
+build and the bridge installer all carry the notice.

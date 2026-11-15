@@ -409,6 +409,6 @@ document.addEventListener('pointerdown', activity);
 
 decorate();
 render();
+postMain({ type: 'ready' });
 // Compile the core early so the first push doesn't wait for it.
 PulleyWasm.load().catch(() => { /* reported on first use */ });
-postMain({ type: 'ready' });

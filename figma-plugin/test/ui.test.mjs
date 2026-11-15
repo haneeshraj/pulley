@@ -24,10 +24,12 @@ const browser = process.env.PULLEY_TEST_BROWSER || browsers.find((b) => fs.exist
 
 // Stands in for Figma: embeds the UI and answers its main-thread messages.
 const HOST = `<!doctype html><meta charset="utf-8"><title>host</title>
-<iframe id="ui" sandbox="allow-scripts allow-downloads allow-forms" src="/ui.html" style="width:320px;height:460px;border:0"></iframe>
+<iframe id="ui" sandbox="allow-scripts allow-downloads allow-forms" style="width:320px;height:460px;border:0"></iframe>
 <script>
   window.received = []; window.secret = null; window.nodesJson = '';
   var frame = document.getElementById('ui');
+  // Like Figma: the UI is an inline document (about:srcdoc, opaque origin), not a URL.
+  fetch('/ui.html').then(function (r) { return r.text(); }).then(function (t) { frame.srcdoc = t; });
   function send(m) { frame.contentWindow.postMessage({ pluginMessage: m }, '*'); }
   window.addEventListener('message', function (e) {
     if (e.source !== frame.contentWindow) return;
@@ -85,7 +87,7 @@ test('plugin UI: pair, send, save a .pulley file, answer a pull', { skip: !brows
 
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.evaluate((json) => { window.nodesJson = json; }, readSelection([frame()], opts));
-  const ui = () => page.frames().find((f) => f.url().endsWith('/ui.html'));
+  const ui = () => page.frames().find((f) => f.url() === 'about:srcdoc');
   await waitFor(() => !!ui(), 'UI frame');
   const text = (sel) => ui().$eval(sel, (el) => el.textContent).catch(() => '');
   const waitText = (sel, re, what) => waitFor(async () => re.test(await text(sel)), `${what} (${sel})`);

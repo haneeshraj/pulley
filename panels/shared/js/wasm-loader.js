@@ -14,14 +14,22 @@
   function load() {
     if (mod) { return Promise.resolve(mod); }
     if (loading) { return loading; }
-    var b64 = root.PULLEY_WASM_B64;
-    var bin = atob(b64);
-    var bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) { bytes[i] = bin.charCodeAt(i); }
-    // The no-modules glue declares a script-level `wasm_bindgen` binding (not a window property).
-    // eslint-disable-next-line no-undef
-    var wb = typeof wasm_bindgen !== 'undefined' ? wasm_bindgen : root.wasm_bindgen;
-    loading = wb({ module_or_path: bytes }).then(function () { mod = wb; return mod; });
+    try {
+      var b64 = root.PULLEY_WASM_B64;
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) { bytes[i] = bin.charCodeAt(i); }
+      // The no-modules glue declares a script-level `wasm_bindgen` binding (not a window property).
+      // eslint-disable-next-line no-undef
+      var wb = typeof wasm_bindgen !== 'undefined' ? wasm_bindgen : root.wasm_bindgen;
+      loading = wb({ module_or_path: bytes }).then(function () { mod = wb; return mod; });
+    } catch (e) {
+      // Never throw synchronously (callers start this at load time); report on use instead,
+      // and allow a later retry.
+      loading = null;
+      return Promise.reject({ code: 'core_unavailable', message: "Pulley's core could not start (" + ((e && e.message) || e) + ').', hint: 'Close and reopen Pulley. If it keeps failing, report this message.' });
+    }
+    loading.catch(function () { loading = null; });
     return loading;
   }
   /** Turn an error thrown by pulley-wasm (JSON text) into { code, message, hint }. */

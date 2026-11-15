@@ -39,6 +39,16 @@ if (!args.includes('--skip-wasm')) {
   run('cargo', ['build', '-p', 'pulley-wasm', '--target', 'wasm32-unknown-unknown', '--profile', 'wasm']);
   const raw = path.join(root, 'target', 'wasm32-unknown-unknown', 'wasm', 'pulley_wasm.wasm');
   run('wasm-bindgen', ['--target', 'no-modules', '--no-typescript', '--out-dir', wasmOut, raw]);
+  // The glue works out its own URL with new URL(document.currentScript.src, location.href). In a
+  // document with an opaque URL (Figma loads plugin UIs as about:srcdoc / data:) that throws
+  // "Invalid URL", the glue never initializes, and every later use fails with "Cannot access
+  // 'wasm_bindgen' before initialization". Pulley always passes the module bytes, so the URL is
+  // never needed: make that line tolerate failure. The build stops if the glue changes shape.
+  const gluePath = path.join(wasmOut, 'pulley_wasm.js');
+  const glue = fs.readFileSync(gluePath, 'utf8');
+  const urlLine = 'script_src = new URL(document.currentScript.src, location.href).toString();';
+  if (glue.split(urlLine).length !== 2) throw new Error('wasm-bindgen glue changed: review the script_src patch in tools/build-panels.mjs');
+  fs.writeFileSync(gluePath, glue.replace(urlLine, 'try { ' + urlLine + ' } catch (e) { /* opaque document URL: module bytes are passed in */ }'));
   const bg = path.join(wasmOut, 'pulley_wasm_bg.wasm');
   const before = fs.statSync(bg).size;
   run(wasmOptPath(), ['-Oz', '--strip-debug', '--strip-producers', '-o', bg, bg]);

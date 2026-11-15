@@ -198,8 +198,8 @@ async fn pull_without_illustrator_and_push_without_ae_explain_what_to_do() {
     hello(&mut ae, "ae", &token).await;
     send(&mut ae, serde_json::json!({"protocol":1,"id":"q","type":"pull_request","transfer":"p"})).await;
     let e = recv_type(&mut ae, "error").await;
-    assert_eq!(e["code"], "no_illustrator");
-    assert!(e["hint"].as_str().unwrap().contains("Illustrator"));
+    assert_eq!(e["code"], "no_source");
+    assert!(e["hint"].as_str().unwrap().contains("Illustrator") && e["hint"].as_str().unwrap().contains("Figma"));
     drop(ae);
     tokio::time::sleep(Duration::from_millis(200)).await;
     let mut ai = connect(b.port, "file://").await;
@@ -341,6 +341,33 @@ async fn figma_pairing_then_push() {
     let scene: serde_json::Value = serde_json::from_str(&scene_text("gradients-compound.json")).unwrap();
     send(&mut f2, serde_json::json!({"protocol":1,"id":"p","type":"push_scene","transfer":"fig1","scene":scene})).await;
     assert_eq!(recv_type(&mut ae, "push_scene").await["transfer"], "fig1");
+}
+
+#[tokio::test]
+async fn pull_goes_to_the_source_app_used_last() {
+    let b = start(&["--start-pairing"]);
+    let code = std::fs::read_to_string(b.dir.join("pairing-code.txt")).unwrap();
+    let token = b.token();
+    let mut ai = connect(b.port, "file://").await;
+    hello(&mut ai, "illustrator", &token).await;
+    let mut f = connect(b.port, "null").await;
+    send(&mut f, serde_json::json!({"protocol":1,"id":"p","type":"pair_request","code":code,"name":"Figma test"})).await;
+    let secret = recv_type(&mut f, "paired").await["secret"].as_str().unwrap().to_string();
+    let mut fig = connect(b.port, "null").await;
+    hello(&mut fig, "figma", &secret).await;
+    let mut ae = connect(b.port, "file://").await;
+    hello(&mut ae, "ae", &token).await;
+    // Figma connected after Illustrator: it answers.
+    send(&mut ae, serde_json::json!({"protocol":1,"id":"q","type":"pull_request","transfer":"p1"})).await;
+    assert_eq!(recv_type(&mut fig, "pull_request").await["transfer"], "p1");
+    let scene: serde_json::Value = serde_json::from_str(&scene_text("basic-shapes.json")).unwrap();
+    send(&mut fig, serde_json::json!({"protocol":1,"id":"a","type":"push_scene","transfer":"p1","pull":true,"scene":scene})).await;
+    assert_eq!(recv_type(&mut ae, "push_scene").await["pull"], true);
+    // Illustrator becomes active again: the next pull goes there.
+    send(&mut ai, serde_json::json!({"protocol":1,"id":"a","type":"activity"})).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    send(&mut ae, serde_json::json!({"protocol":1,"id":"q2","type":"pull_request","transfer":"p2"})).await;
+    assert_eq!(recv_type(&mut ai, "pull_request").await["transfer"], "p2");
 }
 
 #[tokio::test]

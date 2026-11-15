@@ -34,9 +34,11 @@
     UI.text($('stateText'), UI.stateLabel(s.state));
     UI.text($('detail'), s.state === 'connected' ? '' : (s.detail || 'Waiting for the Pulley bridge…'));
     UI.text($('apps'), s.state === 'connected' ? UI.appsLine(s.clients, 'ae') : '');
-    var hasAi = (s.clients || []).some(function (c) { return c.role === 'illustrator'; });
-    $('pull').disabled = s.state !== 'connected' || !!s.progress || !hasAi;
-    $('pull').title = !hasAi ? 'Illustrator is not connected: open Illustrator with Pulley installed.' : '';
+    var hasSource = (s.clients || []).some(function (c) { return c.role === 'illustrator' || c.role === 'figma'; });
+    $('pull').disabled = s.state !== 'connected' || !!s.progress || !hasSource;
+    $('pull').title = hasSource
+      ? 'Imports the selection from Illustrator or the Pulley Figma plugin, whichever you used last.'
+      : 'Open Illustrator (with Pulley installed) or the Pulley plugin in Figma to pull from it.';
     $('importFile').disabled = !!s.progress;
     $('busy').classList.toggle('hidden', !s.progress);
     if (s.progress) {

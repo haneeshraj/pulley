@@ -123,3 +123,9 @@ function pulleyTestDumpActive(outPath) {
     return "ok";
 }
 
+
+/** Save the open project (an .aep path: gradient colors can be read back from it). */
+function pulleyTestSaveProject(path) {
+    app.project.save(new File(path));
+    return "saved";
+}

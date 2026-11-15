@@ -169,12 +169,12 @@
     if (busy || pendingPull) { return; }
     if (client.state !== 'connected') { return showError('Pulley is not connected to its bridge.', 'Start the Pulley bridge, then click Reconnect.'); }
     pendingPull = 'pull-' + C.randomId(6);
-    state.progress = { done: 0, total: 1, stage: 'Waiting for Illustrator' };
+    state.progress = { done: 0, total: 1, stage: 'Waiting for the selection' };
     emit();
     client.send({ type: 'pull_request', transfer: pendingPull });
     var mine = pendingPull;
     setTimeout(function () {
-      if (pendingPull === mine) { pendingPull = null; showError('Illustrator did not answer within 2 minutes.', 'Check that Illustrator is open and not showing a dialog, then pull again.'); }
+      if (pendingPull === mine) { pendingPull = null; showError('Nothing answered the pull within 2 minutes.', 'Check that Illustrator (or the Pulley plugin in Figma) is open and not showing a dialog, then pull again.'); }
     }, 120000);
   });
   C.listen('dev.pulley.ae.cancel', function () {

@@ -260,7 +260,12 @@ impl Hub {
     }
 
     fn most_recent(&self, role: Role) -> Option<ConnId> {
-        self.clients.lock().ok()?.iter().filter(|(_, c)| c.role == role).max_by_key(|(_, c)| c.last_active).map(|(id, _)| *id)
+        self.most_recent_of(&[role])
+    }
+
+    /// The most recently active client among several roles (activity stamps are global).
+    fn most_recent_of(&self, roles: &[Role]) -> Option<ConnId> {
+        self.clients.lock().ok()?.iter().filter(|(_, c)| roles.contains(&c.role)).max_by_key(|(_, c)| c.last_active).map(|(id, _)| *id)
     }
 
     fn role_of(&self, conn: ConnId) -> Option<Role> {
@@ -373,12 +378,13 @@ impl Hub {
                 if role != Role::Ae {
                     return self.send_error(conn, "not_allowed", "Only After Effects can pull.", "", Some(transfer));
                 }
-                let Some(target) = self.most_recent(Role::Illustrator) else {
+                // Pull from the source app used last: Illustrator or the Figma plugin.
+                let Some(target) = self.most_recent_of(&[Role::Illustrator, Role::Figma]) else {
                     return self.send_error(
                         conn,
-                        "no_illustrator",
-                        "Illustrator is not connected to Pulley.",
-                        "Open Illustrator (the Pulley extension starts with it), wait for it to show as connected, then pull again.",
+                        "no_source",
+                        "Neither Illustrator nor the Pulley Figma plugin is connected.",
+                        "Open Illustrator (the Pulley extension starts with it) or open the Pulley plugin in Figma, then pull again.",
                         Some(transfer),
                     );
                 };
@@ -386,7 +392,7 @@ impl Hub {
                     t.insert(transfer.clone(), Transfer { requester: conn, target, pull: true, created: Instant::now() });
                 }
                 self.set_transferring();
-                info!(transfer, "pull request forwarded to Illustrator");
+                info!(transfer, "pull request forwarded");
                 self.send(target, &Body::PullRequest { transfer });
             }
             Body::PullError { transfer, code, message, hint } => {

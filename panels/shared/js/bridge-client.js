@@ -19,7 +19,10 @@
 
   /**
    * opts: { url, role, clientVersion, appVersion, instance, getToken(): string|null,
-   *         onState(state, detail), onMessage(msg), onScene(transfer, text, pull), launch() }
+   *         onState(state, detail), onMessage(msg), onScene(transfer, text, pull), launch(),
+   *         pairing (Figma: no token means "not paired yet", not "bridge not running"),
+   *         onPaired(secret), onUnpaired(detail) }
+   * States: disconnected, connecting, connected; with pairing also unpaired and pairing.
    */
   function BridgeClient(opts) {
     this.opts = opts;
@@ -43,6 +46,10 @@
     clearTimeout(this.timer);
     if (this.stopped) { return; }
     var token = this.opts.getToken();
+    if (!token && this.opts.pairing) {
+      this.setState('unpaired', '');
+      return;
+    }
     if (!token) {
       this.setState('disconnected', 'The Pulley bridge is not running.');
       this.maybeLaunch();
@@ -52,9 +59,7 @@
     var ws;
     try { ws = new WebSocket(this.opts.url); } catch (e) { return this.scheduleReconnect(); }
     this.ws = ws;
-    ws.onopen = function () {
-      self.send({ type: 'hello', role: self.opts.role, clientVersion: self.opts.clientVersion, appVersion: self.opts.appVersion || '', instance: self.opts.instance || '', token: token });
-    };
+    ws.onopen = function () { self.sendHello(token); };
     ws.onmessage = function (ev) {
       var msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
@@ -67,6 +72,63 @@
       self.scheduleReconnect();
     };
     ws.onerror = function () { /* onclose follows */ };
+  };
+
+  BridgeClient.prototype.sendHello = function (token) {
+    this.send({ type: 'hello', role: this.opts.role, clientVersion: this.opts.clientVersion, appVersion: this.opts.appVersion || '', instance: this.opts.instance || '', token: token });
+  };
+
+  /**
+   * Figma only: trade a pairing code (shown in the bridge's tray menu) for a long-lived
+   * secret, then say hello with it on the same connection.
+   */
+  BridgeClient.prototype.pair = function (code, name) {
+    var self = this;
+    this.stopped = false;
+    clearTimeout(this.timer);
+    clearInterval(this.pingTimer);
+    if (this.ws) { var old = this.ws; this.ws = null; try { old.close(); } catch (e) { /* closing */ } }
+    this.setState('pairing');
+    var ws;
+    try { ws = new WebSocket(this.opts.url); } catch (e) { return this.setState('unpaired', 'The Pulley bridge could not be reached.'); }
+    this.ws = ws;
+    var paired = false;
+    ws.onopen = function () { self.send({ type: 'pair_request', code: code, name: name || '' }); };
+    ws.onmessage = function (ev) {
+      var msg;
+      try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (!paired && msg.type === 'paired' && typeof msg.secret === 'string') {
+        paired = true;
+        if (self.opts.onPaired) { self.opts.onPaired(msg.secret); }
+        self.setState('connecting');
+        self.sendHello(msg.secret);
+        return;
+      }
+      if (!paired && msg.type === 'error') {
+        self.setState('unpaired', msg.message + (msg.hint ? ' ' + msg.hint : ''));
+        return;
+      }
+      self.handle(msg);
+    };
+    ws.onclose = function () {
+      clearInterval(self.pingTimer);
+      if (self.ws === ws) { self.ws = null; }
+      if (!paired) {
+        if (self.state === 'pairing') { self.setState('unpaired', 'The Pulley bridge could not be reached. Check that it is running.'); }
+        return;
+      }
+      if (self.state === 'connected' || self.state === 'connecting') { self.setState('disconnected', 'Lost the connection to the Pulley bridge.'); }
+      self.scheduleReconnect();
+    };
+    ws.onerror = function () { /* onclose follows */ };
+  };
+
+  /** Stop connecting (until connect() or pair() is called again). */
+  BridgeClient.prototype.stop = function () {
+    this.stopped = true;
+    clearTimeout(this.timer);
+    clearInterval(this.pingTimer);
+    if (this.ws) { var ws = this.ws; this.ws = null; try { ws.close(); } catch (e) { /* closing */ } }
   };
 
   BridgeClient.prototype.maybeLaunch = function () {
@@ -87,6 +149,7 @@
 
   BridgeClient.prototype.reconnect = function () {
     this.retry = 0;
+    this.stopped = false;
     this.launched = false;
     if (this.ws) { try { this.ws.close(); } catch (e) { /* closing */ } }
     else { this.connect(); }
@@ -150,7 +213,12 @@
         return;
       }
       case 'error':
-        if (this.state === 'connecting') {
+        if (this.state === 'connecting' && msg.code === 'not_paired' && this.opts.pairing) {
+          // The bridge no longer knows this plugin (pairings were reset): pair again.
+          this.stop();
+          this.setState('unpaired', msg.message);
+          if (this.opts.onUnpaired) { this.opts.onUnpaired(msg.message); }
+        } else if (this.state === 'connecting') {
           this.setState('disconnected', msg.message + ' ' + (msg.hint || ''));
         }
         break;

@@ -1,0 +1,64 @@
+/* Pulley Figma plugin UI. Colors come from Figma's theme variables (themeColors: true). */
+:root {
+  --bg: var(--figma-color-bg, #ffffff);
+  --bg2: var(--figma-color-bg-secondary, #f5f5f5);
+  --hover: var(--figma-color-bg-hover, #f0f0f0);
+  --text: var(--figma-color-text, #1e1e1e);
+  --muted: var(--figma-color-text-secondary, #6b6b6b);
+  --border: var(--figma-color-border, #e6e6e6);
+  --brand: var(--figma-color-bg-brand, #0d99ff);
+  --on-brand: var(--figma-color-text-onbrand, #ffffff);
+  --danger: var(--figma-color-text-danger, #d42424);
+  --success: var(--figma-color-text-success, #14833b);
+  --warning: var(--figma-color-text-warning, #a35b00);
+  --disabled: var(--figma-color-text-disabled, #b3b3b3);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 11px/16px Inter, system-ui, -apple-system, "Segoe UI", sans-serif; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+h3 { font-size: 11px; font-weight: 600; margin: 0 0 4px; }
+p { margin: 0 0 6px; }
+.hidden { display: none !important; }
+.muted { color: var(--muted); }
+.grow { flex: 1; min-width: 0; }
+.row { display: flex; align-items: center; gap: 6px; }
+
+.status { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--disabled); flex: none; }
+.status[data-state="connected"] .dot { background: var(--success); }
+.status[data-state="connecting"] .dot, .status[data-state="pairing"] .dot { background: var(--warning); }
+.status[data-state="disconnected"] .dot { background: var(--danger); }
+.detail { color: var(--muted); }
+
+button {
+  font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+  height: 28px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+}
+button:hover:not(:disabled) { background: var(--hover); }
+button:disabled { color: var(--disabled); cursor: default; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+button.primary { background: var(--brand); border-color: transparent; color: var(--on-brand); font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--brand); filter: brightness(0.95); }
+button.primary:disabled { opacity: 0.4; color: var(--on-brand); }
+button.wide { width: 100%; margin-top: 6px; }
+button.icon { width: 28px; padding: 0; border-color: transparent; }
+button.link { border: none; background: none; color: var(--muted); padding: 0; height: auto; text-decoration: underline; }
+.ico { display: inline-flex; width: 16px; height: 16px; flex: none; }
+.ico svg { width: 16px; height: 16px; }
+p[data-icon] { display: flex; gap: 6px; align-items: flex-start; }
+
+input {
+  font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+  height: 28px; padding: 0 8px; flex: 1; min-width: 0; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.selection { color: var(--muted); overflow-wrap: anywhere; }
+.progress { height: 4px; background: var(--bg2); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+.progress > div { height: 100%; width: 15%; background: var(--brand); transition: width 0.2s; }
+.result { border-top: 1px solid var(--border); padding-top: 8px; }
+.result .ok { color: var(--success); }
+.result .error { color: var(--danger); }
+.result .warn { color: var(--warning); }
+.result ul { margin: 4px 0 0; padding-left: 16px; color: var(--muted); max-height: 140px; overflow: auto; }
+.help { border-top: 1px solid var(--border); padding-top: 8px; color: var(--muted); }
+footer { display: flex; align-items: center; gap: 8px; margin-top: auto; }
+@media (prefers-reduced-motion: reduce) { .progress > div { transition: none; } }

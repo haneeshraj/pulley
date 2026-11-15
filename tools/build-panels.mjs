@@ -1,5 +1,5 @@
 // Builds pulley-core for WebAssembly and assembles the CEP extensions.
-//   node tools/build-panels.mjs [--install] [--skip-wasm]
+//   node tools/build-panels.mjs [--install] [--skip-wasm] [--wasm-only]
 // Output: dist/cep/dev.pulley.ae and dist/cep/dev.pulley.illustrator (unsigned folders),
 //         dist/wasm/ (pulley_wasm.js + .wasm + base64 module, shared with the Figma plugin).
 // --install copies the extensions into the per-user CEP folder (development; needs
@@ -50,6 +50,8 @@ if (!args.includes('--skip-wasm')) {
   fs.writeFileSync(path.join(wasmOut, 'size.json'), JSON.stringify(report, null, 2) + '\n');
   console.log(`wasm: ${report.rawBytes} raw -> ${report.optimizedBytes} after wasm-opt -Oz (${gz} gzipped)`);
 }
+
+if (args.includes('--wasm-only')) process.exit(0);
 
 // 2. Icons from the registry
 const iconsDir = path.join(root, 'assets', 'icons');

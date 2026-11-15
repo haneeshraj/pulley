@@ -129,3 +129,30 @@ function pulleyTestSaveProject(path) {
     app.project.save(new File(path));
     return "saved";
 }
+
+/** Apply a plan into a fresh comp, then Undo once: everything the import built must go away. */
+function pulleyTestApplyUndo(planPath, withComp, outPath, ffxPrefix) {
+    pulleyTestNewProject(withComp);
+    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
+    var count = function () {
+        var n = 0;
+        for (var i = 1; i <= app.project.numItems; i++) { var it = app.project.item(i); if (it instanceof CompItem) { n += it.numLayers; } }
+        return n;
+    };
+    var u = { layersBefore: count(), itemsBefore: app.project.numItems };
+    // The menu item reads "Undo Pulley Import" when the import is the last undo step. Its
+    // id is looked up by that text; 16 is Edit > Undo whatever its text is.
+    u.namedCommand = app.findMenuCommandId("Undo Pulley Import");
+    u.command = u.namedCommand > 0 ? u.namedCommand : 16;
+    app.executeCommand(u.command);
+    u.layersAfter = count();
+    u.itemsAfter = app.project.numItems;
+    var comp = app.project.activeItem;
+    var text = PulleyJSON.stringify({ result: res, undo: u, dump: (comp instanceof CompItem) ? pulleyDumpComp(comp) : { layers: [] } });
+    var f = new File(outPath);
+    f.encoding = "UTF-8";
+    f.open("w");
+    f.write(text);
+    f.close();
+    return res;
+}

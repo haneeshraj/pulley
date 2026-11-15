@@ -62,11 +62,7 @@ pub fn parse_scene(json: &str, reader: Component) -> Result<Scene> {
     if json.len() > MAX_MESSAGE_BYTES {
         return Err(Error::new(
             ErrorCode::LimitExceeded,
-            format!(
-                "The scene is {} MB, larger than the {} MB limit.",
-                json.len() / (1024 * 1024),
-                MAX_MESSAGE_BYTES / (1024 * 1024)
-            ),
+            format!("The scene is {} MB, larger than the {} MB limit.", json.len() / (1024 * 1024), MAX_MESSAGE_BYTES / (1024 * 1024)),
             "Send a smaller selection, or split it into several pushes.",
         ));
     }
@@ -106,20 +102,14 @@ fn check_header(probe: &Probe, reader: Component) -> Result<()> {
     if version > u64::from(SCHEMA_VERSION) {
         return Err(Error::new(
             ErrorCode::SchemaTooNew,
-            format!(
-                "This scene uses pulley-scene v{version}, but the {} only understands up to v{SCHEMA_VERSION}.",
-                reader.name()
-            ),
+            format!("This scene uses pulley-scene v{version}, but the {} only understands up to v{SCHEMA_VERSION}.", reader.name()),
             format!("Update the {} to the same Pulley version as the {sender}.", reader.name()),
         ));
     }
     if version < u64::from(MIN_SCHEMA_VERSION) {
         return Err(Error::new(
             ErrorCode::SchemaTooOld,
-            format!(
-                "This scene uses pulley-scene v{version}, which the {} no longer reads (oldest supported: v{MIN_SCHEMA_VERSION}).",
-                reader.name()
-            ),
+            format!("This scene uses pulley-scene v{version}, which the {} no longer reads (oldest supported: v{MIN_SCHEMA_VERSION}).", reader.name()),
             format!("Update the {sender}."),
         ));
     }
@@ -166,10 +156,7 @@ fn range(item: &str, field: &str, v: f64, lo: f64, hi: f64) -> Result<()> {
     if !v.is_finite() || v < lo || v > hi {
         return Err(Error::data(
             ErrorCode::OutOfRange,
-            format!(
-                "Item \"{}\": {field} = {v} is outside {lo}..{hi}.",
-                item.chars().take(80).collect::<String>()
-            ),
+            format!("Item \"{}\": {field} = {v} is outside {lo}..{hi}.", item.chars().take(80).collect::<String>()),
         ));
     }
     Ok(())
@@ -184,10 +171,7 @@ fn text_field(item: &str, field: &str, s: &str, max_utf16: usize) -> Result<()> 
     if s.len() > max_utf16 * 3 || utf16_len(s) > max_utf16 {
         return Err(Error::data(
             ErrorCode::LimitExceeded,
-            format!(
-                "Item \"{}\": {field} is longer than {max_utf16} characters.",
-                item.chars().take(80).collect::<String>()
-            ),
+            format!("Item \"{}\": {field} is longer than {max_utf16} characters.", item.chars().take(80).collect::<String>()),
         ));
     }
     Ok(())
@@ -465,8 +449,7 @@ fn check_text(t: &Text, depth: usize, ctx: &mut Ctx) -> Result<()> {
 /// silently turns NaN into `null`, so validation must come first).
 pub fn serialize_scene(scene: &Scene) -> Result<String> {
     validate(scene)?;
-    serde_json::to_string(scene)
-        .map_err(|e| Error::data(ErrorCode::InvalidScene, format!("Could not serialize the scene ({e}).")))
+    serde_json::to_string(scene).map_err(|e| Error::data(ErrorCode::InvalidScene, format!("Could not serialize the scene ({e}).")))
 }
 
 #[cfg(test)]
@@ -601,8 +584,7 @@ mod tests {
     #[test]
     fn text_outlines_must_be_shapes() {
         let s = mutate(CLIP_TEXT, |v| {
-            v["items"][0]["children"][0]["outlines"] =
-                serde_json::json!([{"type":"group","id":"x","name":"x","children":[]}]);
+            v["items"][0]["children"][0]["outlines"] = serde_json::json!([{"type":"group","id":"x","name":"x","children":[]}]);
         });
         assert!(parse_scene(&s, Component::Bridge).unwrap_err().message.contains("outlines"));
     }

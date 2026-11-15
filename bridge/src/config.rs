@@ -21,21 +21,13 @@ pub struct Paths {
 impl Paths {
     /// The standard per-user location.
     pub fn resolve() -> std::io::Result<Paths> {
-        let base = directories::BaseDirs::new()
-            .map(|b| b.config_dir().to_path_buf())
-            .ok_or_else(|| std::io::Error::other("no per-user config directory"))?;
+        let base = directories::BaseDirs::new().map(|b| b.config_dir().to_path_buf()).ok_or_else(|| std::io::Error::other("no per-user config directory"))?;
         Paths::under(base.join("Pulley"))
     }
 
     /// A specific root (tests, `--config-dir`).
     pub fn under(root: PathBuf) -> std::io::Result<Paths> {
-        let p = Paths {
-            logs: root.join("logs"),
-            tmp: root.join("tmp"),
-            token: root.join("session.token"),
-            settings: root.join("settings.json"),
-            root,
-        };
+        let p = Paths { logs: root.join("logs"), tmp: root.join("tmp"), token: root.join("session.token"), settings: root.join("settings.json"), root };
         for d in [&p.root, &p.logs, &p.tmp] {
             fs::create_dir_all(d)?;
             restrict_dir(d);
@@ -150,10 +142,7 @@ pub fn new_session_token(paths: &Paths) -> std::io::Result<String> {
 
 /// Seconds since the Unix epoch, as text (for "created" stamps).
 pub fn now_stamp() -> String {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs().to_string())
-        .unwrap_or_default()
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs().to_string()).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -185,8 +174,7 @@ mod tests {
     #[test]
     fn settings_roundtrip_and_bad_file() {
         let paths = Paths::under(temp_root("settings")).unwrap();
-        let mut s = Settings::default();
-        s.debug_logging = true;
+        let mut s = Settings { debug_logging: true, ..Default::default() };
         s.figma_clients.push(FigmaClient { name: "Figma".into(), secret: "x".into(), created: "1".into() });
         s.save(&paths).unwrap();
         assert_eq!(Settings::load(&paths).0, s);

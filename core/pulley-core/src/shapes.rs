@@ -86,12 +86,12 @@ fn dedupe(b: Builder) -> Builder {
     let n = b.v.len();
     let mut out = Builder::new();
     for i in 0..n {
-        if let Some(last) = out.v.last() {
-            if last.dist(b.v[i]) < 1e-9 {
-                let li = out.v.len() - 1;
-                out.outs[li] = b.outs[i];
-                continue;
-            }
+        if let Some(last) = out.v.last()
+            && last.dist(b.v[i]) < 1e-9
+        {
+            let li = out.v.len() - 1;
+            out.outs[li] = b.outs[i];
+            continue;
         }
         out.vertex(b.v[i], b.ins[i], b.outs[i]);
     }

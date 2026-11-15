@@ -3,9 +3,9 @@
 //! cargo run -p pulley-bridge --example push -- <scene.json>... [--port 47290] [--config-dir DIR] [--wait-ae 120]
 use futures_util::{SinkExt, StreamExt};
 use std::time::{Duration, Instant};
+use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
-use tokio_tungstenite::tungstenite::Message;
 
 fn arg(args: &[String], name: &str) -> Option<String> {
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1).cloned())
@@ -16,10 +16,10 @@ async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let port: u16 = arg(&args, "--port").and_then(|p| p.parse().ok()).unwrap_or(47290);
     let wait_ae: u64 = arg(&args, "--wait-ae").and_then(|p| p.parse().ok()).unwrap_or(120);
-    let config = arg(&args, "--config-dir").map(std::path::PathBuf::from).unwrap_or_else(|| {
-        directories::BaseDirs::new().expect("dirs").config_dir().join("Pulley")
-    });
-    let scenes: Vec<String> = args.iter().enumerate().filter(|(i, a)| !a.starts_with("--") && (*i == 0 || !args[i - 1].starts_with("--"))).map(|(_, a)| a.clone()).collect();
+    let config =
+        arg(&args, "--config-dir").map(std::path::PathBuf::from).unwrap_or_else(|| directories::BaseDirs::new().expect("dirs").config_dir().join("Pulley"));
+    let scenes: Vec<String> =
+        args.iter().enumerate().filter(|(i, a)| !a.starts_with("--") && (*i == 0 || !args[i - 1].starts_with("--"))).map(|(_, a)| a.clone()).collect();
     let token = std::fs::read_to_string(config.join("session.token")).expect("session.token (is the bridge running?)");
     let mut req = format!("ws://127.0.0.1:{port}/").into_client_request().unwrap();
     req.headers_mut().insert("Origin", HeaderValue::from_static("file://"));
@@ -69,7 +69,8 @@ async fn main() {
                 v
             };
             for (i, p) in parts.iter().enumerate() {
-                let m = serde_json::json!({"protocol":1,"id":format!("c{n}-{i}"),"type":"scene_chunk","transfer":transfer,"index":i,"total":parts.len(),"data":p});
+                let m =
+                    serde_json::json!({"protocol":1,"id":format!("c{n}-{i}"),"type":"scene_chunk","transfer":transfer,"index":i,"total":parts.len(),"data":p});
                 ws.send(Message::text(m.to_string())).await.unwrap();
             }
         }

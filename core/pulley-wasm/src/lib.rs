@@ -6,10 +6,10 @@
 //! This crate is separate from pulley-core only because `#[wasm_bindgen]` expands to unsafe
 //! code, which pulley-core forbids. It contains no hand-written unsafe code.
 
-use pulley_core::aeplan::{build_plan, AeOptions};
-use pulley_core::illustrator::{capture_to_scene, AiOptions};
-use pulley_core::validate::{parse_scene, serialize_scene, validate, Component};
 use pulley_core::Error;
+use pulley_core::aeplan::{AeOptions, build_plan};
+use pulley_core::illustrator::{AiOptions, capture_to_scene};
+use pulley_core::validate::{Component, parse_scene, serialize_scene, validate};
 use wasm_bindgen::prelude::*;
 
 fn err(e: Error) -> JsValue {
@@ -20,9 +20,8 @@ fn opts<T: serde::de::DeserializeOwned + Default>(json: &str) -> Result<T, JsVal
     if json.trim().is_empty() {
         return Ok(T::default());
     }
-    serde_json::from_str(json).map_err(|e| {
-        err(Error::new(pulley_core::ErrorCode::InvalidOptions, format!("Invalid options ({e})."), "Reset the panel's settings."))
-    })
+    serde_json::from_str(json)
+        .map_err(|e| err(Error::new(pulley_core::ErrorCode::InvalidOptions, format!("Invalid options ({e})."), "Reset the panel's settings.")))
 }
 
 fn component(name: &str) -> Component {

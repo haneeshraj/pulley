@@ -128,14 +128,7 @@ impl Affine {
     pub fn mul(&self, other: &Affine) -> Affine {
         let [a1, b1, c1, d1, e1, f1] = self.0;
         let [a2, b2, c2, d2, e2, f2] = other.0;
-        Affine([
-            a1 * a2 + c1 * b2,
-            b1 * a2 + d1 * b2,
-            a1 * c2 + c1 * d2,
-            b1 * c2 + d1 * d2,
-            a1 * e2 + c1 * f2 + e1,
-            b1 * e2 + d1 * f2 + f1,
-        ])
+        Affine([a1 * a2 + c1 * b2, b1 * a2 + d1 * b2, a1 * c2 + c1 * d2, b1 * c2 + d1 * d2, a1 * e2 + c1 * f2 + e1, b1 * e2 + d1 * f2 + f1])
     }
 
     /// Apply `self` first, then `next`.
@@ -155,14 +148,7 @@ impl Affine {
         }
         let [a, b, c, d, e, f] = self.0;
         let inv = 1.0 / det;
-        let r = Affine([
-            d * inv,
-            -b * inv,
-            -c * inv,
-            a * inv,
-            (c * f - d * e) * inv,
-            (b * e - a * f) * inv,
-        ]);
+        let r = Affine([d * inv, -b * inv, -c * inv, a * inv, (c * f - d * e) * inv, (b * e - a * f) * inv]);
         r.is_finite().then_some(r)
     }
 
@@ -171,10 +157,7 @@ impl Affine {
     }
 
     pub fn is_identity(&self) -> bool {
-        self.0
-            .iter()
-            .zip(Affine::IDENTITY.0.iter())
-            .all(|(a, b)| (a - b).abs() < 1e-12)
+        self.0.iter().zip(Affine::IDENTITY.0.iter()).all(|(a, b)| (a - b).abs() < 1e-12)
     }
 
     /// Decompose into translation, rotation (radians), scale and skew (radians, x-shear),
@@ -217,10 +200,7 @@ pub struct Bounds {
 
 impl Bounds {
     pub fn empty() -> Bounds {
-        Bounds {
-            min: Pt::new(f64::INFINITY, f64::INFINITY),
-            max: Pt::new(f64::NEG_INFINITY, f64::NEG_INFINITY),
-        }
+        Bounds { min: Pt::new(f64::INFINITY, f64::INFINITY), max: Pt::new(f64::NEG_INFINITY, f64::NEG_INFINITY) }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -257,11 +237,7 @@ impl Bounds {
     pub fn add_cubic(&mut self, p0: Pt, p1: Pt, p2: Pt, p3: Pt) {
         self.add(p0);
         self.add(p3);
-        for t in cubic_extrema(p0.x, p1.x, p2.x, p3.x)
-            .into_iter()
-            .chain(cubic_extrema(p0.y, p1.y, p2.y, p3.y))
-            .flatten()
-        {
+        for t in cubic_extrema(p0.x, p1.x, p2.x, p3.x).into_iter().chain(cubic_extrema(p0.y, p1.y, p2.y, p3.y)).flatten() {
             self.add(cubic_point(p0, p1, p2, p3, t));
         }
     }
@@ -327,9 +303,7 @@ mod tests {
 
     #[test]
     fn affine_inverse_roundtrip() {
-        let m = Affine::translate(10.0, -4.0)
-            .mul(&Affine::rotate(0.7))
-            .mul(&Affine::scale(2.0, 0.5));
+        let m = Affine::translate(10.0, -4.0).mul(&Affine::rotate(0.7)).mul(&Affine::scale(2.0, 0.5));
         let inv = m.inverse().unwrap();
         let p = Pt::new(3.0, 9.0);
         let q = inv.apply(m.apply(p));
@@ -352,9 +326,7 @@ mod tests {
 
     #[test]
     fn decompose_rotation_scale() {
-        let m = Affine::translate(1.0, 2.0)
-            .mul(&Affine::rotate(0.5))
-            .mul(&Affine::scale(3.0, 4.0));
+        let m = Affine::translate(1.0, 2.0).mul(&Affine::rotate(0.5)).mul(&Affine::scale(3.0, 4.0));
         let d = m.decompose();
         assert!(close(d.tx, 1.0) && close(d.ty, 2.0));
         assert!(close(d.rotation, 0.5));

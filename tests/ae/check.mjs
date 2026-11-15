@@ -186,6 +186,16 @@ const tests = {
       check(this.n, child(tr, 'ADBE Vector Group Opacity').value === 50 && child(b, 'ADBE Vector Blend Mode').value === 4, 'group opacity 50 and multiply');
     }
   },
+  'undo-existing'(r) {
+    const u = r.undo;
+    check(this.n, r.res.gradientsApplied === 2, 'gradient presets were applied before undoing');
+    check(this.n, u.layersBefore === 1 && u.layersAfter === 0 && u.itemsAfter === u.itemsBefore, `one Undo removes the whole import (layers ${u.layersBefore} -> ${u.layersAfter}, items ${u.itemsBefore} -> ${u.itemsAfter}, command ${u.command})`);
+  },
+  'undo-newcomp'(r) {
+    const u = r.undo;
+    check(this.n, r.res.gradientsApplied === 5, 'gradient presets were applied before undoing');
+    check(this.n, u.layersBefore === 5 && u.layersAfter === 0 && u.itemsAfter === u.itemsBefore - 1, `one Undo removes the import and its new comp (layers ${u.layersBefore} -> ${u.layersAfter}, items ${u.itemsBefore} -> ${u.itemsAfter}, command ${u.command})`);
+  },
   'ai-perf-merge'(r) {
     check(this.n, r.res.ok && r.dump.layers.length === 1, 'one layer, 500 groups');
     console.log(`  perf: 500 paths x 20 vertices, one layer: ${r.res.ms} ms`);

@@ -190,12 +190,11 @@ pub fn parse_path_data(d: &str) -> Result<Vec<SubPath>> {
         let rel = this.is_ascii_lowercase();
         let base = if rel { cur } else { Pt::ZERO };
         // After Z, a drawing command starts a new subpath at the same start point.
-        if !matches!(this, b'M' | b'm' | b'Z' | b'z') {
-            if let Some(last) = out.last() {
-                if last.closed {
-                    out.push(SubPath { start, segs: Vec::new(), closed: false });
-                }
-            }
+        if !matches!(this, b'M' | b'm' | b'Z' | b'z')
+            && let Some(last) = out.last()
+            && last.closed
+        {
+            out.push(SubPath { start, segs: Vec::new(), closed: false });
         }
         let mut new_cubic_ctrl = None;
         let mut new_quad_ctrl = None;
@@ -598,10 +597,7 @@ mod tests {
     fn to_scene_paths_merges_closing_vertex() {
         // Circle drawn with 4 cubics ending exactly at the start, then Z.
         let k = crate::geom::KAPPA * 10.0;
-        let d = format!(
-            "M10 0 C10 {k} {k} 10 0 10 C{nk} 10 -10 {k} -10 0 C-10 {nk} {nk} -10 0 -10 C{k} -10 10 {nk} 10 0 Z",
-            nk = -k
-        );
+        let d = format!("M10 0 C10 {k} {k} 10 0 10 C{nk} 10 -10 {k} -10 0 C-10 {nk} {nk} -10 0 -10 C{k} -10 10 {nk} 10 0 Z", nk = -k);
         let paths = path_data_to_paths(&d, &Affine::IDENTITY).unwrap();
         assert_eq!(paths.len(), 1);
         let p = &paths[0];

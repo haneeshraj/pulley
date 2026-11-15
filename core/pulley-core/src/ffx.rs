@@ -32,8 +32,8 @@ const HEAD: [u8; 16] = [0, 0, 0, 3, 0, 0, 0, 0x5f, 0, 0, 0, 1, 1, 2, 0, 0];
 
 /// Preset info: time base, duration and a 1920x1080 reference comp, as in AE's shipped presets.
 const BESO: [u8; 56] = [
-    0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0x5d, 0xa8, 0, 0x1d, 0xf8, 0x52, 0, 0, 0, 4, 0, 1, 0, 1, 0x07, 0x80, 0x04, 0x38,
-    0x3f, 0xf0, 0, 0, 0, 0, 0, 0, 0x3f, 0xf0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff,
+    0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0x5d, 0xa8, 0, 0x1d, 0xf8, 0x52, 0, 0, 0, 4, 0, 1, 0, 1, 0x07, 0x80, 0x04, 0x38, 0x3f, 0xf0, 0, 0, 0, 0, 0, 0,
+    0x3f, 0xf0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff,
 ];
 
 /// Property record of a shape gradient's Colors parameter, exactly as After Effects writes it
@@ -108,7 +108,10 @@ pub fn gradient_xml(stops: &[GradientStop]) -> String {
     let section = |title: &str, key: &str, rows: Vec<Vec<f64>>| {
         let mut s = format!("<prop.pair>\n<key>{title}</key>\n<prop.list>\n<prop.pair>\n<key>Stops List</key>\n<prop.list>\n");
         for (i, r) in rows.iter().enumerate() {
-            s.push_str(&format!("<prop.pair>\n<key>Stop-{i}</key>\n<prop.list>\n<prop.pair>\n<key>{key}</key>\n{}</prop.pair>\n</prop.list>\n</prop.pair>\n", floats(r)));
+            s.push_str(&format!(
+                "<prop.pair>\n<key>Stop-{i}</key>\n<prop.list>\n<prop.pair>\n<key>{key}</key>\n{}</prop.pair>\n</prop.list>\n</prop.pair>\n",
+                floats(r)
+            ));
         }
         s.push_str(&format!("</prop.list>\n</prop.pair>\n<prop.pair>\n<key>Stops Size</key>\n<int type='unsigned' size='32'>{}</int>\n</prop.pair>\n</prop.list>\n</prop.pair>\n", rows.len()));
         s

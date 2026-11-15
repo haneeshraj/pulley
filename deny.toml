@@ -1,0 +1,46 @@
+# cargo deny check: dependency licenses, duplicate/banned crates, sources, advisories.
+[graph]
+all-features = true
+# Pulley ships for Windows and macOS (where After Effects runs), plus the WebAssembly core.
+# Linux-only dependencies of the tray crates (GTK) are therefore not part of the product.
+targets = [
+  "x86_64-pc-windows-msvc",
+  "x86_64-pc-windows-gnu",
+  "aarch64-pc-windows-msvc",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "wasm32-unknown-unknown",
+]
+
+[advisories]
+# RustSec database; yanked versions are errors.
+yanked = "deny"
+
+[licenses]
+# Permissive licenses only. Pulley's own crates are unpublished and not checked here.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "Zlib",
+  "Unicode-3.0",
+  "0BSD",
+  # option-ext (via dirs-sys, used by directories/dirs): file-level copyleft that only applies
+  # to changes of its own files; used unmodified.
+  "MPL-2.0",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

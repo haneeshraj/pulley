@@ -4,16 +4,16 @@
 
 use crate::hub::{AuthError, Hub, Origin};
 use futures_util::{SinkExt, StreamExt};
-use pulley_core::protocol::{self, Body, Role, MAX_FRAME_BYTES};
+use pulley_core::protocol::{self, Body, MAX_FRAME_BYTES, Role};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
-use tokio::time::{timeout, Instant};
+use tokio::time::{Instant, timeout};
+use tokio_tungstenite::tungstenite::Message as WsMsg;
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tokio_tungstenite::tungstenite::http::{Response as HttpResponse, StatusCode};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
-use tokio_tungstenite::tungstenite::Message as WsMsg;
 use tracing::{debug, info, warn};
 
 const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
@@ -86,6 +86,8 @@ pub async fn run(listener: TcpListener, hub: Arc<Hub>) {
 
 async fn handle(stream: TcpStream, port: u16, hub: Arc<Hub>) -> Result<(), String> {
     let mut origin = None;
+    // The callback type is fixed by tungstenite (its error type is an HTTP response).
+    #[allow(clippy::result_large_err)]
     let cb = |req: &Request, resp: Response| -> Result<Response, ErrorResponse> {
         match check_request(req, port) {
             Ok(o) => {
@@ -127,11 +129,7 @@ async fn handle(stream: TcpStream, port: u16, hub: Arc<Hub>) -> Result<(), Strin
     let mut role: Option<Role> = None;
     let auth_deadline = Instant::now() + AUTH_TIMEOUT;
     loop {
-        let next = if role.is_none() {
-            tokio::time::timeout_at(auth_deadline, stream.next()).await
-        } else {
-            timeout(IDLE_TIMEOUT, stream.next()).await
-        };
+        let next = if role.is_none() { tokio::time::timeout_at(auth_deadline, stream.next()).await } else { timeout(IDLE_TIMEOUT, stream.next()).await };
         let msg = match next {
             Err(_) => {
                 debug!(conn, "timed out");

@@ -124,17 +124,52 @@ mod wire {
         };
     }
 
-    wire!(Hello { role: Role, client_version: String, #[serde(default)] app_version: String, #[serde(default)] instance: String, token: String });
-    wire!(Welcome { bridge_version: String, #[serde(default)] instance: String });
-    wire!(PairRequest { code: String, #[serde(default)] name: String });
+    wire!(Hello {
+        role: Role,
+        client_version: String,
+        #[serde(default)]
+        app_version: String,
+        #[serde(default)]
+        instance: String,
+        token: String
+    });
+    wire!(Welcome {
+        bridge_version: String,
+        #[serde(default)]
+        instance: String
+    });
+    wire!(PairRequest {
+        code: String,
+        #[serde(default)]
+        name: String
+    });
     wire!(Paired { secret: String });
     wire!(Status { clients: Vec<ClientInfo> });
     wire!(PushScene { transfer: String, scene: Box<RawValue>, #[serde(default)] pull: bool });
-    wire!(SceneChunk { transfer: String, index: u32, total: u32, data: String, #[serde(default)] pull: bool });
+    wire!(SceneChunk {
+        transfer: String,
+        index: u32,
+        total: u32,
+        data: String,
+        #[serde(default)]
+        pull: bool
+    });
     wire!(PullRequest { transfer: String });
-    wire!(PullError { transfer: String, code: String, message: String, #[serde(default)] hint: String });
+    wire!(PullError {
+        transfer: String,
+        code: String,
+        message: String,
+        #[serde(default)]
+        hint: String
+    });
     wire!(ImportResult { transfer: String, result: ImportSummary });
-    wire!(Progress { transfer: String, done: u32, total: u32, #[serde(default)] stage: String });
+    wire!(Progress {
+        transfer: String,
+        done: u32,
+        total: u32,
+        #[serde(default)]
+        stage: String
+    });
     wire!(Cancel { transfer: String });
     wire!(Empty {});
     wire!(Error { code: String, message: String, #[serde(default)] hint: String, #[serde(default)] reply_to: Option<String> });
@@ -161,15 +196,18 @@ pub fn parse_message(text: &str) -> Result<Message> {
         #[serde(default, rename = "type")]
         kind: Option<String>,
     }
-    let probe: Probe = serde_json::from_str(text)
-        .map_err(|e| Error::data(ErrorCode::InvalidMessage, format!("A message from a Pulley client is not valid JSON ({e}).")))?;
+    let probe: Probe =
+        serde_json::from_str(text).map_err(|e| Error::data(ErrorCode::InvalidMessage, format!("A message from a Pulley client is not valid JSON ({e}).")))?;
     match probe.protocol {
         Some(v) if v == u64::from(PROTOCOL_VERSION) => {}
         Some(v) => {
             let (msg, hint) = if v > u64::from(PROTOCOL_VERSION) {
                 (format!("A Pulley client speaks protocol v{v}, newer than this bridge (v{PROTOCOL_VERSION})."), "Update the Pulley bridge.")
             } else {
-                (format!("A Pulley client speaks protocol v{v}, older than this bridge (v{PROTOCOL_VERSION})."), "Update the Pulley panel or plugin that is connecting.")
+                (
+                    format!("A Pulley client speaks protocol v{v}, older than this bridge (v{PROTOCOL_VERSION})."),
+                    "Update the Pulley panel or plugin that is connecting.",
+                )
             };
             return Err(Error::new(ErrorCode::ProtocolMismatch, msg, hint));
         }
@@ -262,10 +300,10 @@ fn check(m: &Message) -> Result<()> {
         | Body::Cancel { transfer } => Some(transfer),
         _ => None,
     };
-    if let Some(t) = transfer {
-        if !short_ok(t) {
-            return Err(Error::data(ErrorCode::InvalidMessage, "A message has an invalid transfer id."));
-        }
+    if let Some(t) = transfer
+        && !short_ok(t)
+    {
+        return Err(Error::data(ErrorCode::InvalidMessage, "A message has an invalid transfer id."));
     }
     match &m.body {
         Body::SceneChunk { index, total, data, .. } => {
@@ -279,15 +317,13 @@ fn check(m: &Message) -> Result<()> {
                 return Err(Error::data(ErrorCode::InvalidMessage, "A hello message has oversized fields."));
             }
         }
-        Body::PairRequest { code, name } => {
-            if code.len() > 32 || name.len() > 128 {
-                return Err(Error::data(ErrorCode::InvalidMessage, "A pairing request has oversized fields."));
-            }
+        Body::PairRequest { code, name } if code.len() > 32 || name.len() > 128 => {
+            return Err(Error::data(ErrorCode::InvalidMessage, "A pairing request has oversized fields."));
         }
-        Body::ImportResult { result, .. } => {
-            if result.warnings.len() > 10_000 || result.errors.len() > 10_000 || result.missing_fonts.len() > 10_000 || result.timings.len() > 64 {
-                return Err(Error::data(ErrorCode::InvalidMessage, "An import result is too large."));
-            }
+        Body::ImportResult { result, .. }
+            if result.warnings.len() > 10_000 || result.errors.len() > 10_000 || result.missing_fonts.len() > 10_000 || result.timings.len() > 64 =>
+        {
+            return Err(Error::data(ErrorCode::InvalidMessage, "An import result is too large."));
         }
         _ => {}
     }
@@ -304,22 +340,32 @@ pub fn to_text(id: &str, body: &Body) -> String {
         }};
     }
     match body {
-        Body::Hello { role, client_version, app_version, instance, token } => ser!(Hello, "hello", { role: *role, client_version: client_version.clone(), app_version: app_version.clone(), instance: instance.clone(), token: token.clone() }),
+        Body::Hello { role, client_version, app_version, instance, token } => {
+            ser!(Hello, "hello", { role: *role, client_version: client_version.clone(), app_version: app_version.clone(), instance: instance.clone(), token: token.clone() })
+        }
         Body::Welcome { bridge_version, instance } => ser!(Welcome, "welcome", { bridge_version: bridge_version.clone(), instance: instance.clone() }),
         Body::PairRequest { code, name } => ser!(PairRequest, "pair_request", { code: code.clone(), name: name.clone() }),
         Body::Paired { secret } => ser!(Paired, "paired", { secret: secret.clone() }),
         Body::Status { clients } => ser!(Status, "status", { clients: clients.clone() }),
         Body::PushScene { transfer, scene, pull } => ser!(PushScene, "push_scene", { transfer: transfer.clone(), scene: scene.clone(), pull: *pull }),
-        Body::SceneChunk { transfer, index, total, data, pull } => ser!(SceneChunk, "scene_chunk", { transfer: transfer.clone(), index: *index, total: *total, data: data.clone(), pull: *pull }),
+        Body::SceneChunk { transfer, index, total, data, pull } => {
+            ser!(SceneChunk, "scene_chunk", { transfer: transfer.clone(), index: *index, total: *total, data: data.clone(), pull: *pull })
+        }
         Body::PullRequest { transfer } => ser!(PullRequest, "pull_request", { transfer: transfer.clone() }),
-        Body::PullError { transfer, code, message, hint } => ser!(PullError, "pull_error", { transfer: transfer.clone(), code: code.clone(), message: message.clone(), hint: hint.clone() }),
+        Body::PullError { transfer, code, message, hint } => {
+            ser!(PullError, "pull_error", { transfer: transfer.clone(), code: code.clone(), message: message.clone(), hint: hint.clone() })
+        }
         Body::ImportResult { transfer, result } => ser!(ImportResult, "import_result", { transfer: transfer.clone(), result: result.clone() }),
-        Body::Progress { transfer, done, total, stage } => ser!(Progress, "progress", { transfer: transfer.clone(), done: *done, total: *total, stage: stage.clone() }),
+        Body::Progress { transfer, done, total, stage } => {
+            ser!(Progress, "progress", { transfer: transfer.clone(), done: *done, total: *total, stage: stage.clone() })
+        }
         Body::Cancel { transfer } => ser!(Cancel, "cancel", { transfer: transfer.clone() }),
         Body::Activity => ser!(Empty, "activity", {}),
         Body::Ping => ser!(Empty, "ping", {}),
         Body::Pong => ser!(Empty, "pong", {}),
-        Body::Error { code, message, hint, reply_to } => ser!(Error, "error", { code: code.clone(), message: message.clone(), hint: hint.clone(), reply_to: reply_to.clone() }),
+        Body::Error { code, message, hint, reply_to } => {
+            ser!(Error, "error", { code: code.clone(), message: message.clone(), hint: hint.clone(), reply_to: reply_to.clone() })
+        }
     }
 }
 

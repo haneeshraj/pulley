@@ -1,0 +1,51 @@
+[package]
+name = "pulley-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+pulley-core = { path = "../core/pulley-core" }
+
+# Separate from the main workspace: these targets need nightly and libFuzzer.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "scene"
+path = "fuzz_targets/scene.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "protocol"
+path = "fuzz_targets/protocol.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "svg_path"
+path = "fuzz_targets/svg_path.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "illustrator"
+path = "fuzz_targets/illustrator.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "figma"
+path = "fuzz_targets/figma.rs"
+test = false
+doc = false
+bench = false

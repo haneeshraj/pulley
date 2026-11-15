@@ -68,10 +68,10 @@ fn icons(check_only: bool) -> i32 {
             println!("FAIL {id}");
         }
     }
-    if let Some(b) = reg.get("bundles").and_then(|b| b.get("uiJs")) {
-        if let Err(e) = ui_bundle(&ctx, slots, b) {
-            problems.push(format!("bundle uiJs: {e}"));
-        }
+    if let Some(b) = reg.get("bundles").and_then(|b| b.get("uiJs"))
+        && let Err(e) = ui_bundle(&ctx, slots, b)
+    {
+        problems.push(format!("bundle uiJs: {e}"));
     }
     if problems.is_empty() {
         println!("{} slots, {outputs} outputs: all valid.", slots.len());
@@ -207,10 +207,13 @@ fn render(ctx: &Ctx, data: &[u8], is_svg: bool, w: u32, h: u32) -> Result<resvg:
 
 /// Straight (non-premultiplied) RGBA.
 fn rgba(px: &resvg::tiny_skia::Pixmap) -> Vec<u8> {
-    px.pixels().iter().flat_map(|p| {
-        let c = p.demultiply();
-        [c.red(), c.green(), c.blue(), c.alpha()]
-    }).collect()
+    px.pixels()
+        .iter()
+        .flat_map(|p| {
+            let c = p.demultiply();
+            [c.red(), c.green(), c.blue(), c.alpha()]
+        })
+        .collect()
 }
 
 fn dims(out: &Value) -> Result<(u32, u32), String> {
@@ -258,7 +261,7 @@ fn write_bmp(ctx: &Ctx, data: &[u8], is_svg: bool, out: &Value, path: &Path) -> 
     let (w, h) = dims(out)?;
     let px = render(ctx, data, is_svg, w, h)?;
     let src = rgba(&px);
-    let row = ((w * 3 + 3) / 4) * 4;
+    let row = (w * 3).div_ceil(4) * 4;
     let size = 54 + row * h;
     let mut b: Vec<u8> = Vec::with_capacity(size as usize);
     b.extend_from_slice(b"BM");
@@ -335,10 +338,10 @@ fn validate_output(path: &Path, format: &str, out: &Value, slot: &Value) -> Vec<
             match dec.read_info() {
                 Ok(mut r) => {
                     let info = r.info().clone();
-                    if let Ok((w, h)) = dims(out) {
-                        if info.width != w || info.height != h {
-                            p.push(format!("is {}x{}, expected {w}x{h}", info.width, info.height));
-                        }
+                    if let Ok((w, h)) = dims(out)
+                        && (info.width != w || info.height != h)
+                    {
+                        p.push(format!("is {}x{}, expected {w}x{h}", info.width, info.height));
                     }
                     let has_alpha = matches!(info.color_type, png::ColorType::Rgba | png::ColorType::GrayscaleAlpha);
                     if want_alpha && !has_alpha {
@@ -347,12 +350,12 @@ fn validate_output(path: &Path, format: &str, out: &Value, slot: &Value) -> Vec<
                     if template {
                         let Some(n) = r.output_buffer_size() else { return p };
                         let mut buf = vec![0; n];
-                        if let Ok(fi) = r.next_frame(&mut buf) {
-                            if fi.color_type == png::ColorType::Rgba {
-                                let bad = buf[..fi.buffer_size()].chunks_exact(4).filter(|c| c[3] > 0 && (c[0] > 8 || c[1] > 8 || c[2] > 8)).count();
-                                if bad > 0 {
-                                    p.push(format!("template icon must be black + alpha only ({bad} colored pixels)"));
-                                }
+                        if let Ok(fi) = r.next_frame(&mut buf)
+                            && fi.color_type == png::ColorType::Rgba
+                        {
+                            let bad = buf[..fi.buffer_size()].as_chunks::<4>().0.iter().filter(|c| c[3] > 0 && (c[0] > 8 || c[1] > 8 || c[2] > 8)).count();
+                            if bad > 0 {
+                                p.push(format!("template icon must be black + alpha only ({bad} colored pixels)"));
                             }
                         }
                     }
@@ -415,7 +418,13 @@ fn ui_bundle(ctx: &Ctx, slots: &serde_json::Map<String, Value>, b: &Value) -> Re
         if !id.starts_with(prefix) {
             continue;
         }
-        let out = slot.get("outputs").and_then(Value::as_array).and_then(|o| o.first()).and_then(|o| o.get("path")).and_then(Value::as_str).ok_or("ui slot without output")?;
+        let out = slot
+            .get("outputs")
+            .and_then(Value::as_array)
+            .and_then(|o| o.first())
+            .and_then(|o| o.get("path"))
+            .and_then(Value::as_str)
+            .ok_or("ui slot without output")?;
         let svg = fs::read_to_string(ctx.dir.join(out)).map_err(|e| format!("{id}: {e}"))?;
         let svg = svg.trim().replacen("<svg ", "<svg width=\"16\" height=\"16\" focusable=\"false\" ", 1);
         entries.push(format!("  {}: {}", serde_json::to_string(id).unwrap_or_default(), serde_json::to_string(&svg).unwrap_or_default()));

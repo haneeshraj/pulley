@@ -107,17 +107,12 @@ impl<'a> SvgDoc<'a> {
             return Err(Error::data(ErrorCode::LimitExceeded, "The exported SVG is too large."));
         }
         let opts = roxmltree::ParsingOptions { allow_dtd: true, nodes_limit: 8_000_000 };
-        let doc = roxmltree::Document::parse_with_options(text, opts)
-            .map_err(|e| svg_err(format!("Illustrator's SVG export could not be read ({e}).")))?;
+        let doc = roxmltree::Document::parse_with_options(text, opts).map_err(|e| svg_err(format!("Illustrator's SVG export could not be read ({e}).")))?;
         let root = doc.root_element();
         if root.tag_name().name() != "svg" {
             return Err(svg_err("Illustrator's export is not an SVG document."));
         }
-        let vb = root
-            .attribute("viewBox")
-            .map(parse_numbers)
-            .filter(|v| v.len() == 4)
-            .unwrap_or_else(|| vec![0.0, 0.0, 0.0, 0.0]);
+        let vb = root.attribute("viewBox").map(parse_numbers).filter(|v| v.len() == 4).unwrap_or_else(|| vec![0.0, 0.0, 0.0, 0.0]);
         let root_xf = Affine::scale(scale, scale).mul(&Affine::translate(-vb[0], -vb[1]));
         let mut ids = HashMap::new();
         for n in doc.descendants().filter(|n| n.is_element()) {
@@ -176,13 +171,12 @@ impl<'a> SvgDoc<'a> {
         while let Some(n) = cur {
             if n.is_element() {
                 let name = n.tag_name().name();
-                if name == "clipPath" || name == "mask" {
-                    if let Some(id) = n.attribute("id") {
-                        if let Some(referrer) = self.find_referrer(id) {
-                            chain.push(self.ctm(referrer));
-                            return chain.iter().rev().fold(Affine::IDENTITY, |acc, m| acc.mul(m));
-                        }
-                    }
+                if (name == "clipPath" || name == "mask")
+                    && let Some(id) = n.attribute("id")
+                    && let Some(referrer) = self.find_referrer(id)
+                {
+                    chain.push(self.ctm(referrer));
+                    return chain.iter().rev().fold(Affine::IDENTITY, |acc, m| acc.mul(m));
                 }
                 if let Some(t) = n.attribute("transform") {
                     chain.push(parse_transform(t));
@@ -198,9 +192,7 @@ impl<'a> SvgDoc<'a> {
     fn find_referrer(&self, clip_id: &str) -> Option<roxmltree::Node<'_, 'a>> {
         let want = format!("url(#{clip_id})");
         self.doc.descendants().find(|n| {
-            n.is_element()
-                && (n.attribute("clip-path").map(str::trim) == Some(want.as_str())
-                    || n.attribute("mask").map(str::trim) == Some(want.as_str()))
+            n.is_element() && (n.attribute("clip-path").map(str::trim) == Some(want.as_str()) || n.attribute("mask").map(str::trim) == Some(want.as_str()))
         })
     }
 
@@ -297,9 +289,7 @@ impl<'a> SvgDoc<'a> {
     /// wraps a clip group's children in `<g clip-path="url(#...)">`).
     pub fn group_clip_paths(&self, id: &str) -> Option<Vec<Path>> {
         let g = self.node(id)?;
-        let holder = std::iter::once(g)
-            .chain(g.children().filter(|c| c.is_element()))
-            .find(|c| c.attribute("clip-path").is_some())?;
+        let holder = std::iter::once(g).chain(g.children().filter(|c| c.is_element())).find(|c| c.attribute("clip-path").is_some())?;
         let url = holder.attribute("clip-path")?;
         let cid = url.trim().strip_prefix("url(#")?.strip_suffix(')')?;
         let clip = self.node(cid)?;
@@ -405,11 +395,7 @@ impl<'a> SvgDoc<'a> {
             if !stops.is_empty() {
                 return stops;
             }
-            cur = g
-                .attribute((XLINK, "href"))
-                .or_else(|| g.attribute("href"))
-                .and_then(|h| h.strip_prefix('#'))
-                .and_then(|h| self.node(h));
+            cur = g.attribute((XLINK, "href")).or_else(|| g.attribute("href")).and_then(|h| h.strip_prefix('#')).and_then(|h| self.node(h));
         }
         Vec::new()
     }
@@ -422,11 +408,7 @@ impl<'a> SvgDoc<'a> {
             if let Some(v) = n.attribute(name) {
                 return Some(v.to_string());
             }
-            cur = n
-                .attribute((XLINK, "href"))
-                .or_else(|| n.attribute("href"))
-                .and_then(|h| h.strip_prefix('#'))
-                .and_then(|h| self.node(h));
+            cur = n.attribute((XLINK, "href")).or_else(|| n.attribute("href")).and_then(|h| h.strip_prefix('#')).and_then(|h| self.node(h));
         }
         None
     }
@@ -439,16 +421,19 @@ pub fn decode_ai_id(id: &str) -> String {
     let mut out = String::with_capacity(id.len());
     let mut i = 0;
     while i < b.len() {
-        if b[i] == b'_' && i + 3 < b.len() && b[i + 1] == b'x' {
-            if let Some(end) = id[i + 2..].find('_') {
-                let hex = &id[i + 2..i + 2 + end];
-                if (2..=6).contains(&hex.len()) && hex.bytes().all(|c| c.is_ascii_hexdigit()) {
-                    if let Some(ch) = u32::from_str_radix(hex, 16).ok().and_then(char::from_u32) {
-                        out.push(ch);
-                        i += 3 + end;
-                        continue;
-                    }
-                }
+        if b[i] == b'_'
+            && i + 3 < b.len()
+            && b[i + 1] == b'x'
+            && let Some(end) = id[i + 2..].find('_')
+        {
+            let hex = &id[i + 2..i + 2 + end];
+            if (2..=6).contains(&hex.len())
+                && hex.bytes().all(|c| c.is_ascii_hexdigit())
+                && let Some(ch) = u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
+            {
+                out.push(ch);
+                i += 3 + end;
+                continue;
             }
         }
         // Copy one UTF-8 character.
@@ -495,7 +480,7 @@ fn local_paths(n: roxmltree::Node<'_, '_>, xf: &Affine) -> Option<Vec<Path>> {
         "line" => Some(vec![shapes::polyline(&[Pt::new(f("x1"), f("y1")), Pt::new(f("x2"), f("y2"))], false, xf)]),
         "polyline" | "polygon" => {
             let nums = parse_numbers(n.attribute("points").unwrap_or(""));
-            let mut pts: Vec<Pt> = nums.chunks_exact(2).map(|c| Pt::new(c[0], c[1])).collect();
+            let mut pts: Vec<Pt> = nums.as_chunks::<2>().0.iter().map(|c| Pt::new(c[0], c[1])).collect();
             let closed = n.tag_name().name() == "polygon";
             if closed && pts.len() > 1 && pts[0].dist(pts[pts.len() - 1]) < 1e-6 {
                 pts.pop();
@@ -583,11 +568,7 @@ pub fn parse_transform(s: &str) -> Affine {
             "scale" => Affine::scale(a(0), if args.len() > 1 { a(1) } else { a(0) }),
             "rotate" => {
                 let r = Affine::rotate(a(0).to_radians());
-                if args.len() == 3 {
-                    Affine::translate(a(1), a(2)).mul(&r).mul(&Affine::translate(-a(1), -a(2)))
-                } else {
-                    r
-                }
+                if args.len() == 3 { Affine::translate(a(1), a(2)).mul(&r).mul(&Affine::translate(-a(1), -a(2))) } else { r }
             }
             "skewX" => Affine::skew_x(a(0).to_radians()),
             "skewY" => Affine::skew_y(a(0).to_radians()),
@@ -613,11 +594,7 @@ pub fn parse_paint(s: &str) -> SvgPaint {
         let v: Vec<u8> = hex.bytes().filter_map(|c| (c as char).to_digit(16).map(|d| d as u8)).collect();
         return match v.len() {
             3 => SvgPaint::Color([f64::from(v[0] * 17) / 255.0, f64::from(v[1] * 17) / 255.0, f64::from(v[2] * 17) / 255.0]),
-            6 => SvgPaint::Color([
-                f64::from(v[0] * 16 + v[1]) / 255.0,
-                f64::from(v[2] * 16 + v[3]) / 255.0,
-                f64::from(v[4] * 16 + v[5]) / 255.0,
-            ]),
+            6 => SvgPaint::Color([f64::from(v[0] * 16 + v[1]) / 255.0, f64::from(v[2] * 16 + v[3]) / 255.0, f64::from(v[4] * 16 + v[5]) / 255.0]),
             _ => SvgPaint::Color([0.0, 0.0, 0.0]),
         };
     }
@@ -755,8 +732,13 @@ mod tests {
 
     #[test]
     fn hostile_inputs_do_not_panic() {
-        for s in ["", "<svg", "<svg xmlns='http://www.w3.org/2000/svg'><path id='x' d='M0 0 L'/></svg>", "<html/>",
-                  "<svg xmlns='http://www.w3.org/2000/svg'><use id='u' xlink:href='#u' xmlns:xlink='http://www.w3.org/1999/xlink'/></svg>"] {
+        for s in [
+            "",
+            "<svg",
+            "<svg xmlns='http://www.w3.org/2000/svg'><path id='x' d='M0 0 L'/></svg>",
+            "<html/>",
+            "<svg xmlns='http://www.w3.org/2000/svg'><use id='u' xlink:href='#u' xmlns:xlink='http://www.w3.org/1999/xlink'/></svg>",
+        ] {
             if let Ok(d) = SvgDoc::parse(s, 1.0) {
                 let _ = d.shape("x");
                 let _ = d.shape("u");

@@ -1,11 +1,13 @@
 [workspace]
 resolver = "3"
 members = ["core/pulley-core", "core/pulley-wasm", "bridge", "xtask"]
+# cargo-fuzz targets: their own workspace (nightly + libFuzzer), see fuzz/README.md.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 publish = false
 
 [workspace.dependencies]

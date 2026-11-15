@@ -252,7 +252,7 @@ impl Ctx<'_, '_> {
         let mut out = Vec::with_capacity(paths.len());
         for p in paths {
             let nums = crate::svg::parse_numbers(&p.pts);
-            if nums.len() % 6 != 0 {
+            if !nums.len().is_multiple_of(6) {
                 return Err(Error::data(ErrorCode::InvalidCapture, "A path in the Illustrator capture is malformed."));
             }
             if nums.len() / 6 > crate::limits::MAX_VERTICES_PER_PATH {
@@ -263,7 +263,7 @@ impl Ctx<'_, '_> {
                 continue;
             }
             let mut path = Path { closed: p.closed, vertices: Vec::with_capacity(n), in_tangents: Vec::with_capacity(n), out_tangents: Vec::with_capacity(n) };
-            for c in nums.chunks_exact(6) {
+            for c in nums.as_chunks::<6>().0 {
                 let a = self.doc_to_scene(c[0], c[1]);
                 let l = self.doc_to_scene(c[2], c[3]);
                 let r = self.doc_to_scene(c[4], c[5]);
@@ -322,10 +322,14 @@ pub fn capture_to_scene(capture_json: &str, svg_text: &str, opts: &AiOptions) ->
         return Err(Error::data(ErrorCode::LimitExceeded, "The Illustrator capture is too large."));
     }
     if !(opts.px_per_pt.is_finite() && opts.px_per_pt > 0.0 && opts.px_per_pt <= 100.0) {
-        return Err(Error::new(ErrorCode::InvalidOptions, "The points-to-pixels setting is out of range.", "Set it between 0.01 and 100 in the Illustrator panel settings."));
+        return Err(Error::new(
+            ErrorCode::InvalidOptions,
+            "The points-to-pixels setting is out of range.",
+            "Set it between 0.01 and 100 in the Illustrator panel settings.",
+        ));
     }
-    let env: Envelope = serde_json::from_str(capture_json)
-        .map_err(|e| Error::data(ErrorCode::InvalidCapture, format!("The Illustrator capture could not be read ({e}).")))?;
+    let env: Envelope =
+        serde_json::from_str(capture_json).map_err(|e| Error::data(ErrorCode::InvalidCapture, format!("The Illustrator capture could not be read ({e}).")))?;
     if !env.ok {
         let e = env.error.unwrap_or(CapError { code: "capture_failed".into(), message: "Reading the selection failed.".into(), hint: String::new() });
         let code = if e.code == "empty_selection" || e.code == "no_document" || e.code == "text_editing" {
@@ -423,7 +427,9 @@ fn convert(ctx: &mut Ctx, it: &CapItem, depth: usize) -> Result<Option<Item>> {
         let msg = match code.as_str() {
             "unsupported_raster" => "Images (placed or embedded) are not imported. The item was skipped.",
             "unsupported_gradient_mesh" => "Gradient meshes have no After Effects equivalent. The item was skipped.",
-            "unsupported_plugin_item" => "Blends, envelopes and other plug-in objects are not imported. Expand them in Illustrator (Object > Expand) and push again.",
+            "unsupported_plugin_item" => {
+                "Blends, envelopes and other plug-in objects are not imported. Expand them in Illustrator (Object > Expand) and push again."
+            }
             "unsupported_graph" => "Graphs are not imported. Ungroup or expand the graph and push again.",
             "unsupported_legacy_text" => "Legacy text is not imported. Update the text in Illustrator (Type > Legacy Text) and push again.",
             _ => "This kind of object is not supported. The item was skipped.",
@@ -595,34 +601,34 @@ fn shape_item(ctx: &mut Ctx, it: &CapItem, id: String, name: String, opacity: f6
     let mut fills = Vec::new();
     let mut strokes = Vec::new();
     if let Some(p) = paint {
-        if p.filled {
-            if let Some(c) = &p.fill {
-                if let Some(f) = dom_paint(ctx, c, &id, &name) {
-                    fills.push(f);
-                }
-            }
+        if p.filled
+            && let Some(c) = &p.fill
+            && let Some(f) = dom_paint(ctx, c, &id, &name)
+        {
+            fills.push(f);
         }
-        if p.stroked && p.width > 0.0 && p.width.is_finite() {
-            if let Some(c) = &p.stroke {
-                if let Some(paint) = dom_paint(ctx, c, &id, &name) {
-                    strokes.push(Stroke {
-                        paint,
-                        width: (p.width * ctx.scale).min(crate::limits::MAX_LENGTH),
-                        cap: cap_of(p.cap.as_deref()),
-                        join: join_of(p.join.as_deref()),
-                        miter_limit: p.miter.filter(|m| m.is_finite()).unwrap_or(4.0).clamp(1.0, 500.0),
-                        dashes: p
-                            .dashes
-                            .iter()
-                            .take(crate::limits::MAX_DASHES)
-                            .filter(|d| d.is_finite())
-                            .map(|d| (d * ctx.scale).abs().min(crate::limits::MAX_LENGTH))
-                            .collect(),
-                        dash_offset: if p.dash_offset.is_finite() { p.dash_offset * ctx.scale } else { 0.0 },
-                        alignment: StrokeAlign::Center,
-                    });
-                }
-            }
+        if p.stroked
+            && p.width > 0.0
+            && p.width.is_finite()
+            && let Some(c) = &p.stroke
+            && let Some(paint) = dom_paint(ctx, c, &id, &name)
+        {
+            strokes.push(Stroke {
+                paint,
+                width: (p.width * ctx.scale).min(crate::limits::MAX_LENGTH),
+                cap: cap_of(p.cap.as_deref()),
+                join: join_of(p.join.as_deref()),
+                miter_limit: p.miter.filter(|m| m.is_finite()).unwrap_or(4.0).clamp(1.0, 500.0),
+                dashes: p
+                    .dashes
+                    .iter()
+                    .take(crate::limits::MAX_DASHES)
+                    .filter(|d| d.is_finite())
+                    .map(|d| (d * ctx.scale).abs().min(crate::limits::MAX_LENGTH))
+                    .collect(),
+                dash_offset: if p.dash_offset.is_finite() { p.dash_offset * ctx.scale } else { 0.0 },
+                alignment: StrokeAlign::Center,
+            });
         }
     }
     Ok(Some(Item::Shape(Shape { id, name, visible: true, opacity, blend_mode, paths, fill_rule, fills, strokes })))
@@ -723,12 +729,7 @@ fn text_item(ctx: &mut Ctx, it: &CapItem, id: String, name: String, opacity: f64
         ctx.warn("text_on_path_outlined", &id, &name, "Text on a path is imported as outlines.");
         return Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip: None, children: outlines }));
     }
-    let content: String = t
-        .contents
-        .chars()
-        .take(crate::limits::MAX_TEXT_LEN)
-        .map(|c| if c == '\n' || c == '\u{3}' { '\r' } else { c })
-        .collect();
+    let content: String = t.contents.chars().take(crate::limits::MAX_TEXT_LEN).map(|c| if c == '\n' || c == '\u{3}' { '\r' } else { c }).collect();
     let len = crate::validate::utf16_len(&content) as u32;
     if len == 0 {
         return None;
@@ -748,11 +749,7 @@ fn text_item(ctx: &mut Ctx, it: &CapItem, id: String, name: String, opacity: f64
                 let first = c.stops.first().map(|s| rgb255(&s.rgb)).unwrap_or([0.0, 0.0, 0.0]);
                 Paint::Solid { color: first, opacity: 1.0 }
             }
-            Some(c) => c
-                .rgb
-                .as_ref()
-                .map(|v| Paint::Solid { color: rgb255(v), opacity: 1.0 })
-                .unwrap_or(Paint::Solid { color: [0.0, 0.0, 0.0], opacity: 1.0 }),
+            Some(c) => c.rgb.as_ref().map(|v| Paint::Solid { color: rgb255(v), opacity: 1.0 }).unwrap_or(Paint::Solid { color: [0.0, 0.0, 0.0], opacity: 1.0 }),
             None => Paint::Solid { color: [0.0, 0.0, 0.0], opacity: 0.0 },
         };
         let finite = |v: f64, d: f64| if v.is_finite() { v } else { d };
@@ -783,11 +780,7 @@ fn text_item(ctx: &mut Ctx, it: &CapItem, id: String, name: String, opacity: f64
         if rotated {
             ctx.warn("text_area_transform_ignored", &id, &name, "Rotated or scaled area text is imported unrotated.");
         }
-        (
-            TextKind::Area,
-            [1.0, 0.0, 0.0, 1.0, origin[0], origin[1]],
-            Some(BoxSize { width: (area[2] * ctx.scale).abs(), height: (area[3] * ctx.scale).abs() }),
-        )
+        (TextKind::Area, [1.0, 0.0, 0.0, 1.0, origin[0], origin[1]], Some(BoxSize { width: (area[2] * ctx.scale).abs(), height: (area[3] * ctx.scale).abs() }))
     } else {
         let anchor = t.anchor.unwrap_or([t.bounds[0], t.bounds[3]]);
         let o = ctx.doc_to_scene(anchor[0], anchor[1]);

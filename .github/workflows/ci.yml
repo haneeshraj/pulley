@@ -1,0 +1,117 @@
+# Pulley CI: build, test, lint and audit on Windows and macOS (where After Effects and
+# Illustrator run), the WebAssembly core and Figma plugin, and short libFuzzer runs on Linux.
+# Uses only GitHub's own actions; tools are installed with rustup/cargo/npm at fixed versions.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  WASM_BINDGEN_VERSION: 0.2.130
+  BINARYEN_VERSION: "133"
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt && rustup default stable
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests (core, bridge end to end, stable fuzzing pass)
+        run: cargo test --workspace
+      - name: Icon outputs match the registry and masters
+        run: cargo xtask icons --check
+      - name: Release build of the bridge
+        run: cargo build --release -p pulley-bridge
+
+  wasm-and-figma:
+    name: WebAssembly core, CEP panels, Figma plugin
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Toolchain
+        shell: bash
+        run: rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown && rustup default stable
+      - name: wasm-bindgen CLI (must match the crate version)
+        shell: bash
+        run: cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked
+      - name: Binaryen (wasm-opt)
+        shell: bash
+        run: |
+          mkdir -p .tools/binaryen
+          curl -sSL -o binaryen.tar.gz "https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-windows.tar.gz"
+          tar -xzf binaryen.tar.gz -C .tools/binaryen
+      - name: Build WebAssembly core and CEP extensions
+        run: node tools/build-panels.mjs
+      - name: Clippy for the WebAssembly crate
+        run: cargo clippy -p pulley-wasm --target wasm32-unknown-unknown -- -D warnings
+      - name: Figma plugin (type check, build, tests incl. headless browser)
+        working-directory: figma-plugin
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pulley-unsigned-${{ github.sha }}
+          path: |
+            dist/cep
+            dist/wasm/size.json
+            figma-plugin/manifest.json
+            figma-plugin/dist
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: cargo-deny and cargo-audit
+        run: cargo install --locked cargo-deny cargo-audit
+      - name: Licenses, bans, sources, advisories
+        run: cargo deny check
+      - name: RustSec advisories
+        run: cargo audit
+      - name: npm audit (Figma plugin build tools)
+        working-directory: figma-plugin
+        run: npm audit --audit-level=moderate
+
+  fuzz:
+    name: libFuzzer (60 s per target)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Nightly toolchain and cargo-fuzz
+        run: rustup toolchain install nightly --profile minimal && cargo install --locked cargo-fuzz
+      - name: Seed corpus from the repository's inputs
+        run: fuzz/seed-corpus.sh
+      - name: Run each target
+        working-directory: fuzz
+        run: |
+          for t in scene protocol svg_path illustrator figma; do
+            cargo +nightly fuzz run "$t" "corpus/$t" -- -max_total_time=60 -rss_limit_mb=2048 -timeout=10
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts

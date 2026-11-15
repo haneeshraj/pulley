@@ -1,0 +1,3 @@
+# The code keeps related logic on one line; wrap only very long lines.
+max_width = 160
+use_small_heuristics = "Max"

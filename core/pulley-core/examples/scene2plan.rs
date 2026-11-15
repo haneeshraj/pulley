@@ -1,9 +1,9 @@
 //! Dev tool: build an AE plan from a scene file.
 //! cargo run -p pulley-core --example scene2plan -- <scene.json> <out.plan> [options-json]
 //! A scene can also be an Illustrator capture: pass `--capture <capture.json> <svg|->`.
-use pulley_core::aeplan::{build_plan, AeOptions};
-use pulley_core::illustrator::{capture_to_scene, AiOptions};
-use pulley_core::validate::{parse_scene, Component};
+use pulley_core::aeplan::{AeOptions, build_plan};
+use pulley_core::illustrator::{AiOptions, capture_to_scene};
+use pulley_core::validate::{Component, parse_scene};
 
 fn main() {
     let a: Vec<String> = std::env::args().collect();

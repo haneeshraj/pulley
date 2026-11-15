@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
+use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
-use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -89,7 +89,8 @@ async fn recv_type(ws: &mut Ws, kind: &str) -> serde_json::Value {
 }
 
 async fn hello(ws: &mut Ws, role: &str, token: &str) -> serde_json::Value {
-    send(ws, serde_json::json!({"protocol":1,"id":"h1","type":"hello","role":role,"clientVersion":"0.1.0","appVersion":"test","instance":role,"token":token})).await;
+    send(ws, serde_json::json!({"protocol":1,"id":"h1","type":"hello","role":role,"clientVersion":"0.1.0","appVersion":"test","instance":role,"token":token}))
+        .await;
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
@@ -226,10 +227,10 @@ async fn invalid_scenes_are_rejected_and_never_forwarded() {
     // AE got nothing but status updates.
     let got = tokio::time::timeout(Duration::from_millis(300), async {
         loop {
-            if let Some(Ok(Message::Text(t))) = ae.next().await {
-                if t.contains("push_scene") || t.contains("scene_chunk") {
-                    return true;
-                }
+            if let Some(Ok(Message::Text(t))) = ae.next().await
+                && (t.contains("push_scene") || t.contains("scene_chunk"))
+            {
+                return true;
             }
         }
     })
@@ -261,7 +262,8 @@ async fn big_scenes_travel_in_chunks() {
     let parts: Vec<&str> = pulley_chunks(&text);
     let t0 = Instant::now();
     for (i, p) in parts.iter().enumerate() {
-        send(&mut ai, serde_json::json!({"protocol":1,"id":format!("c{i}"),"type":"scene_chunk","transfer":"big","index":i,"total":parts.len(),"data":p})).await;
+        send(&mut ai, serde_json::json!({"protocol":1,"id":format!("c{i}"),"type":"scene_chunk","transfer":"big","index":i,"total":parts.len(),"data":p}))
+            .await;
     }
     let mut got = String::new();
     loop {

@@ -1,11 +1,11 @@
 //! Connected clients, authentication, routing of pushes and pulls between them.
 
 use crate::config::{self, FigmaClient, Paths, Settings};
-use pulley_core::protocol::{self, Body, ClientInfo, Reassembly, Role, CHUNK_BYTES};
-use pulley_core::validate::{parse_scene, Component};
+use pulley_core::protocol::{self, Body, CHUNK_BYTES, ClientInfo, Reassembly, Role};
+use pulley_core::validate::{Component, parse_scene};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
 use tracing::{debug, info, warn};
@@ -123,11 +123,7 @@ impl Hub {
     pub fn authenticate(&self, origin: Origin, role: Role, token: &str) -> Result<(), AuthError> {
         let ok = match (origin, role) {
             (Origin::Cep, Role::Ae | Role::Illustrator) => protocol::secret_eq(token, &self.token),
-            (Origin::Null, Role::Figma) => self
-                .settings
-                .lock()
-                .map(|s| s.figma_clients.iter().any(|c| protocol::secret_eq(token, &c.secret)))
-                .unwrap_or(false),
+            (Origin::Null, Role::Figma) => self.settings.lock().map(|s| s.figma_clients.iter().any(|c| protocol::secret_eq(token, &c.secret))).unwrap_or(false),
             _ => {
                 return Err(AuthError {
                     code: "wrong_origin",
@@ -192,7 +188,11 @@ impl Hub {
         let secret = config::random_hex(32);
         let label: String = name.chars().filter(|c| !c.is_control()).take(64).collect();
         self.update_settings(|s| {
-            s.figma_clients.push(FigmaClient { name: if label.is_empty() { "Figma".into() } else { label }, secret: secret.clone(), created: config::now_stamp() });
+            s.figma_clients.push(FigmaClient {
+                name: if label.is_empty() { "Figma".into() } else { label },
+                secret: secret.clone(),
+                created: config::now_stamp(),
+            });
             let n = s.figma_clients.len();
             if n > 16 {
                 s.figma_clients.drain(..n - 16);
@@ -233,12 +233,15 @@ impl Hub {
                 })
                 .unwrap_or_default();
             for (transfer, other) in open {
-                self.send(other, &Body::Error {
-                    code: "peer_disconnected".into(),
-                    message: format!("The {} disconnected during the transfer.", c.role.component()),
-                    hint: "Check that the app is still open, then try again.".into(),
-                    reply_to: Some(transfer.clone()),
-                });
+                self.send(
+                    other,
+                    &Body::Error {
+                        code: "peer_disconnected".into(),
+                        message: format!("The {} disconnected during the transfer.", c.role.component()),
+                        hint: "Check that the app is still open, then try again.".into(),
+                        reply_to: Some(transfer.clone()),
+                    },
+                );
                 if let Ok(mut t) = self.transfers.lock() {
                     t.remove(&transfer);
                 }
@@ -321,11 +324,11 @@ impl Hub {
         if let Ok(mut t) = self.transfers.lock() {
             t.retain(|_, x| x.created.elapsed() < TRANSFER_TTL);
         }
-        if let Ok(mut p) = self.pairing.lock() {
-            if p.as_ref().is_some_and(|p| Instant::now() > p.expires) {
-                *p = None;
-                self.summary.send_modify(|s| s.pairing_code = None);
-            }
+        if let Ok(mut p) = self.pairing.lock()
+            && p.as_ref().is_some_and(|p| Instant::now() > p.expires)
+        {
+            *p = None;
+            self.summary.send_modify(|s| s.pairing_code = None);
         }
         self.set_transferring();
     }
@@ -340,10 +343,10 @@ impl Hub {
             Body::Pong => {}
             Body::Activity => {
                 let n = self.activity.fetch_add(1, Ordering::Relaxed);
-                if let Ok(mut c) = self.clients.lock() {
-                    if let Some(cl) = c.get_mut(&conn) {
-                        cl.last_active = n;
-                    }
+                if let Ok(mut c) = self.clients.lock()
+                    && let Some(cl) = c.get_mut(&conn)
+                {
+                    cl.last_active = n;
                 }
                 self.broadcast_status();
             }
@@ -397,10 +400,10 @@ impl Hub {
             }
             Body::PullError { transfer, code, message, hint } => {
                 let t = self.transfers.lock().ok().and_then(|mut t| t.remove(&transfer));
-                if let Some(t) = t {
-                    if t.target == conn {
-                        self.send(t.requester, &Body::PullError { transfer, code, message, hint });
-                    }
+                if let Some(t) = t
+                    && t.target == conn
+                {
+                    self.send(t.requester, &Body::PullError { transfer, code, message, hint });
                 }
                 self.set_transferring();
             }
@@ -461,7 +464,9 @@ impl Hub {
             let t = self.transfers.lock().ok().and_then(|t| t.get(&transfer).map(|t| (t.requester, t.target)));
             match t {
                 Some((requester, target)) if target == conn => requester,
-                _ => return self.send_error(conn, "unknown_transfer", "This pull request is no longer open.", "Pull again from After Effects.", Some(transfer)),
+                _ => {
+                    return self.send_error(conn, "unknown_transfer", "This pull request is no longer open.", "Pull again from After Effects.", Some(transfer));
+                }
             }
         } else {
             let Some(ae) = self.most_recent(Role::Ae) else {

@@ -36,7 +36,7 @@
 //! (even-odd), type is 1 (linear) or 2 (radial), cap/join are AE's 1..3 values.
 
 use crate::error::{Error, ErrorCode, Result};
-use crate::geom::{path_bounds, Bounds, Pt};
+use crate::geom::{Bounds, Pt, path_bounds};
 use crate::scene::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Write as _;
@@ -371,28 +371,12 @@ impl Gen<'_> {
             self.warn("dash_pattern_truncated", it, "After Effects supports 3 dash/gap pairs; the rest of the dash pattern was dropped.");
         }
         let dash = Self::dashes(st);
-        let common = format!(
-            "{} {} {} {} {}",
-            join_code(st.join),
-            num(st.miter_limit),
-            dash,
-            num(st.dash_offset),
-            ""
-        );
+        let common = format!("{} {} {} {} {}", join_code(st.join), num(st.miter_limit), dash, num(st.dash_offset), "");
         let common = common.trim_end().to_string();
         let cap = cap_code(st.cap);
         match &st.paint {
             Paint::Solid { color, opacity } => {
-                let line = format!(
-                    "S {} {} {} {} {} {} {}",
-                    num(st.width),
-                    num(color[0]),
-                    num(color[1]),
-                    num(color[2]),
-                    op(*opacity),
-                    cap,
-                    common
-                );
+                let line = format!("S {} {} {} {} {} {} {}", num(st.width), num(color[0]), num(color[1]), num(color[2]), op(*opacity), cap, common);
                 self.line(&line);
             }
             g => {
@@ -460,11 +444,7 @@ impl Gen<'_> {
             }
             return;
         }
-        self.warn(
-            "stroke_alignment_emulated",
-            it,
-            "Inside/outside stroke emulated with Offset Paths (After Effects strokes are always centered).",
-        );
+        self.warn("stroke_alignment_emulated", it, "Inside/outside stroke emulated with Offset Paths (After Effects strokes are always centered).");
         for st in s.strokes.iter().rev() {
             self.line("G Stroke 100 NORMAL");
             self.summary.groups += 1;
@@ -803,7 +783,7 @@ pub fn build_plan(scene: &Scene, opts: &AeOptions) -> Result<Plan> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::validate::{parse_scene, Component};
+    use crate::validate::{Component, parse_scene};
 
     const BASIC: &str = include_str!("../../../schema/examples/basic-shapes.json");
     const GRADIENTS: &str = include_str!("../../../schema/examples/gradients-compound.json");
@@ -913,7 +893,15 @@ mod tests {
     #[test]
     fn simple_clip_with_masks() {
         let mut scene = parse_scene(BASIC, Component::AePanel).unwrap();
-        let clip = Clip { source_id: None, name: Some("Mask".into()), paths: match &scene.items[0] { Item::Shape(s) => s.paths.clone(), _ => unreachable!() }, fill_rule: FillRule::Nonzero };
+        let clip = Clip {
+            source_id: None,
+            name: Some("Mask".into()),
+            paths: match &scene.items[0] {
+                Item::Shape(s) => s.paths.clone(),
+                _ => unreachable!(),
+            },
+            fill_rule: FillRule::Nonzero,
+        };
         if let Item::Group(g) = &mut scene.items[1] {
             g.clip = Some(clip);
         }

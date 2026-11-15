@@ -23,6 +23,10 @@ function pulleyCaptureFixtures(fixturesDir, outDir) {
             doc.selection = null;
             app.executeMenuCommand("selectall");
             entry.selected = doc.selection.length;
+            // Mark the document clean after selecting (selection alone may mark it changed),
+            // so the flag after capture shows whether the capture changed anything.
+            doc.saved = true;
+            entry.savedBeforeCapture = doc.saved;
             var t0 = new Date().getTime();
             var out = PulleyAI.capture("1", outDir + "/" + name + ".svg");
             entry.ms = new Date().getTime() - t0;

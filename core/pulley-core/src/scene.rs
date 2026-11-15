@@ -59,16 +59,7 @@ pub struct Scene {
 impl Scene {
     /// An empty scene with the current schema name and version.
     pub fn new(source: Source, units: Units, color_space: ColorSpace, bounds: Rect) -> Scene {
-        Scene {
-            schema: SCHEMA_NAME.to_string(),
-            version: SCHEMA_VERSION,
-            source,
-            units,
-            color_space,
-            bounds,
-            items: Vec::new(),
-            warnings: Vec::new(),
-        }
+        Scene { schema: SCHEMA_NAME.to_string(), version: SCHEMA_VERSION, source, units, color_space, bounds, items: Vec::new(), warnings: Vec::new() }
     }
 }
 
@@ -317,9 +308,7 @@ pub enum Paint {
 impl Paint {
     pub fn opacity(&self) -> f64 {
         match self {
-            Paint::Solid { opacity, .. }
-            | Paint::LinearGradient { opacity, .. }
-            | Paint::RadialGradient { opacity, .. } => *opacity,
+            Paint::Solid { opacity, .. } | Paint::LinearGradient { opacity, .. } | Paint::RadialGradient { opacity, .. } => *opacity,
         }
     }
 
@@ -327,9 +316,7 @@ impl Paint {
     pub fn representative_color(&self) -> [f64; 3] {
         match self {
             Paint::Solid { color, .. } => *color,
-            Paint::LinearGradient { stops, .. } | Paint::RadialGradient { stops, .. } => {
-                stops.first().map(|s| s.color).unwrap_or([0.0, 0.0, 0.0])
-            }
+            Paint::LinearGradient { stops, .. } | Paint::RadialGradient { stops, .. } => stops.first().map(|s| s.color).unwrap_or([0.0, 0.0, 0.0]),
         }
     }
 }
@@ -476,11 +463,6 @@ pub struct Warning {
 
 impl Warning {
     pub fn new(code: &str, item_id: Option<&str>, item_name: Option<&str>, message: impl Into<String>) -> Warning {
-        Warning {
-            code: code.to_string(),
-            item_id: item_id.map(str::to_string),
-            item_name: item_name.map(str::to_string),
-            message: message.into(),
-        }
+        Warning { code: code.to_string(), item_id: item_id.map(str::to_string), item_name: item_name.map(str::to_string), message: message.into() }
     }
 }

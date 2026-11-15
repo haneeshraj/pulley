@@ -11,6 +11,7 @@ pub mod aeplan;
 pub mod error;
 pub mod ffx;
 pub mod figma;
+pub mod fuzz;
 pub mod geom;
 pub mod illustrator;
 pub mod limits;

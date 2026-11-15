@@ -2,10 +2,10 @@
 //! tests/fixtures/illustrator/make-fixtures.jsx, converted to scenes.
 //! Geometry tolerance: 0.01 px (spec). Gradient origins: 1.5 px (Illustrator truncates them).
 
-use pulley_core::illustrator::{capture_to_scene, AiOptions};
-use pulley_core::scene::*;
-use pulley_core::validate::{parse_scene, serialize_scene, Component};
 use pulley_core::ErrorCode;
+use pulley_core::illustrator::{AiOptions, capture_to_scene};
+use pulley_core::scene::*;
+use pulley_core::validate::{Component, parse_scene, serialize_scene};
 use std::path::PathBuf;
 
 const TOL: f64 = 0.01;
@@ -33,10 +33,10 @@ fn try_find<'a>(items: &'a [Item], name: &str) -> Option<&'a Item> {
         if it.name() == name {
             return Some(it);
         }
-        if let Item::Group(g) = it {
-            if let Some(f) = try_find(&g.children, name) {
-                return Some(f);
-            }
+        if let Item::Group(g) = it
+            && let Some(f) = try_find(&g.children, name)
+        {
+            return Some(f);
         }
     }
     None

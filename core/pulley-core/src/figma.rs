@@ -365,7 +365,9 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
             });
             Ok(Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip, children })))
         }
-        "RECTANGLE" => Ok(shape_from(ctx, n, &id, &name, vec![shapes::rect(0.0, 0.0, n.width, n.height, radii(n), &xf)], FillRule::Nonzero, &xf, true).map(Item::Shape)),
+        "RECTANGLE" => {
+            Ok(shape_from(ctx, n, &id, &name, vec![shapes::rect(0.0, 0.0, n.width, n.height, radii(n), &xf)], FillRule::Nonzero, &xf, true).map(Item::Shape))
+        }
         "ELLIPSE" => {
             let path = match &n.arc_data {
                 Some(a) if (a.ending_angle - a.starting_angle).abs() < 2.0 * PI - 1e-6 || a.inner_radius > 1e-6 => {
@@ -517,7 +519,12 @@ fn paint(ctx: &mut Ctx, p: &FPaint, n: &Node, xf: &Affine, id: &str, name: &str)
                 .gradient_stops
                 .iter()
                 .take(crate::limits::MAX_STOPS)
-                .map(|s| GradientStop { offset: unit(s.position), color: [unit(s.color.r), unit(s.color.g), unit(s.color.b)], opacity: unit(s.color.a), midpoint: 0.5 })
+                .map(|s| GradientStop {
+                    offset: unit(s.position),
+                    color: [unit(s.color.r), unit(s.color.g), unit(s.color.b)],
+                    opacity: unit(s.color.a),
+                    midpoint: 0.5,
+                })
                 .collect();
             stops.sort_by(|a, b| a.offset.total_cmp(&b.offset));
             if stops.len() < 2 {
@@ -572,7 +579,10 @@ fn shape_from(ctx: &mut Ctx, n: &Node, id: &str, name: &str, paths: Vec<Path>, f
     let mut strokes = Vec::new();
     let weight = n.stroke_weight.unwrap_or(0.0);
     if weight > 0.0 && weight.is_finite() {
-        let scale = { let d = xf.decompose(); ((d.sx.abs() + d.sy.abs()) / 2.0).max(1e-6) };
+        let scale = {
+            let d = xf.decompose();
+            ((d.sx.abs() + d.sy.abs()) / 2.0).max(1e-6)
+        };
         let alignment = match n.stroke_align.as_deref() {
             Some("INSIDE") if closed => StrokeAlign::Inside,
             Some("OUTSIDE") if closed => StrokeAlign::Outside,
@@ -600,7 +610,13 @@ fn shape_from(ctx: &mut Ctx, n: &Node, id: &str, name: &str, paths: Vec<Path>, f
                     cap,
                     join,
                     miter_limit: n.stroke_miter_limit.filter(|m| m.is_finite()).unwrap_or(4.0).clamp(1.0, 500.0),
-                    dashes: n.dash_pattern.iter().take(crate::limits::MAX_DASHES).filter(|d| d.is_finite()).map(|d| (d * scale).abs().min(crate::limits::MAX_LENGTH)).collect(),
+                    dashes: n
+                        .dash_pattern
+                        .iter()
+                        .take(crate::limits::MAX_DASHES)
+                        .filter(|d| d.is_finite())
+                        .map(|d| (d * scale).abs().min(crate::limits::MAX_LENGTH))
+                        .collect(),
                     dash_offset: 0.0,
                     alignment,
                 });
@@ -623,12 +639,8 @@ fn shape_from(ctx: &mut Ctx, n: &Node, id: &str, name: &str, paths: Vec<Path>, f
 fn text_item(ctx: &mut Ctx, n: &Node, id: String, name: String, opacity: f64, blend_mode: BlendMode, xf: &Affine) -> Result<Option<Item>> {
     let Some(t) = &n.text else { return Ok(None) };
     // Figma uses \n between paragraphs and U+2028 for soft line breaks.
-    let content: String = t
-        .characters
-        .chars()
-        .take(crate::limits::MAX_TEXT_LEN)
-        .map(|c| if c == '\n' || c == '\u{2028}' || c == '\u{2029}' { '\r' } else { c })
-        .collect();
+    let content: String =
+        t.characters.chars().take(crate::limits::MAX_TEXT_LEN).map(|c| if c == '\n' || c == '\u{2028}' || c == '\u{2029}' { '\r' } else { c }).collect();
     let len = utf16_len(&content) as u32;
     if len == 0 {
         return Ok(None);
@@ -669,7 +681,11 @@ fn text_item(ctx: &mut Ctx, n: &Node, id: String, name: String, opacity: f64, bl
         runs.push(TextRun {
             start,
             end,
-            font: FontRef { post_script_name: String::new(), family: s.font_name.family.chars().take(256).collect(), style: s.font_name.style.chars().take(256).collect() },
+            font: FontRef {
+                post_script_name: String::new(),
+                family: s.font_name.family.chars().take(256).collect(),
+                style: s.font_name.style.chars().take(256).collect(),
+            },
             size,
             tracking: if tracking.is_finite() { tracking.clamp(-10_000.0, 10_000.0) } else { 0.0 },
             leading: leading.filter(|l| l.is_finite()).map(|l| l.clamp(0.0, 100_000.0)),
@@ -731,7 +747,8 @@ mod tests {
 
     fn input(nodes: serde_json::Value) -> String {
         serde_json::json!({"format":"pulley-figma-nodes","version":1,"documentName":"Test","colorProfile":"SRGB",
-            "bounds":{"x":100,"y":50,"width":800,"height":600},"nodes":nodes}).to_string()
+            "bounds":{"x":100,"y":50,"width":800,"height":600},"nodes":nodes})
+        .to_string()
     }
 
     fn t(x: f64, y: f64) -> serde_json::Value {
@@ -740,12 +757,16 @@ mod tests {
 
     #[test]
     fn rectangle_with_radii_fill_and_stroke() {
-        let s = nodes_to_scene(&input(serde_json::json!([{
-            "id":"1:2","name":"Card","type":"RECTANGLE","transform":t(110.0,60.0),"width":200,"height":100,
-            "fills":[{"type":"SOLID","color":{"r":1,"g":0,"b":0},"opacity":0.5}],
-            "strokes":[{"type":"SOLID","color":{"r":0,"g":0,"b":1}}],"strokeWeight":4,"strokeAlign":"INSIDE",
-            "strokeJoin":"ROUND","dashPattern":[10,5],"cornerRadius":12
-        }])), &FigmaOptions::default()).unwrap();
+        let s = nodes_to_scene(
+            &input(serde_json::json!([{
+                "id":"1:2","name":"Card","type":"RECTANGLE","transform":t(110.0,60.0),"width":200,"height":100,
+                "fills":[{"type":"SOLID","color":{"r":1,"g":0,"b":0},"opacity":0.5}],
+                "strokes":[{"type":"SOLID","color":{"r":0,"g":0,"b":1}}],"strokeWeight":4,"strokeAlign":"INSIDE",
+                "strokeJoin":"ROUND","dashPattern":[10,5],"cornerRadius":12
+            }])),
+            &FigmaOptions::default(),
+        )
+        .unwrap();
         let Item::Shape(sh) = &s.items[0] else { panic!() };
         assert_eq!(sh.name, "Card");
         assert_eq!(sh.paths[0].vertices.len(), 8);
@@ -761,11 +782,15 @@ mod tests {
     #[test]
     fn linear_gradient_handles_follow_the_transform() {
         // Identity gradientTransform: left-middle to right-middle of the node box.
-        let s = nodes_to_scene(&input(serde_json::json!([{
-            "id":"1:3","name":"G","type":"RECTANGLE","transform":t(100.0,50.0),"width":200,"height":100,
-            "fills":[{"type":"GRADIENT_LINEAR","gradientTransform":[[1,0,0],[0,1,0]],
-                "gradientStops":[{"position":0,"color":{"r":1,"g":0,"b":0,"a":1}},{"position":1,"color":{"r":0,"g":0,"b":1,"a":0.5}}]}]
-        }])), &FigmaOptions::default()).unwrap();
+        let s = nodes_to_scene(
+            &input(serde_json::json!([{
+                "id":"1:3","name":"G","type":"RECTANGLE","transform":t(100.0,50.0),"width":200,"height":100,
+                "fills":[{"type":"GRADIENT_LINEAR","gradientTransform":[[1,0,0],[0,1,0]],
+                    "gradientStops":[{"position":0,"color":{"r":1,"g":0,"b":0,"a":1}},{"position":1,"color":{"r":0,"g":0,"b":1,"a":0.5}}]}]
+            }])),
+            &FigmaOptions::default(),
+        )
+        .unwrap();
         let Item::Shape(sh) = &s.items[0] else { panic!() };
         match &sh.fills[0] {
             Paint::LinearGradient { start, end, stops, .. } => {
@@ -776,11 +801,15 @@ mod tests {
             p => panic!("{p:?}"),
         }
         // A vertical gradient: transform maps y to x (rotated 90 degrees).
-        let s = nodes_to_scene(&input(serde_json::json!([{
-            "id":"1:4","name":"V","type":"RECTANGLE","transform":t(100.0,50.0),"width":200,"height":100,
-            "fills":[{"type":"GRADIENT_LINEAR","gradientTransform":[[0,1,0],[-1,0,1]],
-                "gradientStops":[{"position":0,"color":{"r":1,"g":1,"b":1}},{"position":1,"color":{"r":0,"g":0,"b":0}}]}]
-        }])), &FigmaOptions::default()).unwrap();
+        let s = nodes_to_scene(
+            &input(serde_json::json!([{
+                "id":"1:4","name":"V","type":"RECTANGLE","transform":t(100.0,50.0),"width":200,"height":100,
+                "fills":[{"type":"GRADIENT_LINEAR","gradientTransform":[[0,1,0],[-1,0,1]],
+                    "gradientStops":[{"position":0,"color":{"r":1,"g":1,"b":1}},{"position":1,"color":{"r":0,"g":0,"b":0}}]}]
+            }])),
+            &FigmaOptions::default(),
+        )
+        .unwrap();
         let Item::Shape(sh) = &s.items[0] else { panic!() };
         match &sh.fills[0] {
             Paint::LinearGradient { start, end, .. } => {
@@ -856,11 +885,15 @@ mod tests {
 
     #[test]
     fn unsupported_things_warn_never_fail() {
-        let s = nodes_to_scene(&input(serde_json::json!([
-            {"id":"5:1","name":"Photo","type":"RECTANGLE","transform":t(100.0,50.0),"width":10,"height":10,
-             "fills":[{"type":"IMAGE"},{"type":"GRADIENT_ANGULAR","gradientStops":[]}],"effects":[{"type":"DROP_SHADOW","visible":true}]},
-            {"id":"5:2","name":"Slice","type":"SLICE","transform":t(100.0,50.0),"width":10,"height":10}
-        ])), &FigmaOptions::default()).unwrap();
+        let s = nodes_to_scene(
+            &input(serde_json::json!([
+                {"id":"5:1","name":"Photo","type":"RECTANGLE","transform":t(100.0,50.0),"width":10,"height":10,
+                 "fills":[{"type":"IMAGE"},{"type":"GRADIENT_ANGULAR","gradientStops":[]}],"effects":[{"type":"DROP_SHADOW","visible":true}]},
+                {"id":"5:2","name":"Slice","type":"SLICE","transform":t(100.0,50.0),"width":10,"height":10}
+            ])),
+            &FigmaOptions::default(),
+        )
+        .unwrap();
         let codes: Vec<&str> = s.warnings.iter().map(|w| w.code.as_str()).collect();
         for c in ["unsupported_paint_image", "unsupported_paint_angular", "unsupported_effect", "unsupported_node"] {
             assert!(codes.contains(&c), "{codes:?}");
@@ -871,10 +904,14 @@ mod tests {
     #[test]
     fn rotated_nodes_and_bad_input() {
         let r = std::f64::consts::FRAC_PI_2;
-        let s = nodes_to_scene(&input(serde_json::json!([{
-            "id":"6:1","name":"R","type":"LINE","transform":[[r.cos(), -r.sin(), 100.0],[r.sin(), r.cos(), 50.0]],"width":100,"height":0,
-            "strokes":[{"type":"SOLID","color":{"r":0,"g":0,"b":0}}],"strokeWeight":2,"strokeCap":"ARROW_LINES"
-        }])), &FigmaOptions::default()).unwrap();
+        let s = nodes_to_scene(
+            &input(serde_json::json!([{
+                "id":"6:1","name":"R","type":"LINE","transform":[[r.cos(), -r.sin(), 100.0],[r.sin(), r.cos(), 50.0]],"width":100,"height":0,
+                "strokes":[{"type":"SOLID","color":{"r":0,"g":0,"b":0}}],"strokeWeight":2,"strokeCap":"ARROW_LINES"
+            }])),
+            &FigmaOptions::default(),
+        )
+        .unwrap();
         let Item::Shape(sh) = &s.items[0] else { panic!() };
         assert!((sh.paths[0].vertices[1][0]).abs() < 1e-9 && (sh.paths[0].vertices[1][1] - 100.0).abs() < 1e-9);
         assert!(s.warnings.iter().any(|w| w.code == "stroke_cap_simplified"));

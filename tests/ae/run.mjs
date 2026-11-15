@@ -36,6 +36,10 @@ const cases = [
   ['ai-groups', [`${F}/groups.capture.json`, '-'], { placement: 'original' }, false],
   ['ai-perf-merge', [`${F}/perf-500x20.capture.json`, '-'], { ...comp, layerMode: 'merge' }, true],
   ['ai-perf-layers', [`${F}/perf-500x20.capture.json`, '-'], comp, true],
+  // Undo once after importing (gradient presets included) into an existing comp and into a
+  // new one: nothing the import built may remain.
+  ['undo-existing', 'schema/examples/gradients-compound.json', { ...comp, placement: 'original' }, true, 'pulleyTestApplyUndo'],
+  ['undo-newcomp', [`${F}/gradients.capture.json`, '-'], { placement: 'original' }, false, 'pulleyTestApplyUndo'],
 ].filter(([name]) => (only.length ? only.includes(name) : true))
   .filter(([name]) => !(args.includes('--skip-perf') && name.includes('perf')));
 
@@ -51,7 +55,7 @@ const jobs = [{
   call: 'pulleyTestNewProject',
   args: ['0'],
 }];
-for (const [name, input, options, withComp] of cases) {
+for (const [name, input, options, withComp, call = 'pulleyTestApply'] of cases) {
   const plan = path.join(out, `${name}.plan`);
   const prefix = path.join(out, `${name}-grad-`);
   const inputArgs = Array.isArray(input) ? ['--capture', ...input] : [input];
@@ -59,8 +63,8 @@ for (const [name, input, options, withComp] of cases) {
   const hasGradients = fs.readdirSync(out).some((f) => f.startsWith(`${name}-grad-`));
   jobs.push({
     id: name,
-    call: 'pulleyTestApply',
-    args: [fwd(plan), withComp ? '1' : '0', fwd(path.join(out, `${name}.result.json`)), fwd(prefix), hasGradients ? fwd(path.join(out, `${name}.aep`)) : ''],
+    call,
+    args: [fwd(plan), withComp ? '1' : '0', fwd(path.join(out, `${name}.result.json`)), fwd(prefix), hasGradients && call === 'pulleyTestApply' ? fwd(path.join(out, `${name}.aep`)) : ''],
     timeoutMs: 15 * 60 * 1000,
   });
 }

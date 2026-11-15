@@ -3,9 +3,9 @@
 //! cargo run -p pulley-bridge --example fake_ae -- [--port 47290] [--pulls N] [--expect N] [--out DIR]
 use futures_util::{SinkExt, StreamExt};
 use std::time::{Duration, Instant};
+use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
-use tokio_tungstenite::tungstenite::Message;
 
 fn arg(args: &[String], name: &str) -> Option<String> {
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1).cloned())
@@ -64,7 +64,8 @@ async fn main() {
                 };
                 got += 1;
                 let scene: serde_json::Value = serde_json::from_str(&text).unwrap();
-                let names: Vec<String> = scene["items"].as_array().map(|a| a.iter().take(8).map(|i| i["name"].as_str().unwrap_or("").to_string()).collect()).unwrap_or_default();
+                let names: Vec<String> =
+                    scene["items"].as_array().map(|a| a.iter().take(8).map(|i| i["name"].as_str().unwrap_or("").to_string()).collect()).unwrap_or_default();
                 let pull = v["pull"].as_bool().unwrap_or(false);
                 println!(
                     "scene {got} ({}): {} bytes, {} top-level items {:?}, {} warnings{}",

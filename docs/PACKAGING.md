@@ -125,4 +125,4 @@ Publishing (organization-private or Community):
 | ZXP signing (`package-zxp.mjs --self-signed`) | yes: the author created the self-signed certificate and signed both packages; they were re-signed with the same certificate once the license was added (both now contain `LICENSE`). Both signatures verify (`ZXPSignCmd -verify`). Self-signed, no timestamp: for testing only. Not installed yet |
 | NSIS installer built | yes: `pulley-bridge_0.1.0_x64-setup.exe`, 2.3 MB, unsigned. The generated NSIS script installs per user into `%LOCALAPPDATA%\Pulley` (checked). **Not run**: it would install software on this machine |
 | Installer run on a clean machine; signed installers; macOS app and dmg; notarization | no |
-| Figma plugin built | yes (`figma-plugin/dist/`); imported into the Figma desktop app by the author |
+| Figma plugin built | yes (`figma-plugin/dist/`); imported into the Figma desktop app by the author, paired, and used to send frames to After Effects |

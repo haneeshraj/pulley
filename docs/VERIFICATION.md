@@ -82,9 +82,25 @@ capture: no capture marked it modified, and the selection was kept. Timings are 
 
 ### Figma plugin
 
-Imported into the Figma desktop app by the author (2026-11-15). Pairing, sending and pulling
-have not been confirmed from inside Figma yet: the bridge log shows no Figma connection on this
-machine. What is tested instead:
+**Tested in the Figma desktop app by the author (2026-11-15):** the plugin was imported,
+paired with a code from the tray, and sent two frames to After Effects. The bridge log shows
+both: 21 items (75 paths, 707 vertices, 45 KB) imported as 11 layers, and 17 items (47 paths,
+450 vertices, 29 KB) imported as 7 layers, each in about 3 s from send to result.
+
+Getting there surfaced three problems that the browser stand-in had not, all fixed:
+
+- Figma rejects IP addresses in `networkAccess.allowedDomains` ("'ws://127.0.0.1:47290' must
+  be a valid URL"); the plugin now uses `ws://localhost:47290`.
+- The plugin didn't show the selection, which kept Send disabled. The main thread now also
+  checks the selection twice a second, and Send no longer depends on the displayed count.
+- The WebAssembly core didn't start: wasm-bindgen's glue calls
+  `new URL(document.currentScript.src, location.href)`, which throws in an inline document
+  (`about:srcdoc`/`data:`), the way Figma loads plugin UIs. The build now patches that line,
+  and the browser test loads the UI inline like Figma, which reproduces the failure without the
+  fix.
+
+Not yet tried inside Figma: pulling from After Effects into the open plugin, *Save .pulley file*,
+and Figma in a browser. Also tested outside Figma:
 
 - The reader (`read.ts`) on objects built to the Figma Plugin API documentation (every node type
   Pulley handles, mixed values, limits), with its output converted by the real WebAssembly core.
@@ -151,7 +167,8 @@ libFuzzer runtime, which needs nightly and sanitizers this machine lacks); they 
 
 - macOS: nothing has been built or run.
 - After Effects 2026 and Illustrator 2026.
-- The Figma plugin's pairing, sending and pulling from inside Figma (desktop or browser).
+- Inside Figma: pulling from After Effects into the open plugin, *Save .pulley file*, and Figma
+  in a browser (Chrome/Edge local network access prompt; Safari).
 - Installing the signed ZXPs. The author created the self-signed certificate and signed them
   with `tools/package-zxp.mjs --self-signed` (the build session was not allowed to create the
   certificate); they were re-signed with the same certificate after the license was added. Both

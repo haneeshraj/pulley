@@ -18,10 +18,10 @@ internet access. The pieces talk through a small local app, the **Pulley bridge*
 `127.0.0.1` only.
 
 > **Status: 0.1.0, development build.** Tested on Windows 11 with After Effects 25.5 and
-> Illustrator 29.5. **Not tested:** macOS, the 2026 versions of After Effects and Illustrator,
-> and the plugin's connection to the bridge from inside Figma (the plugin has been imported into
-> Figma; its bridge connection is tested in a headless browser that loads it the way Figma does).
-> See [What has been tested](#what-has-been-tested) and [Known limitations](#known-limitations).
+> Illustrator 29.5, and with the Figma desktop app (pairing and sending to After Effects).
+> **Not tested:** macOS, the 2026 versions of After Effects and Illustrator, and Figma in a
+> browser. See [What has been tested](#what-has-been-tested) and
+> [Known limitations](#known-limitations).
 
 ## How it fits together
 
@@ -203,8 +203,9 @@ On Windows 11 (i9-13900H, 16 GB), After Effects 25.5, Illustrator 29.5; details 
   scene push into a running After Effects (gradient colors included).
 - Illustrator capture of 13 fixture documents: correct scenes (golden tests), the document never
   marked as changed, the selection kept.
-- Figma plugin: imported into the Figma desktop app by the author; pairing, sending and pulling
-  tested outside Figma (see the table above), **not yet from inside Figma**.
+- Figma plugin in the Figma desktop app (by the author): imported, paired, and two frames sent
+  to After Effects (11 and 7 layers, both imported). Pulling from After Effects into the plugin is
+  tested outside Figma only (see the table above).
 - Signed packages: both `.zxp` files signed by the author with a self-signed certificate; the
   signatures verify (`ZXPSignCmd -verify`). Not yet installed from the signed packages.
 - Bridge: handshake checks (Host, Origin), tokens, pairing, routing, chunking, limits, protocol
@@ -213,8 +214,9 @@ On Windows 11 (i9-13900H, 16 GB), After Effects 25.5, Illustrator 29.5; details 
   slowdown on very long names, now fixed ([docs/VERIFICATION.md](docs/VERIFICATION.md#fuzzing)).
   A short pass runs in every `cargo test`.
 
-Not tested: macOS; After Effects 2026 / Illustrator 2026; pairing and sending from inside Figma;
-installing the signed ZXP packages and the bridge installer on a clean machine; CI.
+Not tested: macOS; After Effects 2026 / Illustrator 2026; Figma in a browser, and pulling into
+the plugin inside Figma; installing the signed ZXP packages and the bridge installer on a clean
+machine; CI.
 
 ## Known limitations
 

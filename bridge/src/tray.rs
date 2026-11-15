@@ -1,0 +1,162 @@
+//! Tray (Windows) / menu bar (macOS) icon and menu. Runs on the main thread.
+
+use crate::config::Paths;
+use crate::hub::{Hub, Summary};
+use crate::icons::{self, TrayState};
+use std::sync::Arc;
+use tao::event::{Event, StartCause};
+use tao::event_loop::{ControlFlow, EventLoopBuilder};
+use tokio::sync::watch;
+use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
+
+enum UserEvent {
+    Summary(Summary),
+    Menu(MenuEvent),
+}
+
+fn icon(state: TrayState) -> Option<Icon> {
+    let (rgba, w, h) = icons::tray_rgba(state, cfg!(target_os = "macos"));
+    Icon::from_rgba(rgba, w, h).ok()
+}
+
+fn state_of(s: &Summary) -> TrayState {
+    if s.last_error.is_some() {
+        TrayState::Error
+    } else if s.transferring {
+        TrayState::Transferring
+    } else {
+        TrayState::Idle
+    }
+}
+
+fn status_text(s: &Summary) -> String {
+    let mark = |n: usize| if n > 0 { "connected" } else { "not connected" };
+    format!("After Effects: {} · Illustrator: {} · Figma: {}", mark(s.ae), mark(s.illustrator), mark(s.figma))
+}
+
+fn launcher() -> Option<auto_launch::AutoLaunch> {
+    let exe = std::env::current_exe().ok()?;
+    let path = exe.to_str()?.to_string();
+    auto_launch::AutoLaunchBuilder::new().set_app_name("Pulley").set_app_path(&path).build().ok()
+}
+
+pub fn run(hub: Arc<Hub>, mut summary: watch::Receiver<Summary>, paths: Paths) {
+    let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    let proxy = event_loop.create_proxy();
+    {
+        let proxy = proxy.clone();
+        MenuEvent::set_event_handler(Some(move |e| {
+            let _ = proxy.send_event(UserEvent::Menu(e));
+        }));
+    }
+    {
+        let proxy = proxy.clone();
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build();
+            let Ok(rt) = rt else { return };
+            rt.block_on(async move {
+                while summary.changed().await.is_ok() {
+                    let s = summary.borrow().clone();
+                    if proxy.send_event(UserEvent::Summary(s)).is_err() {
+                        break;
+                    }
+                }
+            });
+        });
+    }
+
+    let settings = hub.settings();
+    let status = MenuItem::new("Pulley: starting", false, None);
+    let pair = MenuItem::new("Pair Figma plugin…", true, None);
+    let code = MenuItem::new("No pairing code active", false, None);
+    let revoke = MenuItem::new("Forget paired Figma plugins", true, None);
+    let login = CheckMenuItem::new("Launch at login", true, settings.launch_at_login, None);
+    let debug = CheckMenuItem::new("Debug logging (after restart)", true, settings.debug_logging, None);
+    let logs = MenuItem::new(format!("Logs: {}", paths.logs.display()), false, None);
+    let quit = MenuItem::new("Quit Pulley", true, None);
+    let menu = Menu::new();
+    let _ = menu.append_items(&[
+        &status,
+        &PredefinedMenuItem::separator(),
+        &pair,
+        &code,
+        &revoke,
+        &PredefinedMenuItem::separator(),
+        &login,
+        &debug,
+        &logs,
+        &PredefinedMenuItem::separator(),
+        &quit,
+    ]);
+    let mut tray: Option<TrayIcon> = None;
+    let mut current = TrayState::Idle;
+
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+        match event {
+            Event::NewEvents(StartCause::Init) => {
+                // macOS: the icon must be created once the event loop is running.
+                let mut b = TrayIconBuilder::new().with_menu(Box::new(menu.clone())).with_tooltip("Pulley");
+                if let Some(i) = icon(TrayState::Idle) {
+                    b = b.with_icon(i);
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    b = b.with_icon_as_template(true);
+                }
+                tray = b.build().ok();
+                status.set_text(status_text(&Summary::default()));
+            }
+            Event::UserEvent(UserEvent::Summary(s)) => {
+                status.set_text(status_text(&s));
+                code.set_text(match &s.pairing_code {
+                    Some(c) => format!("Pairing code: {c} (valid 2 minutes)"),
+                    None => "No pairing code active".into(),
+                });
+                let st = state_of(&s);
+                if st != current {
+                    current = st;
+                    if let Some(t) = &tray {
+                        let _ = t.set_icon(icon(st));
+                    }
+                }
+                if let Some(t) = &tray {
+                    let tip = match st {
+                        TrayState::Transferring => "Pulley: transferring".to_string(),
+                        TrayState::Error => format!("Pulley: {}", s.last_error.clone().unwrap_or_default()),
+                        TrayState::Idle => "Pulley".to_string(),
+                    };
+                    let _ = t.set_tooltip(Some(tip.chars().take(120).collect::<String>()));
+                }
+            }
+            Event::UserEvent(UserEvent::Menu(e)) => {
+                if e.id == pair.id() {
+                    let c = hub.start_pairing();
+                    code.set_text(format!("Pairing code: {c} (valid 2 minutes)"));
+                } else if e.id == revoke.id() {
+                    hub.revoke_figma();
+                } else if e.id == login.id() {
+                    let on = login.is_checked();
+                    if let Some(l) = launcher() {
+                        let r = if on { l.enable() } else { l.disable() };
+                        if let Err(err) = r {
+                            tracing::warn!("launch at login: {err}");
+                            login.set_checked(!on);
+                        } else {
+                            hub.update_settings(|s| s.launch_at_login = on);
+                        }
+                    }
+                } else if e.id == debug.id() {
+                    let on = debug.is_checked();
+                    hub.update_settings(|s| s.debug_logging = on);
+                } else if e.id == quit.id() {
+                    tracing::info!("quit from the tray menu");
+                    tray = None;
+                    *control_flow = ControlFlow::Exit;
+                }
+            }
+            _ => {}
+        }
+    });
+}

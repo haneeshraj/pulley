@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.ai binary
+*.png binary
+*.ico binary
+*.icns binary
+*.bmp binary
+*.wasm binary
+*.ffx binary
+*.zxp binary

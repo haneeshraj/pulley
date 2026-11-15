@@ -1,11 +1,47 @@
 [package]
 name = "pulley-bridge"
+description = "Pulley bridge: local WebSocket hub between Illustrator, Figma and After Effects."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "pulley-bridge"
+path = "src/main.rs"
 
 [dependencies]
+pulley-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# Async runtime for the WebSocket server.
+tokio = { version = "1.54.1", default-features = false, features = ["rt-multi-thread", "net", "sync", "time", "macros"] }
+# WebSocket server; its handshake callback lets us check Host and Origin before upgrading.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+# Per-user config/log directories.
+directories = "6"
+# OS randomness for the session token, pairing codes and Figma secrets.
+getrandom = "0.4"
+# Logging with daily rotating files.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.20", default-features = false, features = ["fmt", "std", "ansi"] }
+tracing-appender = "0.2"
+# Tray / menu bar icon and its event loop (macOS needs the main thread).
+tray-icon = "0.26"
+tao = "0.37"
+# Decoding the generated tray icon PNGs.
+png = "0.18"
+# Optional launch at login (Windows Run key / macOS LaunchAgent).
+auto-launch = "0.6"
+
+[dev-dependencies]
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake", "connect"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "time"] }
 
 [lints]
 workspace = true
+
+[build-dependencies]
+serde_json.workspace = true

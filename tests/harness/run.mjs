@@ -1,6 +1,6 @@
 // Runs jobs inside After Effects or Illustrator through the harness extension.
 // Usage: node tests/harness/run.mjs --app ILST|AEFT --jobs jobs.json --dir outDir
-//        [--install <extDir> ...] [--keep] [--timeout 900] [--no-server]
+//        [--install <extDir> ...] [--keep] [--timeout 900] [--no-server] [--multi]
 // Launches the app with its working directory set to outDir (Illustrator writes logs there),
 // waits until it quits (or kills it on timeout), removes the installed extensions.
 import fs from 'node:fs';
@@ -42,8 +42,13 @@ for (const ext of many('install')) install(path.resolve(ext), path.basename(path
 
 const server = args.includes('--no-server') ? null : await startDevServer(dir);
 const t0 = Date.now();
-const child = spawn(EXE[app], [], { cwd: dir, detached: false, stdio: 'ignore' });
+// --multi starts a separate After Effects instance (-m) so a user's open AE is never touched.
+const extra = args.includes('--multi') && app === 'AEFT' ? ['-m'] : [];
+const child = spawn(EXE[app], extra, { cwd: dir, detached: false, stdio: 'ignore' });
 console.log(`launched ${app} pid ${child.pid}; results in ${dir}`);
+// Click "Continue" if After Effects asks to start in safe mode (after a forced quit).
+const dismisser = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'dismiss-dialogs.ps1'), '-ProcessId', String(child.pid), '-Seconds', '240'], { stdio: ['ignore', 'pipe', 'ignore'] });
+dismisser.stdout.on('data', (d) => process.stdout.write('[dismiss] ' + d));
 const exited = new Promise((r) => child.on('exit', (code) => r(code)));
 const timer = new Promise((r) => setTimeout(() => r('timeout'), timeout));
 const how = await Promise.race([exited, timer]);
@@ -52,6 +57,7 @@ if (how === 'timeout') {
   try { execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F']); } catch {}
 }
 if (server) server.close();
+try { dismisser.kill(); } catch {}
 if (!args.includes('--keep')) for (const d of installed) fs.rmSync(d, { recursive: true, force: true });
 console.log(`finished in ${((Date.now() - t0) / 1000).toFixed(0)}s (${how === 'timeout' ? 'timeout' : 'exit ' + how})`);
 for (const f of fs.readdirSync(dir).filter((f) => f.startsWith('result-'))) {

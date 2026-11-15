@@ -11,7 +11,7 @@ publish = false
 [workspace.dependencies]
 pulley-core = { path = "core/pulley-core" }
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = { version = "1.0.140", features = ["float_roundtrip"] }
+serde_json = { version = "1.0.140", features = ["float_roundtrip", "raw_value"] }
 roxmltree = "0.20"
 
 [workspace.lints.rust]

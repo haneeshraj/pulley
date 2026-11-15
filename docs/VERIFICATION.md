@@ -1,4 +1,129 @@
-# Milestone 1 verification report
+# Verification report
+
+Two parts:
+
+- **Part 1** (below): what the built system was tested with, and the results (2026-11-15).
+- **Part 2** (from [§1](#1-cep-status-install-paths-playerdebugmode)): the milestone 1 research
+  into CEP, After Effects, Illustrator and Figma that shaped the design (2026-11-14/15), kept as
+  written except where marked *Update*.
+
+# Part 1: the built system
+
+**Test machine:** Windows 11 Home (26300), i9-13900H, 16 GB RAM; After Effects 25.5 (CEP 12.0.1),
+Illustrator 29.5.0 (CEP 12.1.0), Microsoft Edge (Chromium) for the Figma UI test, Rust 1.99
+(stable, windows-gnu), Node.js 24. **Not available:** macOS, After Effects/Illustrator 2026, a
+Figma session for automated runs.
+
+## Automated tests and results
+
+| Suite | What it does | Result |
+|---|---|---|
+| `pulley-core` unit tests | scene validation and limits, SVG path parser (all commands, arcs), shapes, gradient math, Illustrator and Figma conversion, AE plans, `.ffx` structure, protocol | 77 passed |
+| Illustrator golden tests | the 13 fixture captures converted and compared with reference scenes | 14 passed |
+| Stable fuzzing pass | 1,500 mutated inputs per parser in every `cargo test` | passed |
+| Bridge unit tests | settings, tokens, pairing codes, tray error state | 5 passed |
+| Bridge end-to-end | real bridge process with fake clients: Host/Origin checks, tokens, hello timeout, pairing (wrong code, single use, reconnect), push/pull routing (most recent After Effects; pull to the source used last), chunked scenes, invalid scenes never forwarded, oversized frames, protocol mismatch messages | 13 passed |
+| After Effects suite (`node tests/ae/run.mjs`) | 16 cases: the example scenes and Illustrator fixtures built in a separate After Effects instance, checked property by property; gradient colors read back from the saved project; undo; 500 × 20 timings | see [After Effects](#after-effects) |
+| Illustrator fixture capture | the 13 fixture documents captured in Illustrator 29.5 | all captured; document never modified; selection kept |
+| Figma plugin (`npm test`) | reader on Figma-shaped objects through the real WebAssembly core (4); the shared bridge client against a real bridge (1); the built UI in headless Edge inside a sandboxed iframe against a real bridge (1) | 6 passed |
+| Icons | `cargo xtask icons --check`: 46 slots, 84 outputs | all valid |
+| Lints | `cargo fmt --check`, `cargo clippy --workspace --all-targets` (all lints denied), clippy for the WebAssembly crate | clean |
+| Dependencies | `cargo deny check` (shipped targets), `cargo audit`, `npm audit` | deny: ok; audit: 2 warnings, Linux-only crates never built (see DEPENDENCIES.md); npm: 0 vulnerabilities |
+
+### After Effects
+
+`node tests/ae/run.mjs` builds plans from `schema/examples/*.json` and the Illustrator fixture
+captures, applies each one in a fresh project inside a separate After Effects instance (`-m`),
+dumps the comp, and checks it. Cases and what is checked:
+
+| Case | Checks |
+|---|---|
+| basic-center | stacking order, anchor at the visual center, centered placement, stroke width/caps/joins, stroke above fill, group opacity and blend mode, paint opacity, vertices and tangents |
+| basic-newcomp | a new comp the size of the artboard, original positions |
+| gradients | linear/radial gradient points and highlight, even-odd rule on a gradient fill, dashes and offset, inside stroke via Offset Paths, **gradient colors of both the stroke and the fill read back from the saved `.aep` and matched to their own presets**, not keyframed |
+| ai-gradients | five Illustrator gradients (linear, rotated, radial, scaled radial, gradient stroke), colors read back |
+| cliptext | track matte with hidden matte layer, text in a precomp, per-run fonts, sizes, colors and tracking |
+| basic-merge, basic-precomp | layer modes |
+| ai-clipping-mask, ai-clipping-matte | masks; three track mattes including a nested clip |
+| ai-text | five text layers, no missing fonts, area text as box text, rotation |
+| ai-strokes | caps, joins, miter limit, three dash/gap pairs |
+| ai-groups | nested group opacity and blend mode |
+| undo-existing, undo-newcomp | **one Edit → Undo removes the whole import**, including the gradient presets, and in the second case the comp created for it |
+| ai-perf-merge, ai-perf-layers | 500 paths × 20 points |
+
+Latest full run: **60 checks passed, 0 failed** ([details](#latest-runs-2026-11-15)).
+
+Gradient colors needed two fixes that only After Effects could reveal (both in
+`pulley-core/src/ffx.rs`): preset names must use the current `Utf8`-prefixed encoding (with the
+old zero-terminated form AE ignored the preset without any message), and the gradient XML must
+not end with a zero byte (AE showed "Error parsing properties list from memory (13)"). Gradient
+colors aren't readable through scripting, so the suite saves the project as `.aep` and reads the
+`GCky` chunks back; AE's own `secret.aep` was used to confirm that a non-default gradient is
+stored that way.
+
+### End to end through the real bridge
+
+| Path | Result |
+|---|---|
+| Illustrator extension (installed) → bridge → stand-in After Effects client | pull answered in 140 ms; pushes of a group document, five text frames (198 KB scene) and 500 × 20 paths (681 KB) |
+| Scene file → bridge → installed After Effects extension | gradients scene imported in 0.5 s; the saved project holds the right colors for both gradients |
+| Earlier runs (milestone 3) | basic shapes 0.56 s, gradients 0.45 s, clip + text 0.73 s, text 1.18 s, 500 × 20 as 500 layers into an open comp 9.0 s |
+
+### Illustrator
+
+Capture of the 13 fixtures with everything selected, the document marked clean right before each
+capture: no capture marked it modified, and the selection was kept. Timings are in
+[ILLUSTRATOR_READ_BENCHMARK.md](ILLUSTRATOR_READ_BENCHMARK.md) (65 ms for typical selections,
+1.9 s for 500 × 20 the first time and about 0.5 s on repeats).
+
+### Figma plugin
+
+Not run inside Figma. What is tested instead:
+
+- The reader (`read.ts`) on objects built to the Figma Plugin API documentation (every node type
+  Pulley handles, mixed values, limits), with its output converted by the real WebAssembly core.
+- The shared bridge client against a real bridge: pairing (wrong code, code with dashes, spaces
+  and lower case), push, chunked push, pull, reconnecting with the stored key, and a key the
+  bridge no longer knows.
+- The built `dist/ui.html` in headless Edge, inside an iframe with `sandbox="allow-scripts …"`
+  (opaque origin, so its WebSocket sends `Origin: null` like Figma's), with a host page standing
+  in for the main thread: pairing through the UI, Send, the import result display, the `.pulley`
+  download (content checked), and answering a pull; no script errors.
+
+Still unverified: Figma's real `postMessage` origins, `figma.clientStorage`, the plugin sandbox's
+JavaScript support for the main-thread bundle (built for ES2017), and Figma's CSP for the inlined
+WebAssembly.
+
+### Fuzzing
+
+See the end of this section.
+
+### Things checked by hand during development
+
+- After Effects shows a "Crash Repair Options" dialog after a forced quit; the harness now
+  dismisses it (OCR of the dialog, since UI Automation can't see its controls).
+- The bridge's idle footprint: about 13 MB of memory and no CPU (Windows Task Manager, milestone 3).
+
+### Not verified
+
+- macOS: nothing has been built or run.
+- After Effects 2026 and Illustrator 2026.
+- The Figma plugin inside Figma (desktop or browser).
+- Signed ZXPs: the signing script exists but was not run in this session (the self-signed
+  certificate step was blocked by the environment's permission policy).
+- Bridge installers on a clean machine.
+- CI: the workflow has never run (no remote repository).
+
+## Latest runs (2026-11-15)
+
+**After Effects suite** (`node tests/ae/run.mjs`, full run): **60 checks passed, 0 failed**
+across 16 cases. 500 × 20 timings in this run: merge 5.5 s, one layer per item 11.2 s (a
+long fuzzing run was using one CPU core at the same time). The previous full run: merge 3.9 s,
+per item 15.7 s.
+
+**Fuzzing:** see [Fuzzing](#fuzzing) above.
+
+# Part 2: milestone 1 research
 
 Checked on 2026-11-14 and 2026-11-15.
 
@@ -90,8 +215,10 @@ the panel starts it with `requestOpenExtension`.
 **Fallback design:** the primary path is the WebSocket, listed in `allowedDomains` with
 `reasoning`; it works in the desktop app and in Chrome after the user allows "Apps on device".
 When the socket can't connect (Safari, permission denied), the plugin offers **"Save .pulley
-file"** and the AE panel offers **"Import .pulley file"**. The file holds the scene plus an HMAC
-made with the paired Figma secret, so the AE side can tell it came from your paired plugin.
+file"** and the AE panel offers **"Import .pulley file"**. *Update:* built without the HMAC
+proposed here. A `.pulley` file is a plain scene, validated like any other input; signing it
+with the pairing key would only prove it came from a paired plugin, which matters little for a
+file you choose to open (see SECURITY.md).
 Clipboard copy is a secondary option, kept only if milestone 5 shows it works. Recommend
 distributing the plugin as a development or private-organization plugin, not on the Community.
 
@@ -316,12 +443,19 @@ All of these are untested here.
    ([issue](https://github.com/boyjustin76/adobe-script-runner/issues/1), **COMMUNITY**, single
    report).
 
-## 9. Still open (scheduled)
+## 9. Items left open in milestone 1: outcomes
 
-| Item | Milestone |
+| Item | Outcome |
 |---|---|
-| Panel ↔ background extension CSEvents; undo group spanning a long apply; progress via CSXSEvent from ExtendScript; cancel-flag polling cost | 3 |
-| Illustrator: DOM read vs SVG export on real selections, including the PathPoint leak over repeated Pushes; SVG fidelity (gradients, fill rules, clipping, text); `uuid` persistence; symbols via temporary document without touching history; copying the selection to a temporary document without touching the user's undo history or clipboard | 4 |
-| Figma: `ws://127.0.0.1` vs `ws://localhost` in the manifest; Origin actually sent; WASM under Figma's CSP; file download fallback in desktop and browser | 5 |
-| `.ffx` gradient generator; Offset Paths stroke-alignment emulation; leading/autoLeading | 6 |
-| macOS: everything above | when a Mac is available (CI covers build and tests) |
+| Panel ↔ background extension CSEvents | Built and used for every panel action. |
+| Undo group spanning a long apply | One undo step per import, *tested* (Part 1). |
+| Progress via CSXSEvent from ExtendScript; cancel-flag polling | Built: progress every 50 plan operations, cancel file checked at the same time. |
+| Illustrator: DOM read vs SVG export on real selections | DOM read chosen; SVG only for outlines, symbols and very long paths ([ILLUSTRATOR_READ_BENCHMARK.md](ILLUSTRATOR_READ_BENCHMARK.md)). |
+| Illustrator: PathPoint slowdown over repeated pushes | Not seen over 5 repeated 500 × 20 captures; a 50-push run was not done. |
+| Illustrator: SVG fidelity, symbols via a temporary document, no traces in the user's document | Built; the document is never marked modified (*tested* on 13 fixtures). |
+| Illustrator: `uuid` persistence across save/reopen | Not tested; uuids are used only within one capture. |
+| Figma: `ws://127.0.0.1` vs `ws://localhost`, Origin sent, WASM under Figma's CSP, file download | Both addresses are in the manifest; the rest is tested only in a browser stand-in (Part 1), not in Figma. |
+| `.ffx` gradient generator | Built and *tested* in After Effects 25.5. |
+| Offset Paths stroke alignment | Built; checked in the suite (inside stroke: Offset Paths −6 for a 12 px stroke). |
+| leading / autoLeading | Leading is set per run when the source has a fixed value; otherwise After Effects' auto leading is kept. |
+| macOS | Not done (no Mac available); CI is configured for macOS but has not run. |

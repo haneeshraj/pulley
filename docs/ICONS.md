@@ -1,136 +1,116 @@
 # Icons
 
-**Status: slot list, draft for milestone 1 approval.**
-- Milestone 7 builds `assets/icons/icons.json`, the placeholder masters and `cargo xtask icons`,
-  and finishes this table.
-- Milestone 9 turns it into ICON_HANDOFF.md.
+**Status:** the system is built and every slot has a **placeholder** master. Final icons go in by
+replacing the masters (see [ICON_HANDOFF.md](ICON_HANDOFF.md)); no code changes are needed.
 
 ## How the system works
 
-- **Masters:** one per slot in `assets/icons/masters/`. SVG where possible; a 1024×1024 PNG only
-  where a raster suits better.
-- **Registry:** `assets/icons/icons.json` maps every slot id to its master and to every generated
-  output. No code anywhere else names an icon file. Panels, the plugin, the bridge and the
-  packagers read generated paths from the registry or from files the build generates out of it.
-- **Aliases:** a slot may point at another slot's master (for example, the installer icon defaults
-  to the app icon), so you only design what actually differs.
-- **Build:** `cargo xtask icons` renders PNGs with resvg and packs `.ico` and `.icns`. It
-  validates format, size, alpha and monochrome rules, and fails with the slot id and the problem.
-  Placeholders go through the same pipeline. Swapping in your icons means replacing the masters,
-  running the command, and rebuilding.
+- **Registry:** [`assets/icons/icons.json`](../assets/icons/icons.json) lists 46 slots. Each slot
+  has a master (or an alias to another slot's master), a kind, color rules, and its outputs.
+  Nothing else in the code names an icon file: the CEP build, the bridge (`build.rs` embeds the
+  tray icons), the panels and the Figma plugin (through the generated
+  `panels/shared/js/icons.js`) all use the registry's outputs.
+- **Masters:** [`assets/icons/masters/`](../assets/icons/masters), one SVG per slot (39 files; 7
+  slots are aliases).
+- **Build:** `cargo xtask icons` renders the PNGs with resvg, packs `.ico` and `.icns`, writes
+  BMPs for the Windows installer, normalizes the UI SVGs, and generates the UI icon bundle.
+  Outputs go to [`assets/icons/out/`](../assets/icons/out) (84 files).
+- **Check:** `cargo xtask icons --check` (also in CI) rebuilds nothing and fails, naming the slot
+  and the problem, if an output is missing, stale, the wrong size or format, lacks alpha where
+  required, or breaks a color rule.
 
-**"Requirement" vs "convention":** a value marked **(conv.)** is common practice, not stated in an
-official document. Sources are in [VERIFICATION.md §6](VERIFICATION.md#6-icon-requirements).
+### Validation rules
 
-## 1. CEP extension icons (manifest `<Icons>`)
-
-Shown by the host for the extension: Illustrator shows them when a panel is collapsed to icons.
-Where After Effects shows them is **not documented**; to check in milestone 3.
-
-| Slot id | Manifest type | Output files | Sizes | Color | Theme | Alpha | Padding |
-|---|---|---|---|---|---|---|---|
-| `cep.ae.normal` | Normal | `panels/ae/icons/normal.png`, `normal@2X.png` | 23×23, 46×46 (conv.) | full color or mono | light UI | yes | 2 px (conv.) |
-| `cep.ae.rollover` | RollOver | `rollover.png`, `rollover@2X.png` | same | same | light UI | yes | same |
-| `cep.ae.dark-normal` | DarkNormal | `dark-normal.png`, `dark-normal@2X.png` | same | same | dark UI | yes | same |
-| `cep.ae.dark-rollover` | DarkRollOver | `dark-rollover.png`, `dark-rollover@2X.png` | same | same | dark UI | yes | same |
-| `cep.ae.disabled` (optional) | Disabled | `disabled.png`, `disabled@2X.png` | same | same | any | yes | same |
-| `cep.ai.normal` / `.rollover` / `.dark-normal` / `.dark-rollover` / `.disabled` | as above | `panels/illustrator/icons/...` | same | same | same | yes | same |
-
-- **Source:** [CEP 12 cookbook](https://github.com/Adobe-CEP/CEP-Resources/blob/master/CEP_12.x/Documentation/CEP%2012%20HTML%20Extension%20Cookbook.md)
-  ("@2X" files; Normal/RollOver/DarkNormal/DarkRollOver) and the
-  [manifest XSD](https://github.com/Adobe-CEP/CEP-Resources/blob/master/CEP_8.x/ExtensionManifest_v_7_0.xsd)
-  (adds Disabled).
-- The pixel size is not documented. 23/46 is convention, and Illustrator on macOS reportedly shows
-  them small.
-- PNG only: SVG is reportedly ignored.
-- The `cep.ai.*` slots alias `cep.ae.*` by default.
-
-## 2. In-panel UI icons (AE panel, Illustrator panel, Figma plugin UI)
-
-**Rules for all of these:**
-- Inline SVG, `viewBox="0 0 16 16"`, drawn as one color using `currentColor`.
-- The validator rejects:
-  - any other color
-  - `<image>`, `<script>`, `<style>`, `<foreignObject>`
-  - external references and event attributes
-- Rendered at 16 CSS px, so they stay crisp at 100% and 200% because they are vectors.
-- **States** (normal, hover, active, disabled) are done in CSS: the same master with a different
-  color or opacity.
-- **Themes:** they follow the host theme through `currentColor`. Panels update live on AE and
-  Illustrator brightness changes (`com.adobe.csxs.events.ThemeColorChanged`); Figma uses its theme
-  CSS variables.
-- Keep a 1 px safe margin inside the 16×16 box (conv.). Sources: none needed; these are Pulley's
-  own conventions.
-
-| Slot id | Where it appears |
+| Kind | Rules |
 |---|---|
-| `ui.pull` | AE panel: Pull button |
-| `ui.push` | Illustrator panel and Figma plugin: Push button |
-| `ui.settings` | Settings / options toggle |
-| `ui.reconnect` | Reconnect button |
-| `ui.state.connected` | Connection status (color set by CSS) |
-| `ui.state.connecting` | Connection status (may be rotated by CSS animation) |
-| `ui.state.disconnected` | Connection status |
-| `ui.warning` | Warning rows, missing fonts |
-| `ui.error` | Error messages |
-| `ui.success` | Last import summary |
-| `ui.cancel` | Cancel an import in progress |
-| `ui.help` | Opens the README section for the current error |
-| `ui.open-log` | Opens the bridge log folder |
-| `ui.info` *(added)* | Neutral notices |
-| `ui.close` *(added)* | Dismiss a message |
-| `ui.copy` *(added)* | Copy error details |
-| `ui.import-file` *(added)* | AE panel: "Import .pulley file" (Figma fallback) |
-| `ui.save-file` *(added)* | Figma plugin: "Save .pulley file" (fallback) |
-| `ui.pair` *(added)* | Figma plugin: pair with the bridge |
-| `ui.chevron` *(added)* | Expand/collapse the warnings list (rotated by CSS) |
+| `ui` (in-panel icons) | 16×16 viewBox; only `currentColor` or `none` for fill and stroke; no `style` attribute; no `<script>`, `<style>`, `<image>`, `<iframe>`, `<foreignObject>`, `javascript:` or external `href`. They follow the host theme through `currentColor`; hover/disabled states are CSS. |
+| `raster` | exact pixel size per output; alpha channel where the slot says so; `.ico` must contain every listed size; `.icns` must contain icons; BMPs must be 24-bit at the exact size. |
+| `raster`, color `template` (macOS menu bar) | black and transparency only; the system tints it. |
+| `vector` (README logo) | rendered to light and dark SVG variants. |
 
-## 3. Figma publishing assets
+**Requirement vs convention:** sizes marked (conv.) below are common practice rather than an
+official rule; sources are in [VERIFICATION.md §6](VERIFICATION.md#6-icon-requirements).
 
-These are needed only if you publish the plugin. A development plugin shows no icon.
+## Slots
 
-| Slot id | Where | Output | Size | Color | Alpha | Source |
-|---|---|---|---|---|---|---|
-| `figma.plugin-icon` | Community / org plugin listing | `figma-plugin/assets/icon.png` | 128×128 | full color | yes | [Figma: publish plugins](https://help.figma.com/hc/en-us/articles/360042293394) ("128×128 recommended") |
-| `figma.cover` | Community thumbnail | `figma-plugin/assets/cover.png` | 1920×1080 | full color | no (opaque) | same page. The often-quoted 1920×960 is not official. |
+### CEP extension icons (manifest `<Icons>`)
 
-## 4. Bridge app (tray / menu bar)
+| Slot | Master | Outputs |
+|---|---|---|
+| `cep.ae.normal` | `cep.ae.normal.svg` | `out/cep/ae/normal.png` 23×23, `normal@2X.png` 46×46 (conv.) |
+| `cep.ae.rollover` | `cep.ae.rollover.svg` | `out/cep/ae/rollover.png`, `@2X` |
+| `cep.ae.dark-normal` | `cep.ae.dark-normal.svg` | `out/cep/ae/dark-normal.png`, `@2X` |
+| `cep.ae.dark-rollover` | `cep.ae.dark-rollover.svg` | `out/cep/ae/dark-rollover.png`, `@2X` |
+| `cep.ae.disabled` | `cep.ae.disabled.svg` | `out/cep/ae/disabled.png`, `@2X` |
+| `cep.ai.*` (same five) | aliases of `cep.ae.*` | `out/cep/illustrator/…` |
 
-| Slot id | Where | Output | Sizes | Color | Theme | Alpha | Padding | Source |
-|---|---|---|---|---|---|---|---|---|
-| `bridge.app` | Windows exe, Start menu, Settings > Apps; macOS Finder, Login Items | `bridge.ico`; `bridge.icns` | `.ico`: 16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 96, 256 (256 PNG-compressed). `.icns`: 16, 32, 128, 256, 512 at 1x and 2x | full color | macOS 26 may also want dark/tinted appearances; they are generated automatically if missing | yes | macOS: 1024 canvas, no mask baked in, the system applies it. Body fills the shape (the 824 px body is a Big Sur-era convention, probably outdated) | [MS app icon construction](https://learn.microsoft.com/en-us/windows/apps/design/iconography/app-icon-construction), [Apple HIG app icons](https://developer.apple.com/design/human-interface-guidelines/app-icons) |
-| `bridge.tray.idle` | Windows notification area | RGBA PNGs fed to `tray-icon` | 16, 20, 24, 32, 40, 48, 64 (100–400%) | color allowed; white/mono glyph is the Windows 11 look (conv.) | optional `.light-taskbar` override for light taskbars (conv.) | yes | none | [MS notification area](https://learn.microsoft.com/en-us/windows/win32/shell/notification-area) |
-| `bridge.tray.transferring` | same | same | same | same | same | yes | none | same |
-| `bridge.tray.error` | same | same | same | same | same | yes | none | same |
-| `bridge.tray.idle.template` | macOS menu bar | RGBA PNG with the template flag set (`with_icon_templated`) | 22×22 canvas at 1x and 2x (22 and 44 px), glyph about 16 pt tall (conv.) | **black + alpha only** (validated) | the system tints it for light/dark | yes | glyph centered, no extra padding | [HIG menu bar](https://developer.apple.com/design/human-interface-guidelines/the-menu-bar), [NSImage.isTemplate](https://developer.apple.com/documentation/appkit/nsimage/istemplate) |
-| `bridge.tray.transferring.template` | same | same | same | same | same | yes | same | same |
-| `bridge.tray.error.template` | same | same | same | same | same | yes | same | same |
+Full color with alpha. `tools/build-panels.mjs` copies them into each extension and writes the
+manifest's `<Icons>` entries.
 
-## 5. Installers
+### In-panel UI icons (AE panel, Illustrator panel, Figma plugin)
 
-The packager choice is made in milestone 8. The slots below assume cargo-packager (NSIS on
-Windows, .app plus .dmg on macOS).
+All 16×16, `currentColor`, outputs `out/ui/<slot>.svg`, bundled into
+`panels/shared/js/icons.js`.
 
-| Slot id | Where | Output | Size | Color | Alpha | Source |
-|---|---|---|---|---|---|---|
-| `installer.win.icon` | setup.exe and uninstaller | `.ico` | as `bridge.app` | full color | yes | aliases `bridge.app` by default |
-| `installer.win.header` | NSIS page header | BMP | 150×57 | full color | no | [NSIS MUI2](https://nsis.sourceforge.io/Docs/Modern%20UI%202/Readme.html) |
-| `installer.win.sidebar` | NSIS welcome/finish pages | BMP | 164×314 | full color | no | same |
-| `installer.mac.volume-icon` | Mounted DMG icon | `.icns` | as `bridge.app` | full color | yes | aliases `bridge.app` (conv.) |
-| `installer.mac.dmg-background` | DMG window background | PNG | 660×400 and 1320×800 @2x (conv.) | full color | no | no Apple document (conv.) |
+| Slot | Where |
+|---|---|
+| `ui.pull` | AE panel: Pull selection |
+| `ui.push` | Illustrator panel: Push; Figma plugin: Send to After Effects |
+| `ui.settings` | Options toggle |
+| `ui.reconnect` | Reconnect |
+| `ui.state.connected`, `ui.state.connecting`, `ui.state.disconnected` | Connection status |
+| `ui.warning` | Warnings, missing fonts |
+| `ui.error` | Errors |
+| `ui.success` | Successful import |
+| `ui.cancel` | Cancel an import |
+| `ui.help` | Help |
+| `ui.open-log` | Show the bridge log |
+| `ui.info` | Neutral notices (e.g. cancelled) |
+| `ui.close` | Close an overlay |
+| `ui.copy` | Copy details |
+| `ui.import-file` | AE panel: Import .pulley file |
+| `ui.save-file` | Figma plugin: Save .pulley file |
+| `ui.pair` | Figma plugin: Pair |
+| `ui.chevron` | Expand/collapse |
 
-## 6. Repository (optional)
+### Figma publishing assets
 
-| Slot id | Where | Output | Size | Notes |
-|---|---|---|---|---|
-| `docs.readme-logo` | README header | `assets/icons/out/readme-logo-light.svg`, `-dark.svg` | vector | GitHub `<picture>` with `prefers-color-scheme` |
-| `docs.social-preview` *(added)* | GitHub repo social card | PNG | 1280×640 | uploaded manually in GitHub settings |
+Used only when publishing the plugin; a development plugin shows no icon.
 
-## Slots added beyond the brief
+| Slot | Output | Notes |
+|---|---|---|
+| `figma.plugin-icon` | `out/figma/icon-128.png` 128×128, alpha | Figma recommends 128×128 |
+| `figma.cover` | `out/figma/cover-1920x1080.png` 1920×1080, opaque | Community thumbnail |
 
-- `cep.*.disabled`: the manifest schema supports it.
-- `ui.info`, `ui.close`, `ui.copy`, `ui.import-file`, `ui.save-file`, `ui.pair`, `ui.chevron`
-- Separate macOS `.template` tray slots for every state.
-- NSIS header and sidebar bitmaps.
-- The DMG background.
-- `docs.social-preview`.
+### Bridge app
+
+| Slot | Outputs |
+|---|---|
+| `bridge.app` | `out/bridge/app.ico` (16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 96, 256), `app.icns` (16–1024), `app-1024.png`, `app-256.png`, `app-128.png`, `app-32.png` |
+| `bridge.tray.idle`, `.transferring`, `.error` | Windows tray: `out/bridge/tray-<state>-{16,20,24,32,40,48,64}.png`, full color with alpha |
+| `bridge.tray.idle.template`, `.transferring.template`, `.error.template` | macOS menu bar: `out/bridge/tray-<state>-template-{22,44}.png`, black + alpha only, marked as template |
+
+The tray shows *transferring* while a transfer is open and *error* after a failure, then returns
+to *idle*.
+
+### Installers
+
+| Slot | Output |
+|---|---|
+| `installer.win.icon` | alias of `bridge.app`: `out/installer/setup.ico` (16, 24, 32, 48, 64, 256) |
+| `installer.win.header` | `out/installer/nsis-header.bmp` 150×57, 24-bit |
+| `installer.win.sidebar` | `out/installer/nsis-sidebar.bmp` 164×314, 24-bit |
+| `installer.mac.volume-icon` | alias of `bridge.app`: `out/installer/volume.icns` |
+| `installer.mac.dmg-background` | `out/installer/dmg-background.png` 660×400 and `@2x` 1320×800 (conv.) |
+
+### Repository
+
+| Slot | Output |
+|---|---|
+| `docs.readme-logo` | `out/docs/readme-logo-light.svg`, `readme-logo-dark.svg` |
+| `docs.social-preview` | `out/docs/social-preview.png` 1280×640 (uploaded by hand in the repository settings) |
+
+## Rules for the art itself
+
+- No Adobe, Figma or other third-party logos or trademarks, and no third-party icon packs.
+- The placeholders are plain geometric marks with labels; they exist to prove the pipeline.

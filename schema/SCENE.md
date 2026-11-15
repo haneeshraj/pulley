@@ -1,8 +1,11 @@
 # pulley-scene v1
 
-**Status: draft for milestone 1 approval.** Rust serde types are written in milestone 2. The
-[JSON Schema](pulley-scene-v1.schema.json) and the serde types must agree. A test in `core/` checks
-every file in [`examples/`](examples/) against both.
+**Status: v1, implemented.** The Rust types in
+[`core/pulley-core/src/scene.rs`](../core/pulley-core/src/scene.rs) and the checks in
+[`validate.rs`](../core/pulley-core/src/validate.rs) are authoritative; the
+[JSON Schema](pulley-scene-v1.schema.json) mirrors them for other tools. The tests parse and
+validate every file in [`examples/`](examples/) with the Rust types; there is no automated check
+of the examples against the JSON Schema file.
 
 pulley-scene is the only data format that crosses between Pulley components (Illustrator panel,
 Figma plugin, bridge, AE panel). Each component may use private encodings internally, for example
@@ -30,8 +33,9 @@ produced and consumed by pulley-core. See [ARCHITECTURE.md](../docs/ARCHITECTURE
 - **group**: children plus optional `clip` (a clipping mask). Illustrator clip groups and Figma
   frames with `clipsContent` both become a group with `clip`. The clip path's own appearance is
   dropped, with a warning if it had any.
-- **shape**: one or more paths sharing a `fillRule`, `fill` and `stroke`. One path is a simple path;
-  several form a compound path. Booleans in Figma are exported as their resolved geometry.
+- **shape**: one or more paths sharing a `fillRule`, a list of `fills` and a list of `strokes`
+  (bottom to top, as in Illustrator's appearance and Figma's paint lists). One path is a simple
+  path; several form a compound path. Booleans in Figma are exported as their resolved geometry.
 - **text**: `content`, style `runs`, `justification`, `kind` (`point`/`area`, plus `box` for area
   text), a `matrix`, and `outlines`: fallback shapes used when AE lacks the font.
 
@@ -63,7 +67,7 @@ also in the schema file.
 | Limit | Value | Why |
 |---|---|---|
 | Scene message size | 64 MiB (after reassembling chunks) | 500 × 20 paths is about 0.45 MB; this leaves 100× headroom while bounding memory. |
-| Nesting depth (groups) | 64 | Stops stack exhaustion from deeply nested input. Illustrator/Figma files rarely exceed 15. |
+| Nesting depth (groups) | 48 | Stops stack exhaustion from deeply nested input. Illustrator/Figma files rarely exceed 15. |
 | Items in a scene (all levels) | 100,000 | Bounds AE apply time. |
 | Paths per shape / clip | 10,000 | |
 | Vertices per path | 100,000 | |
@@ -75,29 +79,34 @@ also in the schema file.
 | Gradient stops | 2..256 | |
 | Dash array | 16 entries | AE supports 3 dash/gap pairs. Extra entries are reduced with a warning. |
 | Warnings | 10,000 | |
-| Numbers | finite only. JSON can't carry NaN/Infinity; serde_json rejects `NaN` tokens and overflow such as `1e400` (to be confirmed by tests in milestone 2). | |
+| Numbers | finite only. JSON can't carry NaN/Infinity; serde_json rejects `NaN` tokens and overflow such as `1e400` (tested in `validate.rs`). | |
+| Paints per shape | 32 | |
 
 ## Warning codes
 
-Readers accept codes they don't know and show `message`. Initial set:
+Readers accept codes they don't know and show `message`. Each warning names the item it
+concerns. Codes produced by the converters (in the scene):
 
 | Code | Meaning |
 |---|---|
-| `unsupported_raster` | Placed or embedded image skipped |
-| `unsupported_pattern` | Pattern fill or stroke dropped |
+| `unsupported_raster` | Placed or embedded image skipped (Illustrator) |
 | `unsupported_gradient_mesh` | Gradient mesh skipped |
-| `unsupported_freeform_gradient` | Freeform gradient dropped |
-| `unsupported_paint_angular` / `unsupported_paint_diamond` | Figma gradient types AE can't draw |
-| `unsupported_paint_image` / `unsupported_paint_video` | Figma image/video paints |
-| `unsupported_effect` | Shadows, blurs, live effects dropped |
-| `unsupported_brush` | Art, scatter or pattern brush stroke reduced to a plain stroke |
-| `gradient_transform_approximated` | Skewed or non-uniformly scaled gradient reduced to start/end points |
-| `stroke_alignment_emulated` | Inside/outside stroke emulated in AE |
-| `dash_pattern_truncated` | More than 3 dash/gap pairs |
-| `clip_appearance_dropped` | Fill or stroke on a clipping path dropped |
-| `font_mapping_guessed` | PostScript name inferred from family/style (Figma) |
-| `text_outlines_missing` | No outline fallback captured |
-| `symbol_expanded` | Illustrator symbol instance imported as plain geometry |
+| `unsupported_graph`, `unsupported_plugin_item`, `unsupported_legacy_text`, `unsupported_item` | Graphs, blends/envelopes, legacy text, other objects skipped |
+| `unsupported_pattern`, `unsupported_color` | Pattern or unknown color dropped |
+| `unsupported_paint_angular`, `unsupported_paint_diamond`, `unsupported_paint_image`, `unsupported_paint_video`, `unsupported_paint` | Figma paints After Effects can't draw |
+| `unsupported_effect`, `unsupported_node` | Figma effects and node types not imported |
+| `appearance_not_imported` | The item looks larger than its path (art brush, live effect, extra stroke); only the basic fill and stroke are imported |
+| `gradient_transform_approximated`, `radial_highlight_approximated`, `gradient_geometry_missing` | Gradient geometry simplified or unreadable |
+| `clip_appearance_dropped`, `clip_missing`, `mask_unsupported` | Clipping path appearance dropped, or a clip/mask that couldn't be read |
+| `corner_radius_dropped`, `stroke_cap_simplified` | Rounded polygon/star corners, decorative caps |
+| `symbol_expanded` | Symbol instance imported as plain artwork |
+| `text_on_path_outlined`, `text_area_transform_ignored`, `text_gradient_simplified` | Text simplifications |
+| `geometry_missing`, `copy_failed`, `too_deep` | Something couldn't be read; the item or part of it is skipped |
+| `display_p3_colors` | The Figma file uses Display P3 (scene-level) |
+
+Codes added when the After Effects plan is built (shown the same way):
+`stroke_alignment_emulated`, `dash_pattern_truncated`, `group_split`, `clip_matte_used`,
+`text_gradient_simplified`, `text_skew_ignored`.
 
 ## Examples
 

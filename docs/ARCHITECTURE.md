@@ -1,311 +1,258 @@
 # Pulley architecture
 
-**Status: proposal for milestone 1 approval.** Nothing below is built yet. Numbers marked
-*measured* come from the probes in [`tests/probes`](../tests/probes) (results in
-[VERIFICATION.md](VERIFICATION.md)). Everything else is a design decision to approve or change.
+How Pulley is built, as of 0.1.0. Facts marked *measured* or *verified* come from the tests and
+probes described in [VERIFICATION.md](VERIFICATION.md); everything else describes the code.
 
-## Goals in one paragraph
+## Goal
 
-Move vector artwork from Illustrator (Push, or Pull from AE) and Figma (Push) into After Effects
-as native, editable shape and text layers. All parsing, geometry, color and validation logic lives
-in one Rust library, `pulley-core`, which runs natively in the bridge and as WebAssembly in every
-client. Hosts only read their own DOM and apply precomputed values. Everything runs on the local
-machine: no network, accounts or telemetry.
+Move vector artwork from Illustrator and Figma into After Effects as native, editable shape and
+text layers. All parsing, geometry, color and validation logic lives in one Rust library,
+`pulley-core`, which runs natively in the bridge and as WebAssembly in every client. The Adobe
+apps and Figma only read their own data and apply precomputed values. Everything runs locally.
 
 ## Components
 
 ```
- Illustrator (CEP)                Figma (desktop or browser)
- ┌────────────────────────┐       ┌──────────────────────────────┐
- │ panel UI (visible)     │       │ main thread: reads nodes     │
- │  ⇅ CSEvent (app scope) │       │  ⇅ postMessage               │
- │ background extension   │       │ UI iframe: pulley-wasm       │
- │  pulley-wasm           │       │  builds pulley-scene         │
- │  ExtendScript: capture │       └──────────────┬───────────────┘
- └───────────┬────────────┘                      │
-             │ WebSocket, pulley-scene           │ WebSocket, pulley-scene
-             ▼                                   ▼
-       ┌──────────────────────────────────────────────────┐
-       │ pulley-bridge (tray / menu bar app, Rust)        │
-       │ tokio WebSocket server on 127.0.0.1:47290        │
-       │ auth, routing, validation (pulley-core native),  │
-       │ settings, logs                                   │
-       └──────────────────────┬───────────────────────────┘
-                              │ WebSocket, pulley-scene
-                              ▼
- After Effects (CEP)
- ┌────────────────────────────────────────────────────────┐
- │ background extension: pulley-wasm turns scene into an  │
- │ "AE plan"; the plan goes to a temp file; one fixed     │
- │ ExtendScript call builds the layers                    │
- │  ⇅ CSEvent                                             │
- │ panel UI: Pull button, options, last import summary    │
- └────────────────────────────────────────────────────────┘
+ Illustrator (CEP 12)                     Figma (desktop or browser)
+ ┌──────────────────────────────┐         ┌──────────────────────────────────┐
+ │ panel (visible): Push, state │         │ main thread: read-only node      │
+ │   ⇅ CSEvents (app scope)     │         │ reader, pairing key storage      │
+ │ background extension:        │         │   ⇅ postMessage                  │
+ │   bridge client, pulley-core │         │ UI iframe: pulley-core (WASM),   │
+ │   (WASM), capture.jsx        │         │ bridge client, .pulley download  │
+ └──────────────┬───────────────┘         └────────────────┬─────────────────┘
+                │ pulley-scene over WebSocket               │ pulley-scene
+                ▼                                           ▼
+        ┌───────────────────────────────────────────────────────────┐
+        │ pulley-bridge (tray / menu bar app, Rust, tokio)          │
+        │ 127.0.0.1:47290 · Host/Origin checks · token or pairing   │
+        │ key · validates every scene (pulley-core, native) ·       │
+        │ routes pushes, pulls, results, progress, cancels · logs   │
+        └──────────────────────────────┬────────────────────────────┘
+                                       │ pulley-scene
+                                       ▼
+ After Effects (CEP 12)
+ ┌───────────────────────────────────────────────────────────────────┐
+ │ background extension: validates the scene again and builds an     │
+ │ "AE plan" (pulley-core, WASM); writes it and one .ffx preset per  │
+ │ gradient to Pulley's temp folder; one call to the fixed           │
+ │ ExtendScript interpreter (apply.jsx) builds the layers            │
+ │   ⇅ CSEvents                                                      │
+ │ panel: Pull selection, Import .pulley file, options, last result  │
+ └───────────────────────────────────────────────────────────────────┘
 ```
 
 ### Rust workspace
 
 | Crate | Path | Role |
 |---|---|---|
-| `pulley-core` | `core/pulley-core` | Scene types (serde, `deny_unknown_fields`), validation and limits, Illustrator capture to scene, SVG path parser (M L H V C S Q T A Z, absolute and relative; quadratics and arcs to cubics), Figma node to scene, gradient math, color, AE plan generation, protocol message types. `#![forbid(unsafe_code)]`. No I/O. |
-| `pulley-wasm` | `core/pulley-wasm` | wasm-bindgen glue only: a handful of `fn(&str) -> Result<String, JsValue>` exports. It is a separate crate because `#[wasm_bindgen]` expands to `unsafe` code, which `forbid(unsafe_code)` in core would reject. No hand-written unsafe. |
-| `pulley-bridge` | `bridge` | Tray app plus WebSocket server. `#![forbid(unsafe_code)]` in our code (dependencies such as tray-icon use unsafe internally). |
-| `xtask` | `xtask` | `cargo xtask icons` (render, pack and validate icons), `cargo xtask wasm` (build plus wasm-opt), packaging helpers. |
+| `pulley-core` | `core/pulley-core` | Scene types and validation with hard limits; Illustrator capture → scene; SVG document and path parsing (M L H V C S Q T A Z, absolute and relative; quadratics and arcs become cubics); Figma nodes → scene; shape builders (rounded rectangles, ellipses and arcs, polygons, stars); gradient geometry; AE plan generation; `.ffx` gradient presets; bridge protocol; fuzzing entry points. `forbid(unsafe_code)`, no I/O. |
+| `pulley-wasm` | `core/pulley-wasm` | wasm-bindgen exports, each `fn(&str…) -> Result<String, JsValue>`: `version`, `illustratorToScene`, `figmaToScene`, `checkScene`, `sceneToPlan`, `checkMessage`. Separate crate because the generated glue contains `unsafe`. |
+| `pulley-bridge` | `bridge` | Tray app and WebSocket server. Our code is `forbid(unsafe_code)`. |
+| `xtask` | `xtask` | `cargo xtask icons [--check]`: renders and validates every icon output from the registry. |
+| `pulley-fuzz` | `fuzz` | cargo-fuzz targets (own workspace, nightly). |
 
-### Where each conversion happens
+### Data formats
 
-| Data | Produced by | Consumed by | Crosses a component boundary? |
+| Data | Produced by | Consumed by | Leaves its component? |
 |---|---|---|---|
-| Illustrator capture: raw DOM values in a compact text form | fixed ExtendScript in the Illustrator extension | `pulley-wasm` in the same extension | No (private to the Illustrator extension) |
-| Figma node data (plain JS objects) | Figma main thread | `pulley-wasm` in the plugin UI | No (private to the plugin) |
-| **pulley-scene** | `pulley-core` (in a client) | bridge (validates), AE extension | **Yes. The only format between components.** |
-| AE plan: flat, line-oriented apply instructions | `pulley-wasm` in the AE extension | fixed ExtendScript interpreter in the AE extension | No (private to the AE extension) |
+| Illustrator capture (`pulley-ai-capture` v2 JSON, plus an SVG when copies were needed) | `capture.jsx` | pulley-core in the same extension | No |
+| Figma nodes (`pulley-figma-nodes` v1 JSON) | plugin main thread (`read.ts`) | pulley-core in the plugin UI | No |
+| **pulley-scene v1** | pulley-core in a client | the bridge (validates), the AE extension | **Yes: the only format between components** |
+| AE plan (line-based text) | pulley-core in the AE extension | `apply.jsx` | No |
+| `.ffx` gradient presets | pulley-core in the AE extension | `apply.jsx` (`applyPreset`) | No |
 
-Why WASM inside the CEP extensions, not conversion in the bridge: it keeps pulley-scene as the only
-format on the wire (your rule), and CEP's engine supports it. Verified on Illustrator 29.5 (CEP 12.1):
-`typeof WebAssembly === "object"`. AE 25.5 (CEP 12.0.1) uses the same Chromium 99 and is expected to
-match, but this was not checked separately. The alternative is to send the raw capture to the bridge
-and let the bridge convert it. That gives thinner panels and no WASM in CEP, but two more formats on
-the wire. **Decision needed (Q3).** Either way the core is unchanged; only the call site moves.
+### The CEP extensions
 
-The **background extension** in each Adobe app is the single owner of the WebSocket, WASM and all
-ExtendScript calls. It starts hidden at launch (verified in AE 25.5 and Illustrator 29.5). The
-visible panel is UI only and talks to it with CSEvents (APPLICATION scope). So Pull works when the
-Illustrator panel is closed, and an incoming Push works when the AE panel is closed. If the
-background extension isn't running, the panel starts it with `requestOpenExtension`.
+Each Adobe app gets two extensions from one bundle: a **hidden background extension** that
+starts with the app (*verified* in AE 25.5 and Illustrator 29.5: `Custom` type, `AutoVisible`
+false, StartOn `ApplicationActivate`/`ApplicationInitialized`) and owns the WebSocket, the
+WebAssembly module and every ExtendScript call; and the **visible panel**, which only shows state
+and sends requests over application-scope CSEvents. Push and Pull therefore work with the panels
+closed. If the panel finds no background extension, it starts it.
 
-## After Effects apply path
+- No CSInterface.js: `panels/shared/js/cep.js` is a small wrapper over `window.__adobe_cep__`.
+  Its `call(fn, args)` checks the function name against an identifier pattern and passes each
+  argument as an escaped string literal.
+- WebAssembly is inlined as base64 and compiled asynchronously (Chromium refuses synchronous
+  compiles over 4 KB on the main thread). Size: about 650 KB after `wasm-opt -Oz`, 260 KB gzipped.
+- Node.js stays off; files go through `window.cep.fs` into `%APPDATA%\Pulley` (or
+  `~/Library/Application Support/Pulley`).
+- The only process launch: the bridge from its install location, without a shell or arguments.
 
-1. The AE extension receives a scene from the bridge. `pulley-wasm` validates it again and builds
-   the AE plan, applying the user's options: per-item layers, merge or precompose; centered or
-   original positions; matte or mask; anchor point at each layer's visual center.
-2. The plan is written to `<Pulley temp>/plan-<random>.txt` with `window.cep.fs`. *Measured:*
-   writing 431 KB plus ExtendScript `File.read` took 48 ms, against 86 ms for passing the same text
-   through `evalScript`.
-3. A single call, `evalScript('pulley.applyPlanFile(' + escapedPath + ')')`, runs a fixed,
-   pre-written interpreter.
-   - The path is generated by Pulley, never taken from the payload.
-   - It is escaped so only printable ASCII appears in the literal.
-   - The interpreter wraps everything in `app.beginUndoGroup("Pulley Import")`.
-   - It reports progress through CSXSEvents and checks a cancel-flag file every N items.
-   - It never selects layers. The one exception is gradients (see below), and the user's
-     selection is restored afterwards.
-4. The result (counts, warnings, missing fonts, timings) goes back to the panel and the bridge.
+## After Effects import
+
+1. The background extension receives a scene (bridge push, answer to a pull, or a `.pulley`
+   file). pulley-core validates it again and builds the **plan** with the panel's options: one
+   layer per item / merge / precompose, centered or original position, track mattes or masks.
+   All math happens here: anchor points at each layer's visual center, comp placement, tangents
+   relative to vertices, gradient points and highlight, stroke-alignment emulation, layer
+   splitting for groups that contain text or clipping.
+2. The plan goes to `<config>/tmp/plan-<id>.txt`; each gradient's preset to
+   `<config>/tmp/grad-<id>-<n>.ffx`. *Measured* in milestone 1: a temp file is faster than passing
+   text through `evalScript` (47 ms against 86 ms for 431 KB).
+3. One `evalScript` call runs `pulleyApplyPlan(planPath, cancelPath, ffxPrefix)` in the fixed
+   interpreter (`panels/ae/jsx/apply.jsx`):
+   - `app.beginUndoGroup("Pulley Import")` … `endUndoGroup()`: **one undo step** (*verified*:
+     one Undo removes everything, including a new comp and the gradient presets).
+   - Each plan line maps to a few DOM calls. Strings are percent-encoded and decoded with
+     `decodeURIComponent`; nothing is evaluated.
+   - Every 50 operations it reports progress (a `CSXSEvent` the extension forwards to the bridge) and
+     checks for a cancel file; on cancel it removes what it built.
+   - Large plans (over 200 lines) open a 4×4 placeholder comp in the viewer while building and
+     remove it at the end: an open comp viewer makes building about 10× slower (*measured*).
+   - Each group is built completely before the next sibling is added, because adding a sibling
+     invalidates earlier property references in AE.
+4. **Gradient colors** can't be set by script (`ADBE Vector Grad Colors` has no value type in AE
+   25.5, *verified*). After building, the interpreter applies one generated preset per gradient:
+   it selects the gradient fill or stroke property, calls `layer.applyPreset(file)`, deselects,
+   and finally restores the user's layer selection. The preset is a RIFX `FaFX` file written by
+   `pulley-core/src/ffx.rs`, following the structure of AE 2025's own presets: a property path to
+   `ADBE Vector Grad Colors`, and a `GCst` value whose `GCky` chunk holds the `prop.map` XML with
+   the color and alpha stops. Two details matter (*verified*): names must use the current
+   `Utf8`-prefixed encoding, otherwise AE ignores the preset silently, and the XML must not end
+   with a zero byte, otherwise AE shows "Error parsing properties list from memory (13)". AE
+   applies the preset to the selected property whatever the path's indices say.
+5. The result (counts, warnings, missing fonts, timings, gradients applied) goes to the panel and
+   back through the bridge to the sender. Temp files are deleted.
 
 ### Plan format
 
-AE ExtendScript has **no native `JSON`** (*verified*: `typeof JSON === "undefined"` in AE 25.5 and
-Illustrator 29.5). A hand-written JSON parser in ExtendScript took **6.2 s** for a 431 KB scene
-(*measured*). The plan is therefore a line-per-operation text format: opcode, then comma-separated
-numbers, with strings percent-encoded and decoded by the native `decodeURIComponent`. No `eval`
-anywhere.
+One operation per line; the full list is at the top of
+[`aeplan.rs`](../core/pulley-core/src/aeplan.rs): `COMP`, `PRE`/`PREEND` (precomps), `LS` (shape
+layer), `G`/`E` (groups), `P` (path), `F`/`S` (solid fill/stroke), `GF`/`GS` (gradient
+fill/stroke), `O` (Offset Paths), `LT`/`TX`/`R`/`TEND` (text layer, content, styled runs),
+`FB`/`FBEND` (outline fallback used only when a font is missing), `MATTE`, `MASK`, `LEND`, `END`.
+Fields are numbers or percent-encoded strings. The format exists because ExtendScript has no
+native JSON (*verified*), a JSON parser in ExtendScript took 6.2 s for a 431 KB scene, and large
+arrays are pathologically slow there (51 s to walk one 60,000-element array); one split per line
+keeps every array small.
 
-Big arrays are pathologically slow in ExtendScript. Splitting the whole 347 KB payload into one
-60,000-element array and walking it took **51 s** (*measured*). Splitting per line took 1.1 s. So
-the format keeps every array small. Making decoding cheaper still is part of milestone 3.
+### Text and fonts
 
-### Performance: the 3-second target is at risk
+- Fonts are found with `app.fonts.getFontsByPostScriptName` (Illustrator gives PostScript names),
+  then `getFontsByFamilyNameAndStyleName` (Figma gives family and style only).
+- Runs are styled with `TextDocument.characterRange(start, end)` (font, size, color, tracking).
+  Area text becomes box text.
+- A missing font: if the scene carries outlines for that text (Figma always; Illustrator with
+  *Include text outlines*), the plan's `FB` block builds them as a shape layer instead; otherwise
+  AE substitutes a font and the result lists the font as missing.
 
-*Measured* on this machine (i9-13900H, AE 25.5) with 500 paths × 20 vertices:
+### Clipping and strokes
 
-| Variant | Time |
+- Clipping groups become track mattes (default; the matte layer is hidden) or layer masks.
+  Nested clipping becomes a track matte on a precomp.
+- AE strokes are always centered. Inside/outside strokes on closed paths are emulated in a
+  sub-group with Offset Paths at ∓w/2 and the stroke at full width, with a warning.
+- Dashes: up to 3 dash/gap pairs plus offset; miter limit only when the join is miter (AE hides
+  it otherwise).
+
+### Performance
+
+*Measured* (AE 25.5, i9-13900H, 500 paths × 20 points):
+
+| Mode | Time |
 |---|---|
-| One shape layer, 500 groups (group + path + fill each) | 4.3 s / 4.8 s (two runs) |
-| Same, no undo group | 4.2 s |
-| One layer, 25 groups × 20 (nested) | 3.4 s |
-| 500 separate shape layers (spec default) | 12.5 s / 13.8 s |
-| Decoding the plan (line split) | 1.1 s |
+| Merge (one shape layer, 500 groups) | 3.9–5.5 s |
+| One layer per item (500 layers) | 9.0–15.7 s |
 
-The cost is in the DOM calls, not in data transfer. Each call took, per item:
-
-| Call | Cost |
-|---|---|
-| `addProperty(group)` | 3.1 ms |
-| `setValue(shape)` | 1.7 ms |
-| `addProperty(path)` | 1.0 ms |
-| `addProperty(fill)` | 0.9 ms |
-| set color | 0.9 ms |
-| set name | 0.6 ms |
-| `comp.layers.addShape()` | 11 ms |
-| `layer.duplicate()` of a template | 3.7 ms |
-
-Things to try in milestone 3:
-
-1. **Templates by duplication.** Duplicating a template layer is 3× cheaper than `addShape()`.
-   Do the same for groups with `PropertyGroup.duplicate()` (not measured yet).
-2. **Skip the wrapper group** when a layer holds a single shape. Path and fill go straight into
-   the layer root.
-3. **Nesting**: a container with fewer siblings is faster (3.4 s against 4.3 s).
-4. **Generated `.ffx` presets**: Rust writes the whole layer contents as an animation preset, and
-   one native `applyPreset` call builds it. This is also the gradient workaround (below), so it is
-   worth a spike. Risk: `.ffx` is an undocumented RIFX format. I confirmed AE's own presets are
-   RIFX and contain shape-layer match names.
-
-Realistic expectation: 500 × 20 in one layer may get near 3 s. As 500 separate layers, it won't
-without the `.ffx` route. **Decision needed (Q5).**
-
-### Gradients
-
-*Verified* in AE 25.5: `ADBE Vector Grad Colors` has `propertyValueType = NO_VALUE`. Reading or
-setting it fails with "Can not get or set a value from this property", and expressions are refused
-("Can not set expression or expressionEnabled on this property").
-
-The workaround I plan to implement and test in milestone 6:
-
-- Generate a tiny `.ffx` preset holding a Gradient Fill or Gradient Stroke with the stop data, then
-  call `applyPreset`.
-- Details come from the AE scripting research.
-- `applyPreset` acts on the selected layers. That is why gradients are the one documented exception
-  to the "never select layers" rule.
-
-### Other AE facts this design relies on (verified in 25.5)
-
-- Adding a sibling property invalidates earlier references in the same group ("Object is invalid").
-  The parent stays valid. The interpreter builds each group completely before adding the next.
-- `Layer.setTrackMatte(layer, TrackMatteType.ALPHA)` works and hides the matte layer.
-- Fonts:
-  - `app.fonts.getFontsByPostScriptName` and `getFontsByFamilyNameAndStyleName` exist.
-  - A missing PostScript name is accepted, flagged `isSubstitute`, and listed in
-    `app.fonts.missingOrSubstitutedFonts`. That is how missing fonts are detected before choosing
-    outlines.
-- `TextDocument.characterRange(start, end)` can set font, size and fill color per range.
-- Box text, tracking and justification can be set.
-- Dashes: `ADBE Vector Stroke Dashes` accepts Dash/Gap 1–3 plus Offset through `addProperty`.
-- Fill rule: `ADBE Vector Fill Rule`, 1 = non-zero, 2 = even-odd.
-- Shape strokes have no alignment property. Inside/outside strokes are emulated, probably with
-  Offset Paths at −w/2 or +w/2 in a sub-group, and flagged with a warning.
+Timings vary between runs on the same machine (two full suite runs and one run through the bridge).
+The time is spent in AE's scripting DOM: about 11 ms per new layer, 3 ms per group, 1–2 ms per
+path or paint (milestone 1 measurements). Hiding the comp viewer during large builds is the
+biggest saving found. The 3-second target is met only for smaller selections or by merging.
 
 ## Bridge
 
-- **Runtime:** tokio on a worker thread; the tray (`tray-icon` + `muda`) on the main thread
-  through `tao`, as macOS requires.
-- **Bind:** `127.0.0.1:47290` only. The port is configurable, but the Figma manifest lists it
-  explicitly.
-- **Handshake checks**, using `tokio-tungstenite`'s `accept_hdr_async` callback:
-  - `Host` must be `127.0.0.1:<port>` or `localhost:<port>`.
-  - `Origin` must be on the allowlist: `file://` for CEP (*verified* in AE 25.5 and Illustrator
-    29.5 on Windows) or `null` for Figma (the plugin iframe has an opaque origin, per Figma docs).
-  - Anything else is refused before the upgrade.
-- **Auth:** the first message must be `hello` with a valid token within 2 s, or the socket closes.
-  - CEP clients read the per-session token from `<config>/session.token`. The bridge writes a new
-    256-bit token at every start, user-only (0600 on macOS; on Windows `%APPDATA%` is already
-    per-user).
-  - Figma can't read files, so it pairs once (Q2). The tray shows a short-lived 8-character
-    pairing code. The plugin exchanges it for a long-lived client secret kept in
-    `figma.clientStorage` (stored hashed by the bridge, revocable from the tray).
-  - Because sandboxed iframes on any web page also send `Origin: null`, the token is what actually
-    authenticates Figma. Origin only stops ordinary pages.
-- **Protocol:** JSON text frames with `{protocol: 1, id, type, ...}`. Message types are `hello`,
-  `welcome`, `status`, `push_scene`, `pull_request`, `pull_response`, `import_result`, `progress`,
-  `cancel`, `ping`/`pong` and `error`.
-  - Scenes over 256 KB travel as `scene_chunk` messages and are reassembled with a 64 MiB cap.
-  - Error codes are stable strings, each with a plain-English message and a "what to do next"
-    line.
-- **Multiple AE instances:** each AE extension sends `activity` when its app becomes active. The
-  bridge routes to the most recent one, and the panels show which (app version plus project name).
-- **Logs:** `tracing` + `tracing-appender`, daily rotation, keep 7 files. tracing-appender rotates
-  by time only, not size. Geometry is logged only at debug level.
-- **Launching:** the CEP extensions may start the bridge from its known install path with
-  `window.cep.process.createProcess`, with no shell and no arguments. Launch at login is an option
-  (`auto-launch`).
-
-## Figma plugin
-
-- **Main thread (`code.ts`):** reads the selection with `documentAccess: "dynamic-page"`. For each
-  node it collects:
-  - `vectorPaths` (VectorNode only; center-line geometry with winding rule)
-  - shape parameters (rectangle size and corner radii, ellipse arc data, polygon/star counts,
-    line length), so pulley-core can rebuild editable center-line paths without mutating the file
-  - `fillGeometry` for booleans and as a fallback
-  - fills and strokes with `gradientTransform`
-  - `relativeTransform`/`absoluteTransform`
-  - `getStyledTextSegments`
-
-  `strokeGeometry` is the outlined stroke, so it is never used for strokes. The plugin never
-  clones or flattens, so it never changes the file or its undo history.
-- **UI iframe:** `pulley-wasm` converts the node data to a scene and sends it over
-  `ws://127.0.0.1:47290`.
-  - `networkAccess.allowedDomains` lists the local address with a `reasoning` string. Figma allows
-    this; a published plugin already does it.
-  - **Browser caveats:** Chrome 147+ asks for the "Apps on device" (loopback) permission for
-    WebSockets. Safari currently blocks `ws://` to loopback from https pages.
-- **Fallback when the socket can't connect:** "Save .pulley file" in Figma, then "Import .pulley
-  file" in the AE panel. Clipboard copying from plugin iframes is reported as unreliable, so it is a
-  secondary option to test in milestone 5.
-- **Fonts:** the Figma API exposes family/style only, no PostScript names. The AE side resolves
-  family/style with `app.fonts.getFontsByFamilyNameAndStyleName` (verified to exist in AE 25.5).
+- **Runtime:** tokio on worker threads; the tray (`tray-icon`, `muda`) on the main thread
+  through `tao`, as macOS requires. `--headless` runs without the tray (tests).
+- **Bind:** `127.0.0.1:<port>`, default 47290 (`settings.json` can change it; the Figma
+  manifest lists 47290 only).
+- **Handshake:** `Host` must be `127.0.0.1:<port>` or `localhost:<port>`; `Origin` must be
+  `file://` (CEP, *verified* on Windows) or `null` (Figma). Anything else is refused before the
+  upgrade. Then `hello` within 5 seconds with the right credential for that origin and role:
+  the per-start session token (`<config>/session.token`) for the Adobe extensions, a pairing key
+  for Figma. Pairing: *Pair Figma plugin…* shows an 8-character code for 2 minutes;
+  `pair_request` with the code returns a new 256-bit key, stored in `settings.json` (up to 16
+  kept) and in the plugin's `figma.clientStorage`.
+- **Protocol** (JSON text frames, `{protocol: 1, id, type, …}`, unknown fields rejected,
+  [`protocol.rs`](../core/pulley-core/src/protocol.rs)): `hello`, `welcome`, `pair_request`,
+  `paired`, `status`, `push_scene`, `scene_chunk`, `pull_request`, `pull_error`,
+  `import_result`, `progress`, `cancel`, `activity`, `ping`/`pong`, `error`. Large scenes
+  travel as ordered `scene_chunk` messages (at most 512 KB each) and are reassembled with a 64 MB cap. Errors carry a
+  stable code, a plain message and a hint about what to do.
+- **Routing:** pushes go to the After Effects instance used most recently (each extension sends
+  `activity` when its app becomes active). Pulls from After Effects go to the source used most
+  recently: Illustrator, or the Figma plugin (which sends `activity` on selection changes and
+  clicks). Results, progress and cancels follow the transfer.
+- **Validation:** every scene is parsed and validated natively before it is forwarded.
+- **Logs:** `tracing` + `tracing-appender`, a file per day, 7 kept, under `<config>/logs`.
+- **Launch at login:** tray option (`auto-launch`). Idle: about 13 MB of memory and no CPU
+  (*measured* on Windows).
 
 ## Illustrator capture
 
-The first measurements point strongly toward SVG for geometry. *Measured* with 500 × 20
-script-created paths:
+`panels/illustrator/jsx/capture.jsx` walks the selection with **read-only DOM access**. For each
+item it records name, uuid, opacity, blend mode, clipping, fill and stroke (spot and global
+colors resolved; CMYK and gray converted with `app.convertSampleColor`), gradient stops and
+geometry, path points with handles, and text (characters, runs merged from per-character
+attributes, frame type, matrix).
 
-| Strategy | Time |
-|---|---|
-| DOM traversal of every point (anchor, left, right) | 78.6 s |
-| SVG export | 0.6–1.4 s |
+Copies are needed only for three things the DOM can't give directly: **text outlines** (when
+*Include text outlines* is on), **symbol** artwork, and **paths over 1,000 points** (reading
+those point by point is slow). These items are duplicated into a temporary document sized to the
+artboard, with a reference square for alignment, exported to SVG in Pulley's temp folder, and the
+temporary document is closed without saving. pulley-core parses that SVG and matches its
+elements to the captured items by id.
 
-Reading PathPoints is a known slow spot in Illustrator scripting, and the reported leak means it
-gets worse every Push. The milestone 4 benchmark repeats this on real user-drawn selections before
-the choice is final. Proposed hybrid:
+Why DOM first: in milestone 1, reading every point of 500 script-created paths took 78.6 s, which
+suggested SVG export. Measured on documents opened from disk (like real ones), reading 100 paths ×
+20 points takes 31 ms, while copying items into another document costs about 75–150 ms each.
+Details: [ILLUSTRATOR_READ_BENCHMARK.md](ILLUSTRATOR_READ_BENCHMARK.md).
 
-1. **Metadata pass (DOM, no PathPoints).** Walk `app.selection` and record the tree:
-   - names
-   - `uuid` (*verified* to exist in 29.5)
-   - clip flags, opacity and blend modes
-   - fills and strokes, with spot/global colors resolved and CMYK converted with
-     `app.convertSampleColor` (*verified*; it returns 0–255 RGB)
-   - gradient stops
-   - text character attributes, merged into runs in Rust
+Other details: gradient endpoints come from `origin`, `angle`, `length` and the item `matrix`;
+Large Canvas documents are scaled by `scaleFactor`; document-level collections are never trusted
+(they can read 0 right after changes); the user's document is never exported (`exportFile`
+marks it saved).
 
-   Document-level collections are never trusted. `doc.pathItems.length` read 0 right after items
-   were added (*verified*).
-2. **Geometry pass (SVG).** Copy the selection into a temporary document, export it to SVG in
-   Pulley's temp folder, close the temporary document without saving, and parse the SVG in Rust
-   with the full path parser. The user's document is never exported: `exportFile` flips
-   `doc.saved` (*verified*).
-3. pulley-wasm joins the two passes by order and id, does the y-flip and units, and builds the
-   scene.
+## Figma plugin
 
-**Open (milestone 4):**
-- copying to a temporary document without touching the user's clipboard or undo history
-- SVG fidelity: gradients, fill rules, clipping, text
-- symbols: `breakLink()` inside the temporary document only
+- **Main thread** (`figma-plugin/src/code.ts`, `read.ts`): `documentAccess: "dynamic-page"`.
+  Reads the selection into `pulley-figma-nodes` v1: transforms (`absoluteTransform`), fills and
+  strokes with gradient transforms, stroke settings (per-side weights become the largest), shape
+  parameters (rectangle radii, ellipse arc data, polygon and star counts), `vectorPaths` for
+  vectors, `fillGeometry` for boolean operations and text, styled text segments, effects (type
+  and visibility only, to report them), masks and clipping. It never creates, changes or flattens
+  nodes. Limits: 100,000 nodes, depth 48. It also stores the pairing key in
+  `figma.clientStorage`. It has no network access.
+- **UI** (`ui.ts`, built into one `dist/ui.html` with the WebAssembly core and the shared bridge
+  client inlined): converts with `figmaToScene`, sends over `ws://127.0.0.1:47290`, shows pairing,
+  progress and results, answers pulls, and offers *Save .pulley file* (a download of the scene).
+- **Manifest:** `networkAccess.allowedDomains` = `ws://127.0.0.1:47290`, `ws://localhost:47290`,
+  with a `reasoning` string, as Figma requires for local addresses in published plugins.
+- **Conversion** (`pulley-core/src/figma.rs`): shapes are rebuilt from their parameters so
+  strokes stay editable center lines; gradient handles are `inverse(gradientTransform)` applied
+  to (0, .5), (1, .5) and (0, 1) of the node box.
 
-If the temporary-document copy can't be done without traces, the fallback is DOM traversal with
-the user warned about large selections.
+## Icons
 
-## Security summary (full threat model in SECURITY.md, milestone 3)
+Every icon comes from one registry (`assets/icons/icons.json`, 46 slots) and its master SVGs;
+`cargo xtask icons` renders the PNG, ICO and ICNS outputs and the UI icon bundle, and
+`--check` fails if any output is missing, stale or wrong. Current icons are placeholders.
+See [ICONS.md](ICONS.md) and [ICON_HANDOFF.md](ICON_HANDOFF.md).
 
-| Threat | Defense |
-|---|---|
-| Hostile web pages | Loopback bind, Host check (DNS rebinding), Origin allowlist, token, Chrome LNA prompt |
-| Local processes | Token file readable by the user only. Same-user malware is out of scope, and that is stated. |
-| Crafted files | Hard limits (schema/SCENE.md), finite numbers only, depth limit, deny_unknown_fields, fuzzing |
-| Code injection into hosts | No source concatenation of payload data; fixed ExtendScript functions; plan passed by file path; no eval in JS or ExtendScript; Node.js off in CEP (*verified* default: `typeof require === "undefined"`) |
+## Security
 
-## Dependencies (proposed; each justified in docs/DEPENDENCIES.md)
-
-| Part | Dependencies |
-|---|---|
-| core | `serde`, `serde_json`. The SVG path parser and arc conversion are written in-house: small, fuzzed, keeps WASM small. |
-| wasm | `wasm-bindgen` (pinned with `wasm-bindgen-cli`), `wasm-opt` from Binaryen releases |
-| bridge | `tokio` (≥1.54.1; 1.54.0 has RUSTSEC-2026-0384), `tokio-tungstenite`, `tray-icon`, `muda`, `tao`, `directories`, `getrandom`, `tracing`, `tracing-subscriber` (≥0.3.20), `tracing-appender`, `auto-launch` |
-| xtask | `resvg`/`usvg`/`tiny-skia`, `ico`, `icns`, `png` |
-| Figma | `typescript`, `@figma/plugin-typings`, `esbuild` (all dev-only) |
-| CEP panels | no third-party files: a ~50-line wrapper over `window.__adobe_cep__` instead of vendoring CSInterface.js |
+Summary of [SECURITY.md](../SECURITY.md): loopback only; Host and Origin checks; session token or
+pairing key; strict parsing with hard limits, checked in the bridge and again in After Effects;
+fuzzing; no source code built from data, no `eval`, no shell; documents never modified.
 
 ## Open risks
 
-- **CEP's end date.** Adobe announced (Sept 2026) that CEP will be disabled by default in AE and
-  Illustrator from Dec 2028 and removed in Dec 2029. AE UXP public beta is due by Nov 2026,
-  Illustrator by spring 2027. Keeping all logic in Rust is what makes the later port cheap.
-- **AE 2026 quirks** (community reports, not reproduced here: AE 2026 isn't installed):
-  - signature checks enforced despite PlayerDebugMode (26.3, Windows)
-  - "Unsupported Manifest version ''" for newly registered extensions (macOS)
-
-  Mitigation: sign every build, including dev builds, and test on 2026 before release.
-- **Figma Community review.** Two reports from October 2026 describe rejections of local-bridge
-  plugins as overlapping with Figma's MCP server. Private org or development use avoids review.
-- **Fuzzing on Windows** needs the MSVC toolchain (cargo-fuzz uses ASan, unavailable on
-  windows-gnu). This PC has only the GNU toolchain (Q6).
+- **CEP's end:** Adobe will disable CEP by default in December 2028 and remove it in December
+  2029; AE's UXP is in beta. Keeping all logic in Rust keeps the port to UXP thin.
+- **2026 versions:** community reports of signature checks despite PlayerDebugMode (AE 26.3,
+  Windows) and "Unsupported Manifest version" (macOS); AE 26.0 added gradient Scale/Rotation,
+  which may change how presets apply. Untested here.
+- **Figma review** may reject plugins that need a local app; use development or private
+  distribution.
+- **macOS** has not been built or run.

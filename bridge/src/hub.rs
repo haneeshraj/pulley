@@ -310,6 +310,7 @@ impl Hub {
         }
     }
 
+    /// Show an error in the tray until the next successful import.
     pub fn note_error(&self, msg: &str) {
         let m = msg.to_string();
         self.summary.send_modify(|s| s.last_error = Some(m));
@@ -413,6 +414,13 @@ impl Hub {
                     // Push: tell the pusher. Pull: the requester is this AE; tell Illustrator.
                     let to = if t.requester == conn { t.target } else { t.requester };
                     info!(transfer, ok = result.ok, layers = result.layers, pull = t.pull, "import finished");
+                    // The tray shows the outcome of the latest import: a success clears an
+                    // earlier error, a failure shows its first message.
+                    if result.ok {
+                        self.summary.send_modify(|s| s.last_error = None);
+                    } else if !result.cancelled {
+                        self.note_error(result.errors.first().map(String::as_str).unwrap_or("The import failed."));
+                    }
                     self.send(to, &Body::ImportResult { transfer, result });
                 }
                 self.set_transferring();
@@ -504,5 +512,34 @@ impl Hub {
             }
         }
         self.send(conn, &Body::Progress { transfer, done: 0, total: 1, stage: "forwarded".into() });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pulley_core::protocol::ImportSummary;
+
+    #[tokio::test]
+    async fn tray_error_clears_after_a_successful_import() {
+        let dir = std::env::temp_dir().join(format!("pulley-hub-test-{}", std::process::id()));
+        let (hub, summary) = Hub::new("token".into(), Paths::under(dir.clone()).unwrap(), Settings::default());
+        let (tx_ai, _rx_ai) = mpsc::channel(16);
+        let (tx_ae, _rx_ae) = mpsc::channel(16);
+        hub.register(1, Role::Illustrator, "0.1.0".into(), "29.5".into(), "ai".into(), tx_ai);
+        hub.register(2, Role::Ae, "0.1.0".into(), "25.5".into(), "ae".into(), tx_ae);
+        let transfer = |id: &str| {
+            hub.transfers.lock().unwrap().insert(id.into(), Transfer { requester: 1, target: 2, pull: false, created: Instant::now() });
+        };
+
+        transfer("a");
+        let failed = ImportSummary { ok: false, errors: vec!["No composition is active.".into()], ..Default::default() };
+        hub.handle(2, "m1", Body::ImportResult { transfer: "a".into(), result: failed }).await;
+        assert_eq!(summary.borrow().last_error.as_deref(), Some("No composition is active."));
+
+        transfer("b");
+        hub.handle(2, "m2", Body::ImportResult { transfer: "b".into(), result: ImportSummary { ok: true, ..Default::default() } }).await;
+        assert_eq!(summary.borrow().last_error, None);
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

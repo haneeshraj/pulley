@@ -40,7 +40,7 @@
   function launchBridge() {
     var userData = C.systemPath('userData');
     var candidates = navigator.platform.indexOf('Win') === 0
-      ? [userData.replace(/Roaming$/, 'Local') + '/Programs/Pulley/pulley-bridge.exe', 'C:/Program Files/Pulley/pulley-bridge.exe']
+      ? [userData.replace(/Roaming$/, 'Local') + '/Pulley/pulley-bridge.exe', userData.replace(/Roaming$/, 'Local') + '/Programs/Pulley/pulley-bridge.exe', 'C:/Program Files/Pulley/pulley-bridge.exe']
       : ['/Applications/Pulley.app/Contents/MacOS/pulley-bridge'];
     for (var i = 0; i < candidates.length; i++) {
       if (C.fs.exists(candidates[i]) && window.cep.process && window.cep.process.createProcess) {

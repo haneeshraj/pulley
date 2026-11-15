@@ -46,3 +46,31 @@ workspace = true
 
 [build-dependencies]
 serde_json.workspace = true
+
+# Installers (cargo-packager): NSIS on Windows, .app + .dmg on macOS.
+# Built by tools/package-bridge.mjs, which also signs when certificates are configured.
+[package.metadata.packager]
+product-name = "Pulley"
+identifier = "dev.pulley.bridge"
+publisher = "Pulley"
+category = "GraphicsAndDesign"
+out-dir = "../dist/installers"
+binaries = [{ path = "pulley-bridge", main = true }]
+icons = ["../assets/icons/out/bridge/app.ico", "../assets/icons/out/bridge/app.icns", "../assets/icons/out/bridge/app-256.png"]
+
+[package.metadata.packager.nsis]
+installer-mode = "currentUser"
+header-image = "../assets/icons/out/installer/nsis-header.bmp"
+sidebar-image = "../assets/icons/out/installer/nsis-sidebar.bmp"
+installer-icon = "../assets/icons/out/installer/setup.ico"
+
+[package.metadata.packager.macos]
+minimum-system-version = "11.0"
+# A menu bar app: no Dock icon.
+background-app = true
+
+[package.metadata.packager.dmg]
+background = "../assets/icons/out/installer/dmg-background.png"
+window-size = { width = 660, height = 400 }
+app-position = { x = 180, y = 220 }
+application-folder-position = { x = 480, y = 220 }

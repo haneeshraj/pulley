@@ -6,7 +6,7 @@ never panic, hang or allocate without bound, and checks round trips that must al
 
 | Target | Input | Also checks |
 |---|---|---|
-| `scene` | a pulley-scene document | a valid scene serializes and parses again, and builds an After Effects plan (with gradient presets) in all three layer modes, with and without an active comp |
+| `scene` | a pulley-scene document | a valid scene serializes and parses again, and builds an After Effects plan with gradient presets (layer mode, placement and comp picked from the input, so all combinations are covered) |
 | `protocol` | a bridge message | a parsed message serializes and parses again |
 | `svg_path` | SVG path data | — |
 | `illustrator` | an Illustrator capture, a zero byte, then its SVG | the scene builds a plan |

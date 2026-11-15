@@ -156,3 +156,22 @@ function pulleyTestApplyUndo(planPath, withComp, outPath, ffxPrefix) {
     f.close();
     return res;
 }
+
+/** Select a layer of "the user's", import (gradient presets included), report the selection. */
+function pulleyTestSelectionKept(planPath, withComp, outPath, ffxPrefix) {
+    pulleyTestNewProject("1");
+    var comp = app.project.activeItem;
+    var mine = comp.layers.addNull();
+    mine.name = "User layer";
+    mine.selected = true;
+    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
+    var sel = comp.selectedLayers, names = [];
+    for (var i = 0; i < sel.length; i++) { names.push(sel[i].name); }
+    var text = PulleyJSON.stringify({ result: res, selection: names, dump: pulleyDumpComp(comp) });
+    var f = new File(outPath);
+    f.encoding = "UTF-8";
+    f.open("w");
+    f.write(text);
+    f.close();
+    return res;
+}

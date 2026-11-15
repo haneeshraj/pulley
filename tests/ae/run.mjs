@@ -40,6 +40,8 @@ const cases = [
   // new one: nothing the import built may remain.
   ['undo-existing', 'schema/examples/gradients-compound.json', { ...comp, placement: 'original' }, true, 'pulleyTestApplyUndo'],
   ['undo-newcomp', [`${F}/gradients.capture.json`, '-'], { placement: 'original' }, false, 'pulleyTestApplyUndo'],
+  // The user's own layer selection survives an import that applies gradient presets.
+  ['selection-kept', 'schema/examples/gradients-compound.json', { ...comp, placement: 'original' }, true, 'pulleyTestSelectionKept'],
 ].filter(([name]) => (only.length ? only.includes(name) : true))
   .filter(([name]) => !(args.includes('--skip-perf') && name.includes('perf')));
 

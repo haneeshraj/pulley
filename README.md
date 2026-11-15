@@ -94,6 +94,10 @@ Run `target/release/pulley-bridge` (Windows: `pulley-bridge.exe`). It shows a Pu
 system tray (menu bar on macOS) whose menu has: status, **Pair Figma plugin…**, **Forget paired
 Figma plugins**, **Launch at login**, **Debug logging**, the log folder, and **Quit Pulley**.
 
+Or build the installer with `node tools/package-bridge.mjs` (Windows:
+`dist/installers/pulley-bridge_0.1.0_x64-setup.exe`, a per-user install that needs no
+administrator rights; see [docs/PACKAGING.md](docs/PACKAGING.md)).
+
 The panels start the bridge themselves when it is installed at its standard location
 (`%LOCALAPPDATA%\Pulley\pulley-bridge.exe`, `%LOCALAPPDATA%\Programs\Pulley\pulley-bridge.exe`
 or `C:\Program Files\Pulley\pulley-bridge.exe` on Windows; `/Applications/Pulley.app` on
@@ -175,7 +179,7 @@ it took, missing fonts, and a warning for everything that was approximated or sk
 | pulley-core unit and golden tests, bridge end-to-end tests (real bridge process, fake clients), stable fuzzing pass | `cargo test --workspace` | — |
 | Lints | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets` | — |
 | Icon outputs match the registry | `cargo xtask icons --check` | — |
-| After Effects suite: builds plans from the example scenes and Illustrator fixtures, applies them in a separate AE instance, checks every layer and property, gradient colors (read back from the saved project), undo, timings | `node tests/ae/run.mjs` | After Effects 2025 |
+| After Effects suite: builds plans from the example scenes and Illustrator fixtures, applies them in a separate AE instance, checks every layer and property, gradient colors (read back from the saved project), undo, selection, timings | `node tests/ae/run.mjs` | After Effects 2025 |
 | Illustrator capture of the fixture documents | see [tests/harness/README.md](tests/harness/README.md) | Illustrator 2025 |
 | Figma plugin: reader on Figma-shaped data through the real core, pairing against a real bridge, the built UI in headless Chromium in a sandboxed iframe | `cd figma-plugin && npm test` | Edge or Chrome |
 | Long fuzzing | `PULLEY_FUZZ_ITERS=100000 cargo test --release -p pulley-core --test fuzz_stable`; libFuzzer: [fuzz/README.md](fuzz/README.md) | nightly for libFuzzer |
@@ -200,8 +204,9 @@ On Windows 11 (i9-13900H, 16 GB), After Effects 25.5, Illustrator 29.5; details 
 - Figma plugin outside Figma (see the table above). **Not run inside Figma.**
 - Bridge: handshake checks (Host, Origin), tokens, pairing, routing, chunking, limits, protocol
   mismatches.
-- Fuzzing: a mutation harness over all five parsers (1,500 inputs each in every `cargo test`;
-  long runs are recorded in [docs/VERIFICATION.md](docs/VERIFICATION.md#fuzzing)).
+- Fuzzing: 500,000 mutated inputs across the five parsers, no crashes; it found one quadratic
+  slowdown on very long names, now fixed ([docs/VERIFICATION.md](docs/VERIFICATION.md#fuzzing)).
+  A short pass runs in every `cargo test`.
 
 Not tested: macOS; After Effects 2026 / Illustrator 2026; the Figma plugin in Figma; the signed
 ZXP packages and the installers on a clean machine; CI.
@@ -237,7 +242,7 @@ ZXP packages and the installers on a clean machine; CI.
 
 **Gradient colors** can't be set from ExtendScript (After Effects reports the property as having
 no value). Pulley writes a small animation preset (`.ffx`) per gradient and applies it, which
-requires briefly selecting each gradient property. Your layer selection is restored afterwards;
+requires briefly selecting each gradient property. Your layer selection is restored afterwards (tested);
 property selections inside layers are cleared. The presets go to Pulley's temp folder and are
 deleted after use.
 
@@ -246,6 +251,7 @@ deleted after use.
 | 500 paths × 20 points | Time |
 |---|---|
 | Illustrator capture | 1.9 s first, then about 0.5 s |
+| Bridge: receive, validate and forward a scene | 1.4–1.6 ms for the gradients example (target: under 50 ms); idle: about 13 MB, no CPU |
 | Merged into one shape layer | 3.9–5.5 s (two full test-suite runs) |
 | 500 separate layers (default mode) | 9.0–15.7 s (two test-suite runs and one run through the bridge) |
 

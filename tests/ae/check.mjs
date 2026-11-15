@@ -196,6 +196,10 @@ const tests = {
     check(this.n, r.res.gradientsApplied === 5, 'gradient presets were applied before undoing');
     check(this.n, u.layersBefore === 5 && u.layersAfter === 0 && u.itemsAfter === u.itemsBefore - 1, `one Undo removes the import and its new comp (layers ${u.layersBefore} -> ${u.layersAfter}, items ${u.itemsBefore} -> ${u.itemsAfter}, command ${u.command})`);
   },
+  'selection-kept'(r) {
+    check(this.n, r.res.gradientsApplied === 2, 'gradient presets were applied');
+    check(this.n, r.selection.length === 1 && r.selection[0] === 'User layer', `only the user's layer is selected afterwards (got ${JSON.stringify(r.selection)})`);
+  },
   'ai-perf-merge'(r) {
     check(this.n, r.res.ok && r.dump.layers.length === 1, 'one layer, 500 groups');
     console.log(`  perf: 500 paths x 20 vertices, one layer: ${r.res.ms} ms`);

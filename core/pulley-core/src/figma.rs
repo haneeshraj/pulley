@@ -12,7 +12,7 @@
 
 use crate::error::{Error, ErrorCode, Result};
 use crate::geom::{Affine, Pt};
-use crate::limits::{MAX_DEPTH, MAX_MESSAGE_BYTES, MAX_NAME_LEN, MAX_WARNINGS};
+use crate::limits::{MAX_DEPTH, MAX_MESSAGE_BYTES, MAX_WARNINGS};
 use crate::scene::*;
 use crate::shapes;
 use crate::svgpath::path_data_to_paths;
@@ -230,10 +230,7 @@ impl Ctx {
 }
 
 fn clean_name(s: &str, fallback: &str) -> String {
-    let mut out: String = s.chars().filter(|c| !c.is_control()).collect();
-    while utf16_len(&out) > MAX_NAME_LEN {
-        out.pop();
-    }
+    let out = crate::validate::clean_name(s);
     if out.trim().is_empty() { fallback.to_string() } else { out }
 }
 

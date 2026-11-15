@@ -143,6 +143,27 @@ pub fn utf16_len(s: &str) -> usize {
     s.encode_utf16().count()
 }
 
+/// The longest prefix of `s` that is at most `max` UTF-16 code units, never splitting a
+/// character. Linear time (a pop-and-recount loop is quadratic: fuzzing found a 100,000-character
+/// document name taking 1.7 s).
+pub fn truncate_utf16(s: &str, max: usize) -> &str {
+    let mut units = 0;
+    for (i, c) in s.char_indices() {
+        units += c.len_utf16();
+        if units > max {
+            return &s[..i];
+        }
+    }
+    s
+}
+
+/// A display name from untrusted text: control characters removed, at most `MAX_NAME_LEN`
+/// UTF-16 code units.
+pub fn clean_name(s: &str) -> String {
+    let filtered: String = s.chars().filter(|c| !c.is_control()).collect();
+    truncate_utf16(&filtered, MAX_NAME_LEN).to_string()
+}
+
 struct Ctx {
     stats: SceneStats,
 }
@@ -459,6 +480,22 @@ mod tests {
     const BASIC: &str = include_str!("../../../schema/examples/basic-shapes.json");
     const GRADIENTS: &str = include_str!("../../../schema/examples/gradients-compound.json");
     const CLIP_TEXT: &str = include_str!("../../../schema/examples/clip-and-text.json");
+
+    #[test]
+    fn names_are_cut_at_the_utf16_limit_in_linear_time() {
+        // A character outside the BMP (2 UTF-16 units) straddling the limit is dropped whole.
+        assert_eq!(truncate_utf16("ab\u{1F600}c", 3), "ab");
+        assert_eq!(truncate_utf16("ab\u{1F600}c", 4), "ab\u{1F600}");
+        assert_eq!(truncate_utf16("abc", 10), "abc");
+        // Control characters are removed before cutting.
+        assert_eq!(clean_name("a\u{0}b\nc"), "abc");
+        // Fuzzing found the old pop-and-recount loop taking 1.7 s on a 100,000-character name;
+        // 10 million characters would have taken hours. Now it is one pass.
+        let huge = "x".repeat(10_000_000);
+        let t = std::time::Instant::now();
+        assert_eq!(utf16_len(&clean_name(&huge)), MAX_NAME_LEN);
+        assert!(t.elapsed() < std::time::Duration::from_secs(5), "took {:?}", t.elapsed());
+    }
 
     fn mutate(src: &str, f: impl FnOnce(&mut serde_json::Value)) -> String {
         let mut v: serde_json::Value = serde_json::from_str(src).unwrap();

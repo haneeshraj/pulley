@@ -18,12 +18,12 @@ Figma session for automated runs.
 
 | Suite | What it does | Result |
 |---|---|---|
-| `pulley-core` unit tests | scene validation and limits, SVG path parser (all commands, arcs), shapes, gradient math, Illustrator and Figma conversion, AE plans, `.ffx` structure, protocol | 77 passed |
+| `pulley-core` unit tests | scene validation and limits, SVG path parser (all commands, arcs), shapes, gradient math, Illustrator and Figma conversion, AE plans, `.ffx` structure, protocol, name truncation | 78 passed |
 | Illustrator golden tests | the 13 fixture captures converted and compared with reference scenes | 14 passed |
 | Stable fuzzing pass | 1,500 mutated inputs per parser in every `cargo test` | passed |
 | Bridge unit tests | settings, tokens, pairing codes, tray error state | 5 passed |
 | Bridge end-to-end | real bridge process with fake clients: Host/Origin checks, tokens, hello timeout, pairing (wrong code, single use, reconnect), push/pull routing (most recent After Effects; pull to the source used last), chunked scenes, invalid scenes never forwarded, oversized frames, protocol mismatch messages | 13 passed |
-| After Effects suite (`node tests/ae/run.mjs`) | 16 cases: the example scenes and Illustrator fixtures built in a separate After Effects instance, checked property by property; gradient colors read back from the saved project; undo; 500 × 20 timings | see [After Effects](#after-effects) |
+| After Effects suite (`node tests/ae/run.mjs`) | 17 cases: the example scenes and Illustrator fixtures built in a separate After Effects instance, checked property by property; gradient colors read back from the saved project; undo; 500 × 20 timings | see [After Effects](#after-effects) |
 | Illustrator fixture capture | the 13 fixture documents captured in Illustrator 29.5 | all captured; document never modified; selection kept |
 | Figma plugin (`npm test`) | reader on Figma-shaped objects through the real WebAssembly core (4); the shared bridge client against a real bridge (1); the built UI in headless Edge inside a sandboxed iframe against a real bridge (1) | 6 passed |
 | Icons | `cargo xtask icons --check`: 46 slots, 84 outputs | all valid |
@@ -48,10 +48,13 @@ dumps the comp, and checks it. Cases and what is checked:
 | ai-text | five text layers, no missing fonts, area text as box text, rotation |
 | ai-strokes | caps, joins, miter limit, three dash/gap pairs |
 | ai-groups | nested group opacity and blend mode |
+| selection-kept | a layer of "the user's" is selected before an import with gradient presets; afterwards it is the only selected layer |
 | undo-existing, undo-newcomp | **one Edit → Undo removes the whole import**, including the gradient presets, and in the second case the comp created for it |
 | ai-perf-merge, ai-perf-layers | 500 paths × 20 points |
 
-Latest full run: **60 checks passed, 0 failed** ([details](#latest-runs-2026-11-15)).
+Latest full run: **60 checks passed, 0 failed** over the first 16 cases
+([details](#latest-runs-2026-11-15)); selection-kept (2 checks) was added afterwards and passed
+in its own run.
 
 Gradient colors needed two fixes that only After Effects could reveal (both in
 `pulley-core/src/ffx.rs`): preset names must use the current `Utf8`-prefixed encoding (with the
@@ -67,6 +70,7 @@ stored that way.
 |---|---|
 | Illustrator extension (installed) → bridge → stand-in After Effects client | pull answered in 140 ms; pushes of a group document, five text frames (198 KB scene) and 500 × 20 paths (681 KB) |
 | Scene file → bridge → installed After Effects extension | gradients scene imported in 0.5 s; the saved project holds the right colors for both gradients |
+| Bridge latency (`cargo run -p pulley-bridge --example push`) | received, validated and forwarded in 1.4 and 1.6 ms (two pushes of the gradients example; target: under 50 ms) |
 | Earlier runs (milestone 3) | basic shapes 0.56 s, gradients 0.45 s, clip + text 0.73 s, text 1.18 s, 500 × 20 as 500 layers into an open comp 9.0 s |
 
 ### Illustrator
@@ -96,7 +100,44 @@ WebAssembly.
 
 ### Fuzzing
 
-See the end of this section.
+Stable mutation harness ([fuzz/README.md](../fuzz/README.md)), release build, seed 987654321,
+100,000 inputs per target:
+
+| Target | Time | Slowest input | Panics |
+|---|---|---|---|
+| scene | 1,591 s | 13.1 s | none |
+| illustrator | 128 s | 46 ms | none |
+| figma | 598 s | 8.2 s → **fixed**, see below | none |
+| protocol | 28 s | 18 ms | none |
+| svg_path | 0.2 s | 0.7 ms | none |
+
+500,000 inputs in all, no panics.
+
+What the long runs turned up:
+
+- **A real bug, fixed.** The slowest Figma input (104 KB) spent 1.7 s (idle machine) in the
+  converter: its document name was 99,858 characters, and both name-cleaning functions (Figma
+  and Illustrator) cut long names one character at a time, re-counting the whole string each
+  time. That is quadratic: a name of several megabytes would have hung the plugin or the
+  Illustrator panel for hours. Names are now cut in one pass (`validate::truncate_utf16`, with a
+  10-million-character unit test); the same input now takes 0.5 ms. (The bridge never ran this
+  code: it only validates scenes, whose names are already limited.)
+  After the fix, 20,000 more inputs each for the Figma and Illustrator targets: slowest 0.65 s
+  (a 4.2 MB input) and 49 ms.
+- The first long run stopped at scene input 18,591 for taking 3.2 s, over the harness's 3 s
+  threshold. The input was a valid 1.9 MB scene (1,979 copies of a group) that takes 0.4 s on an
+  idle machine; the machine was busy with two `cargo install` builds. The threshold is now 15 s.
+- The slowest scene input above (13.1 s) is consistent with size, not a hang: a valid scene near
+  the item limit (99,000 items, 38 MB) takes 0.5 s to parse and 0.7–2.5 s per plan, and the
+  target then built six plans per input. It now builds one, chosen from the input.
+- During the Figma target the harness itself reached 32 GB: two array duplications in one
+  mutated input compounded (2,000 copies of an array holding 2,000 copies). Such an input is far
+  over the 64 MB message limit and would be refused before parsing; the problem was in the
+  mutator, which now caps each duplication at about 4 MB. That run was stopped (free memory was
+  under 0.5 GB) and the remaining targets were run again.
+
+libFuzzer (cargo-fuzz) targets compile against the same entry points (checked without the
+libFuzzer runtime, which needs nightly and sanitizers this machine lacks); they run only in CI.
 
 ### Things checked by hand during development
 
@@ -117,9 +158,9 @@ See the end of this section.
 ## Latest runs (2026-11-15)
 
 **After Effects suite** (`node tests/ae/run.mjs`, full run): **60 checks passed, 0 failed**
-across 16 cases. 500 × 20 timings in this run: merge 5.5 s, one layer per item 11.2 s (a
-long fuzzing run was using one CPU core at the same time). The previous full run: merge 3.9 s,
-per item 15.7 s.
+across 16 cases (selection-kept was added afterwards: 2 of 2 passed in its own run). 500 × 20
+timings in this run: merge 5.5 s, one layer per item 11.2 s (a long fuzzing run was using one
+CPU core at the same time). The previous full run: merge 3.9 s, per item 15.7 s.
 
 **Fuzzing:** see [Fuzzing](#fuzzing) above.
 

@@ -11,7 +11,7 @@
 
 use crate::error::{Error, ErrorCode, Result};
 use crate::geom::{Affine, Pt};
-use crate::limits::{MAX_DEPTH, MAX_MESSAGE_BYTES, MAX_NAME_LEN, MAX_WARNINGS};
+use crate::limits::{MAX_DEPTH, MAX_MESSAGE_BYTES, MAX_WARNINGS};
 use crate::scene::*;
 use crate::svg::{GradientGeom, ShapeGeom, SvgDoc, SvgPaint};
 use crate::validate::validate;
@@ -279,11 +279,7 @@ impl Ctx<'_, '_> {
 }
 
 fn cap_name(s: &str) -> String {
-    let mut out: String = s.chars().filter(|c| !c.is_control()).collect();
-    while crate::validate::utf16_len(&out) > MAX_NAME_LEN {
-        out.pop();
-    }
-    out
+    crate::validate::clean_name(s)
 }
 
 fn blend(s: Option<&str>) -> BlendMode {

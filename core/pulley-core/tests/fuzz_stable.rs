@@ -173,8 +173,12 @@ fn mutate_json(rng: &mut Rng, v: &mut Value, depth: usize) {
                     a.remove(i);
                 }
                 1 => {
+                    // Up to 2,000 copies, but never more than about 4 MB added: copies of copies
+                    // otherwise compound (one run built gigabytes of JSON in memory).
                     let x = a[i].clone();
-                    for _ in 0..(1 + rng.below(2000)) {
+                    let size = serde_json::to_vec(&x).map(|b| b.len()).unwrap_or(1).max(1);
+                    let copies = (1 + rng.below(2000)).min((4 << 20) / size);
+                    for _ in 0..copies {
                         a.push(x.clone());
                     }
                 }
@@ -256,7 +260,7 @@ fn targets() -> Vec<Target> {
 fn save_failure(target: &str, n: u64, input: &[u8]) -> PathBuf {
     let dir = root().join("target").join("fuzz-failures");
     let _ = std::fs::create_dir_all(&dir);
-    let p = dir.join(format!("{target}-{n}.bin"));
+    let p = if n == u64::MAX { dir.join(format!("{target}-slowest.bin")) } else { dir.join(format!("{target}-{n}.bin")) };
     let _ = std::fs::write(&p, input);
     p
 }
@@ -268,7 +272,9 @@ fn entry_points_survive_mutated_inputs() {
     // Generous: catches hangs and runaway work, not slowness of debug builds or a busy machine
     // (a 1.9 MB mutated scene takes about 0.4 s in release, all six plan variants included).
     let slow = Duration::from_secs(if cfg!(debug_assertions) { 60 } else { 15 });
-    for t in targets() {
+    // PULLEY_FUZZ_TARGETS=scene,figma runs only those targets.
+    let only: Vec<String> = std::env::var("PULLEY_FUZZ_TARGETS").map(|s| s.split(',').map(str::to_string).collect()).unwrap_or_default();
+    for t in targets().into_iter().filter(|t| only.is_empty() || only.iter().any(|o| o == t.name)) {
         let mut rng = Rng(seed ^ (t.name.len() as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
         let parsed: Vec<Option<Value>> = t.seeds.iter().map(|s| if t.json { serde_json::from_slice(s).ok() } else { None }).collect();
         // Seeds themselves first.
@@ -277,6 +283,7 @@ fn entry_points_survive_mutated_inputs() {
         }
         let t0 = Instant::now();
         let mut slowest = Duration::ZERO;
+        let mut slowest_input: Vec<u8> = Vec::new();
         for n in 0..iters {
             let k = rng.below(t.seeds.len());
             let input = match &parsed[k] {
@@ -292,12 +299,19 @@ fn entry_points_survive_mutated_inputs() {
             let started = Instant::now();
             let r = std::panic::catch_unwind(|| (t.run)(&input));
             let took = started.elapsed();
-            slowest = slowest.max(took);
+            if took > slowest {
+                slowest = took;
+                slowest_input.clone_from(&input);
+            }
             if r.is_err() {
                 panic!("{} panicked on input #{n}; saved to {}", t.name, save_failure(t.name, n, &input).display());
             }
             assert!(took < slow, "{} took {:?} on input #{n}; saved to {}", t.name, took, save_failure(t.name, n, &input).display());
         }
-        eprintln!("fuzz {:<12} {iters} inputs in {:.1?} (slowest {:.1?})", t.name, t0.elapsed(), slowest);
+        eprintln!("fuzz {:<12} {iters} inputs in {:.1?} (slowest {:.1?}, {} bytes)", t.name, t0.elapsed(), slowest, slowest_input.len());
+        // Long runs keep the slowest input for a look (target/fuzz-failures/<target>-slowest.bin).
+        if iters > 10_000 {
+            save_failure(t.name, u64::MAX, &slowest_input);
+        }
     }
 }

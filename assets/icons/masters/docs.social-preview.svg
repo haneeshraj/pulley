@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <title>docs.social-preview (placeholder)</title>
+  <rect x="25.6" y="25.6" width="1228.8" height="588.8" rx="19.2" fill="#2d6cdf"/>
+  <circle cx="640" cy="281.6" r="166.4" fill="none" stroke="#ffffff" stroke-width="48"/>
+  <circle cx="640" cy="281.6" r="32" fill="#ffffff"/>
+  <path d="M473.6 281.6 V499.20000000000005 M806.4 281.6 V409.6" stroke="#ffffff" stroke-width="38.4" stroke-linecap="round" fill="none"/>
+  <text x="640" y="576" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="45" fill="#ffffff">docs.social-preview</text>
+</svg>

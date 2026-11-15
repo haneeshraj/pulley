@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="400" viewBox="0 0 660 400">
+  <title>installer.mac.dmg-background (placeholder)</title>
+  <rect width="660" height="400" fill="#f4f6fb"/>
+  <path d="M260 200h140M380 185l20 15-20 15" stroke="#2d6cdf" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="330" y="370" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" fill="#5a5a5a">installer.mac.dmg-background</text>
+</svg>

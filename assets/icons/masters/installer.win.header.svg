@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="57" viewBox="0 0 150 57">
+  <title>installer.win.header (placeholder)</title>
+  <rect x="2.2800000000000002" y="2.2800000000000002" width="145.44" height="52.44" rx="2.85" fill="#2d6cdf"/>
+  <circle cx="75" cy="28.5" r="14.82" fill="none" stroke="#ffffff" stroke-width="4.2749999999999995"/>
+  <circle cx="75" cy="28.5" r="2.85" fill="#ffffff"/>
+  <path d="M60.18 28.5 V47.88 M89.82 28.5 V39.9" stroke="#ffffff" stroke-width="3.42" stroke-linecap="round" fill="none"/>
+  
+</svg>

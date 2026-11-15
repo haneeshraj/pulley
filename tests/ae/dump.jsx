@@ -107,3 +107,15 @@ function pulleyTestApply(planPath, withComp, outPath) {
     f.close();
     return res;
 }
+
+/** Dump the active comp (after imports done by the real Pulley extension). */
+function pulleyTestDumpActive(outPath) {
+    var comp = app.project.activeItem;
+    var text = PulleyJSON.stringify({ dump: (comp instanceof CompItem) ? pulleyDumpComp(comp) : null, items: app.project.numItems });
+    var f = new File(outPath);
+    f.encoding = "UTF-8";
+    f.open("w");
+    f.write(text);
+    f.close();
+    return "ok";
+}

@@ -1,0 +1,870 @@
+{
+  "$comment": "Pulley icon registry. Every icon path used anywhere comes from here. Edit masters, then run `cargo xtask icons`.",
+  "version": 1,
+  "bundles": {
+    "uiJs": {
+      "path": "../../panels/shared/js/icons.js",
+      "slots": "ui."
+    }
+  },
+  "slots": {
+    "cep.ae.normal": {
+      "master": "masters/cep.ae.normal.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "normal",
+      "outputs": [
+        {
+          "path": "out/cep/ae/normal.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/ae/normal@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "cep.ai.normal": {
+      "alias": "cep.ae.normal",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "normal",
+      "outputs": [
+        {
+          "path": "out/cep/illustrator/normal.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/illustrator/normal@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "cep.ae.rollover": {
+      "master": "masters/cep.ae.rollover.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "rollover",
+      "outputs": [
+        {
+          "path": "out/cep/ae/rollover.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/ae/rollover@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "cep.ai.rollover": {
+      "alias": "cep.ae.rollover",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "rollover",
+      "outputs": [
+        {
+          "path": "out/cep/illustrator/rollover.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/illustrator/rollover@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "cep.ae.dark-normal": {
+      "master": "masters/cep.ae.dark-normal.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "dark-normal",
+      "outputs": [
+        {
+          "path": "out/cep/ae/dark-normal.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/ae/dark-normal@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "cep.ai.dark-normal": {
+      "alias": "cep.ae.dark-normal",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "dark-normal",
+      "outputs": [
+        {
+          "path": "out/cep/illustrator/dark-normal.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/illustrator/dark-normal@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "cep.ae.dark-rollover": {
+      "master": "masters/cep.ae.dark-rollover.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "dark-rollover",
+      "outputs": [
+        {
+          "path": "out/cep/ae/dark-rollover.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/ae/dark-rollover@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "cep.ai.dark-rollover": {
+      "alias": "cep.ae.dark-rollover",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "dark-rollover",
+      "outputs": [
+        {
+          "path": "out/cep/illustrator/dark-rollover.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/illustrator/dark-rollover@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "cep.ae.disabled": {
+      "master": "masters/cep.ae.disabled.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "disabled",
+      "outputs": [
+        {
+          "path": "out/cep/ae/disabled.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/ae/disabled@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "cep.ai.disabled": {
+      "alias": "cep.ae.disabled",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "manifestType": "disabled",
+      "outputs": [
+        {
+          "path": "out/cep/illustrator/disabled.png",
+          "format": "png",
+          "width": 23,
+          "height": 23
+        },
+        {
+          "path": "out/cep/illustrator/disabled@2X.png",
+          "format": "png",
+          "width": 46,
+          "height": 46
+        }
+      ]
+    },
+    "ui.pull": {
+      "master": "masters/ui.pull.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.pull.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.push": {
+      "master": "masters/ui.push.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.push.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.settings": {
+      "master": "masters/ui.settings.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.settings.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.reconnect": {
+      "master": "masters/ui.reconnect.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.reconnect.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.state.connected": {
+      "master": "masters/ui.state.connected.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.state.connected.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.state.connecting": {
+      "master": "masters/ui.state.connecting.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.state.connecting.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.state.disconnected": {
+      "master": "masters/ui.state.disconnected.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.state.disconnected.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.warning": {
+      "master": "masters/ui.warning.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.warning.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.error": {
+      "master": "masters/ui.error.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.error.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.success": {
+      "master": "masters/ui.success.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.success.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.cancel": {
+      "master": "masters/ui.cancel.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.cancel.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.help": {
+      "master": "masters/ui.help.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.help.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.open-log": {
+      "master": "masters/ui.open-log.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.open-log.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.info": {
+      "master": "masters/ui.info.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.info.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.close": {
+      "master": "masters/ui.close.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.close.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.copy": {
+      "master": "masters/ui.copy.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.copy.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.import-file": {
+      "master": "masters/ui.import-file.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.import-file.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.save-file": {
+      "master": "masters/ui.save-file.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.save-file.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.pair": {
+      "master": "masters/ui.pair.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.pair.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "ui.chevron": {
+      "master": "masters/ui.chevron.svg",
+      "kind": "ui",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/ui/ui.chevron.svg",
+          "format": "svg"
+        }
+      ]
+    },
+    "figma.plugin-icon": {
+      "master": "masters/figma.plugin-icon.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/figma/icon-128.png",
+          "format": "png",
+          "width": 128,
+          "height": 128
+        }
+      ]
+    },
+    "figma.cover": {
+      "master": "masters/figma.cover.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": false,
+      "outputs": [
+        {
+          "path": "out/figma/cover-1920x1080.png",
+          "format": "png",
+          "width": 1920,
+          "height": 1080
+        }
+      ]
+    },
+    "bridge.app": {
+      "master": "masters/bridge.app.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/bridge/app.ico",
+          "format": "ico",
+          "sizes": [
+            16,
+            20,
+            24,
+            30,
+            32,
+            36,
+            40,
+            48,
+            60,
+            64,
+            72,
+            96,
+            256
+          ]
+        },
+        {
+          "path": "out/bridge/app.icns",
+          "format": "icns",
+          "sizes": [
+            16,
+            32,
+            64,
+            128,
+            256,
+            512,
+            1024
+          ]
+        },
+        {
+          "path": "out/bridge/app-1024.png",
+          "format": "png",
+          "width": 1024,
+          "height": 1024
+        },
+        {
+          "path": "out/bridge/app-256.png",
+          "format": "png",
+          "width": 256,
+          "height": 256
+        },
+        {
+          "path": "out/bridge/app-128.png",
+          "format": "png",
+          "width": 128,
+          "height": 128
+        },
+        {
+          "path": "out/bridge/app-32.png",
+          "format": "png",
+          "width": 32,
+          "height": 32
+        }
+      ]
+    },
+    "bridge.tray.idle": {
+      "master": "masters/bridge.tray.idle.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/bridge/tray-idle-16.png",
+          "format": "png",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "path": "out/bridge/tray-idle-20.png",
+          "format": "png",
+          "width": 20,
+          "height": 20
+        },
+        {
+          "path": "out/bridge/tray-idle-24.png",
+          "format": "png",
+          "width": 24,
+          "height": 24
+        },
+        {
+          "path": "out/bridge/tray-idle-32.png",
+          "format": "png",
+          "width": 32,
+          "height": 32,
+          "use": "tray"
+        },
+        {
+          "path": "out/bridge/tray-idle-40.png",
+          "format": "png",
+          "width": 40,
+          "height": 40
+        },
+        {
+          "path": "out/bridge/tray-idle-48.png",
+          "format": "png",
+          "width": 48,
+          "height": 48
+        },
+        {
+          "path": "out/bridge/tray-idle-64.png",
+          "format": "png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    "bridge.tray.idle.template": {
+      "master": "masters/bridge.tray.idle.template.svg",
+      "kind": "raster",
+      "color": "template",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/bridge/tray-idle-template-22.png",
+          "format": "png",
+          "width": 22,
+          "height": 22
+        },
+        {
+          "path": "out/bridge/tray-idle-template-44.png",
+          "format": "png",
+          "width": 44,
+          "height": 44,
+          "use": "tray"
+        }
+      ]
+    },
+    "bridge.tray.transferring": {
+      "master": "masters/bridge.tray.transferring.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/bridge/tray-transferring-16.png",
+          "format": "png",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "path": "out/bridge/tray-transferring-20.png",
+          "format": "png",
+          "width": 20,
+          "height": 20
+        },
+        {
+          "path": "out/bridge/tray-transferring-24.png",
+          "format": "png",
+          "width": 24,
+          "height": 24
+        },
+        {
+          "path": "out/bridge/tray-transferring-32.png",
+          "format": "png",
+          "width": 32,
+          "height": 32,
+          "use": "tray"
+        },
+        {
+          "path": "out/bridge/tray-transferring-40.png",
+          "format": "png",
+          "width": 40,
+          "height": 40
+        },
+        {
+          "path": "out/bridge/tray-transferring-48.png",
+          "format": "png",
+          "width": 48,
+          "height": 48
+        },
+        {
+          "path": "out/bridge/tray-transferring-64.png",
+          "format": "png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    "bridge.tray.transferring.template": {
+      "master": "masters/bridge.tray.transferring.template.svg",
+      "kind": "raster",
+      "color": "template",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/bridge/tray-transferring-template-22.png",
+          "format": "png",
+          "width": 22,
+          "height": 22
+        },
+        {
+          "path": "out/bridge/tray-transferring-template-44.png",
+          "format": "png",
+          "width": 44,
+          "height": 44,
+          "use": "tray"
+        }
+      ]
+    },
+    "bridge.tray.error": {
+      "master": "masters/bridge.tray.error.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/bridge/tray-error-16.png",
+          "format": "png",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "path": "out/bridge/tray-error-20.png",
+          "format": "png",
+          "width": 20,
+          "height": 20
+        },
+        {
+          "path": "out/bridge/tray-error-24.png",
+          "format": "png",
+          "width": 24,
+          "height": 24
+        },
+        {
+          "path": "out/bridge/tray-error-32.png",
+          "format": "png",
+          "width": 32,
+          "height": 32,
+          "use": "tray"
+        },
+        {
+          "path": "out/bridge/tray-error-40.png",
+          "format": "png",
+          "width": 40,
+          "height": 40
+        },
+        {
+          "path": "out/bridge/tray-error-48.png",
+          "format": "png",
+          "width": 48,
+          "height": 48
+        },
+        {
+          "path": "out/bridge/tray-error-64.png",
+          "format": "png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    "bridge.tray.error.template": {
+      "master": "masters/bridge.tray.error.template.svg",
+      "kind": "raster",
+      "color": "template",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/bridge/tray-error-template-22.png",
+          "format": "png",
+          "width": 22,
+          "height": 22
+        },
+        {
+          "path": "out/bridge/tray-error-template-44.png",
+          "format": "png",
+          "width": 44,
+          "height": 44,
+          "use": "tray"
+        }
+      ]
+    },
+    "installer.win.icon": {
+      "alias": "bridge.app",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/installer/setup.ico",
+          "format": "ico",
+          "sizes": [
+            16,
+            24,
+            32,
+            48,
+            64,
+            256
+          ]
+        }
+      ]
+    },
+    "installer.win.header": {
+      "master": "masters/installer.win.header.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": false,
+      "outputs": [
+        {
+          "path": "out/installer/nsis-header.bmp",
+          "format": "bmp",
+          "width": 150,
+          "height": 57
+        }
+      ]
+    },
+    "installer.win.sidebar": {
+      "master": "masters/installer.win.sidebar.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": false,
+      "outputs": [
+        {
+          "path": "out/installer/nsis-sidebar.bmp",
+          "format": "bmp",
+          "width": 164,
+          "height": 314
+        }
+      ]
+    },
+    "installer.mac.volume-icon": {
+      "alias": "bridge.app",
+      "kind": "raster",
+      "color": "full",
+      "alpha": true,
+      "outputs": [
+        {
+          "path": "out/installer/volume.icns",
+          "format": "icns",
+          "sizes": [
+            16,
+            32,
+            64,
+            128,
+            256,
+            512,
+            1024
+          ]
+        }
+      ]
+    },
+    "installer.mac.dmg-background": {
+      "master": "masters/installer.mac.dmg-background.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": false,
+      "outputs": [
+        {
+          "path": "out/installer/dmg-background.png",
+          "format": "png",
+          "width": 660,
+          "height": 400
+        },
+        {
+          "path": "out/installer/dmg-background@2x.png",
+          "format": "png",
+          "width": 1320,
+          "height": 800
+        }
+      ]
+    },
+    "docs.readme-logo": {
+      "master": "masters/docs.readme-logo.svg",
+      "kind": "vector",
+      "color": "currentColor",
+      "outputs": [
+        {
+          "path": "out/docs/readme-logo-light.svg",
+          "format": "svg",
+          "fill": "#1f2328"
+        },
+        {
+          "path": "out/docs/readme-logo-dark.svg",
+          "format": "svg",
+          "fill": "#f0f6fc"
+        }
+      ]
+    },
+    "docs.social-preview": {
+      "master": "masters/docs.social-preview.svg",
+      "kind": "raster",
+      "color": "full",
+      "alpha": false,
+      "outputs": [
+        {
+          "path": "out/docs/social-preview.png",
+          "format": "png",
+          "width": 1280,
+          "height": 640
+        }
+      ]
+    }
+  }
+}

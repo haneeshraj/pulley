@@ -1,0 +1,52 @@
+/* Pulley panels: follows the host theme through CSS variables set by cep.js. */
+:root {
+  --bg: #232323;
+  --fg: #e6e6e6;
+  --muted: #a0a0a0;
+  --line: rgba(255, 255, 255, 0.12);
+  --field: rgba(255, 255, 255, 0.07);
+  --accent: #2d8ceb;
+  --ok: #2fa84f;
+  --warn: #d9a400;
+  --err: #e5484d;
+  font-size: 12px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: "Adobe Clean", system-ui, -apple-system, "Segoe UI", sans-serif; }
+body { padding: 10px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.grow { flex: 1; }
+.status { padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+.status[data-state="connected"] .dot { background: var(--ok); }
+.status[data-state="connecting"] .dot { background: var(--warn); }
+.status[data-state="disconnected"] .dot { background: var(--err); }
+.status .text { font-weight: 600; }
+.status .detail { color: var(--muted); margin-top: 4px; line-height: 1.35; }
+.apps { color: var(--muted); margin-top: 4px; }
+button { font: inherit; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 5px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+button:hover { border-color: var(--muted); }
+button:active { transform: translateY(1px); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; padding: 8px 12px; width: 100%; justify-content: center; }
+button.icon { padding: 4px; background: transparent; border-color: transparent; }
+button.icon:hover { border-color: var(--line); }
+.icon svg { width: 16px; height: 16px; display: block; }
+.section { margin-top: 12px; }
+.section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+label { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+select, input[type="number"] { font: inherit; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 3px; padding: 3px 4px; }
+select option { color: #000; }
+.progress { height: 4px; background: var(--field); border-radius: 2px; overflow: hidden; margin: 6px 0; }
+.progress > div { height: 100%; background: var(--accent); width: 0; transition: width 0.15s; }
+.summary { border: 1px solid var(--line); border-radius: 4px; padding: 8px; line-height: 1.4; }
+.summary.ok { border-color: color-mix(in srgb, var(--ok) 60%, transparent); }
+.summary.fail { border-color: color-mix(in srgb, var(--err) 60%, transparent); }
+.list { margin: 6px 0 0; padding-left: 16px; max-height: 160px; overflow: auto; }
+.list li { margin: 2px 0; color: var(--muted); }
+.list li.error { color: var(--err); }
+.hidden { display: none !important; }
+.muted { color: var(--muted); }
+.overlay { position: fixed; inset: 0; background: var(--bg); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.overlay pre { flex: 1; overflow: auto; margin: 0; font-size: 10px; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--line); padding: 6px; }
+.help p { margin: 4px 0; line-height: 1.4; }

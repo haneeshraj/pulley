@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <title>figma.cover (placeholder)</title>
+  <rect x="43.2" y="43.2" width="1833.6" height="993.6" rx="32.4" fill="#2d6cdf"/>
+  <circle cx="960" cy="475.2" r="280.8" fill="none" stroke="#ffffff" stroke-width="81"/>
+  <circle cx="960" cy="475.2" r="54" fill="#ffffff"/>
+  <path d="M679.2 475.2 V842.4000000000001 M1240.8 475.2 V691.2" stroke="#ffffff" stroke-width="64.8" stroke-linecap="round" fill="none"/>
+  <text x="960" y="972" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="76" fill="#ffffff">figma.cover</text>
+</svg>

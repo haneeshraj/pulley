@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pulley for After Effects. {{ICONS}} is filled in by tools/build-panels.mjs from the icon
+  registry (assets/icons/icons.json); no icon path is written here.
+  Two extensions: the visible panel (UI only) and a hidden background extension that starts
+  with After Effects, owns the bridge connection and runs the imports.
+-->
+<ExtensionManifest Version="7.0" ExtensionBundleId="dev.pulley.ae" ExtensionBundleVersion="{{VERSION}}"
+  ExtensionBundleName="Pulley" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ExtensionList>
+    <Extension Id="dev.pulley.ae.panel" Version="{{VERSION}}" />
+    <Extension Id="dev.pulley.ae.bg" Version="{{VERSION}}" />
+  </ExtensionList>
+  <ExecutionEnvironment>
+    <HostList>
+      <Host Name="AEFT" Version="[25.0,99.9]" />
+    </HostList>
+    <LocaleList>
+      <Locale Code="All" />
+    </LocaleList>
+    <RequiredRuntimeList>
+      <RequiredRuntime Name="CSXS" Version="12.0" />
+    </RequiredRuntimeList>
+  </ExecutionEnvironment>
+  <DispatchInfoList>
+    <Extension Id="dev.pulley.ae.panel">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./panel.html</MainPath>
+          <ScriptPath>./jsx/host.jsx</ScriptPath>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>true</AutoVisible>
+        </Lifecycle>
+        <UI>
+          <Type>Panel</Type>
+          <Menu>Pulley</Menu>
+          <Geometry>
+            <Size><Height>460</Height><Width>300</Width></Size>
+            <MinSize><Height>220</Height><Width>220</Width></MinSize>
+          </Geometry>
+          <Icons>
+{{ICONS}}
+          </Icons>
+        </UI>
+      </DispatchInfo>
+    </Extension>
+    <Extension Id="dev.pulley.ae.bg">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./bg.html</MainPath>
+          <ScriptPath>./jsx/host.jsx</ScriptPath>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>false</AutoVisible>
+          <StartOn>
+            <Event>com.adobe.csxs.events.ApplicationActivate</Event>
+            <Event>com.adobe.csxs.events.ApplicationInitialized</Event>
+            <Event>applicationActivate</Event>
+          </StartOn>
+        </Lifecycle>
+        <UI>
+          <Type>Custom</Type>
+          <Geometry><Size><Height>1</Height><Width>1</Width></Size></Geometry>
+        </UI>
+      </DispatchInfo>
+    </Extension>
+  </DispatchInfoList>
+</ExtensionManifest>

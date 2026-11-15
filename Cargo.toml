@@ -30,4 +30,3 @@ opt-level = 3
 inherits = "release"
 opt-level = "z"
 panic = "abort"
-strip = true

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>figma.plugin-icon (placeholder)</title>
+  <rect x="5.12" y="5.12" width="117.76" height="117.76" rx="28.16" fill="#2d6cdf"/>
+  <circle cx="64" cy="64" r="33.28" fill="none" stroke="#ffffff" stroke-width="9.6"/>
+  <circle cx="64" cy="64" r="6.4" fill="#ffffff"/>
+  <path d="M30.72 64 V107.52000000000001 M97.28 64 V89.6" stroke="#ffffff" stroke-width="7.68" stroke-linecap="round" fill="none"/>
+  
+</svg>

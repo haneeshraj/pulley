@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="96" viewBox="0 0 360 96" fill="currentColor">
+  <title>docs.readme-logo (placeholder)</title>
+  <circle cx="48" cy="40" r="26" fill="none" stroke="currentColor" stroke-width="8"/>
+  <circle cx="48" cy="40" r="6"/>
+  <path d="M22 40v46M74 40v30" stroke="currentColor" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <text x="104" y="60" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700">Pulley</text>
+</svg>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>bridge.app (placeholder)</title>
+  <rect x="40.96" y="40.96" width="942.08" height="942.08" rx="225.28" fill="#2d6cdf"/>
+  <circle cx="512" cy="512" r="266.24" fill="none" stroke="#ffffff" stroke-width="76.8"/>
+  <circle cx="512" cy="512" r="51.2" fill="#ffffff"/>
+  <path d="M245.76 512 V860.1600000000001 M778.24 512 V716.8" stroke="#ffffff" stroke-width="61.44" stroke-linecap="round" fill="none"/>
+  
+</svg>

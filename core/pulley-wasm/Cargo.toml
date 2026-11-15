@@ -11,3 +11,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pulley-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# JS bindings. Pin the exact version: wasm-bindgen-cli must match it.
+wasm-bindgen = "=0.2.130"

@@ -1,0 +1,68 @@
+{
+  "schema": "pulley-scene",
+  "version": 1,
+  "source": {
+    "app": "illustrator",
+    "appVersion": "29.5.0",
+    "pulleyVersion": "0.1.0",
+    "documentName": "basic.ai",
+    "documentColorMode": "rgb"
+  },
+  "units": { "source": "pt", "pxPerSourceUnit": 1 },
+  "colorSpace": "srgb",
+  "bounds": { "x": 0, "y": 0, "width": 800, "height": 600 },
+  "items": [
+    {
+      "type": "shape",
+      "id": "4f1c2a",
+      "name": "Rounded corner",
+      "paths": [
+        {
+          "closed": true,
+          "vertices": [[100, 100], [300, 100], [300, 250], [100, 250]],
+          "inTangents": [[0, 0], [0, 0], [0, 0], [0, 0]],
+          "outTangents": [[0, 0], [0, 0], [0, 0], [0, 0]]
+        }
+      ],
+      "fillRule": "nonzero",
+      "fills": [
+        { "type": "solid", "color": [0.95, 0.3, 0.2] }
+      ],
+      "strokes": [
+        {
+          "paint": { "type": "solid", "color": [0.1, 0.1, 0.1] },
+          "width": 4,
+          "cap": "round",
+          "join": "round"
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "id": "4f1c2b",
+      "name": "Circle group",
+      "opacity": 0.8,
+      "blendMode": "multiply",
+      "children": [
+        {
+          "type": "shape",
+          "id": "4f1c2c",
+          "name": "Circle",
+          "paths": [
+            {
+              "closed": true,
+              "vertices": [[500, 150], [600, 250], [500, 350], [400, 250]],
+              "inTangents": [[-55.23, 0], [0, -55.23], [55.23, 0], [0, 55.23]],
+              "outTangents": [[55.23, 0], [0, 55.23], [-55.23, 0], [0, -55.23]]
+            }
+          ],
+          "fillRule": "nonzero",
+          "fills": [
+            { "type": "solid", "color": [0.2, 0.45, 0.9], "opacity": 0.5 }
+          ]
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 800 600">
+  <!-- Generator: Adobe Illustrator 29.5.0, SVG Export Plug-In . SVG Version: 2.1.0 Build 137)  -->
+  <defs>
+    <linearGradient id="Pulley_Linear" data-name="Pulley Linear" x1="50" y1="125" x2="350" y2="125" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff7800"/>
+      <stop offset=".4" stop-color="#e61478" stop-opacity=".6"/>
+      <stop offset=".42943" stop-color="#d4127b" stop-opacity=".6"/>
+      <stop offset=".54578" stop-color="#960b88" stop-opacity=".6"/>
+      <stop offset=".66218" stop-color="#660692" stop-opacity=".6"/>
+      <stop offset=".77733" stop-color="#43029a" stop-opacity=".6"/>
+      <stop offset=".89065" stop-color="#2e009e" stop-opacity=".6"/>
+      <stop offset="1" stop-color="#2800a0" stop-opacity=".6"/>
+    </linearGradient>
+    <linearGradient id="Pulley_Linear1" data-name="Pulley Linear" x1="400" y1="125" x2="700" y2="125" gradientTransform="translate(72.70293 425.52039) rotate(-45)" xlink:href="#Pulley_Linear"/>
+    <radialGradient id="Pulley_Radial" data-name="Pulley Radial" cx="175" cy="375" fx="175" fy="375" r="125" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".12046" stop-color="#fafcfd"/>
+      <stop offset=".24539" stop-color="#eef3f8"/>
+      <stop offset=".37238" stop-color="#d9e5f1"/>
+      <stop offset=".50083" stop-color="#bcd1e6"/>
+      <stop offset=".63041" stop-color="#96b7d8"/>
+      <stop offset=".76098" stop-color="#6998c7"/>
+      <stop offset=".88982" stop-color="#3373b3"/>
+      <stop offset="1" stop-color="#0050a0"/>
+    </radialGradient>
+    <radialGradient id="Pulley_Radial1" data-name="Pulley Radial" cx="500" cy="350" fx="500" fy="350" r="127.47549" gradientTransform="translate(0 140) scale(1 .6)" xlink:href="#Pulley_Radial"/>
+    <linearGradient id="Pulley_Linear2" data-name="Pulley Linear" x1="694" y1="425" x2="766" y2="425" xlink:href="#Pulley_Linear"/>
+  </defs>
+  <rect id="pulley5" x="50" y="50" width="300" height="150" fill="url(#Pulley_Linear)"/>
+  <rect id="pulley4" x="400" y="50" width="300" height="150" fill="url(#Pulley_Linear1)"/>
+  <circle id="pulley3" cx="175" cy="375" r="125" fill="url(#Pulley_Radial)"/>
+  <ellipse id="pulley2" cx="500" cy="350" rx="150" ry="100" fill="url(#Pulley_Radial1)"/>
+  <rect id="pulley1" x="700" y="300" width="60" height="250" fill="none" stroke="url(#Pulley_Linear2)" stroke-miterlimit="10" stroke-width="12"/>
+</svg>

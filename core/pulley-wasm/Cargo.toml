@@ -1,0 +1,13 @@
+[package]
+name = "pulley-wasm"
+description = "WebAssembly bindings for pulley-core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pulley-core.workspace = true

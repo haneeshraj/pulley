@@ -1,0 +1,70 @@
+{
+  "schema": "pulley-scene",
+  "version": 1,
+  "source": { "app": "figma", "appVersion": "unknown", "pulleyVersion": "0.1.0", "documentName": "Gradients" },
+  "units": { "source": "px", "pxPerSourceUnit": 1 },
+  "colorSpace": "srgb",
+  "bounds": { "x": 0, "y": 0, "width": 1080, "height": 1080 },
+  "items": [
+    {
+      "type": "shape",
+      "id": "12:7",
+      "name": "Donut (even-odd)",
+      "paths": [
+        {
+          "closed": true,
+          "vertices": [[540, 240], [840, 540], [540, 840], [240, 540]],
+          "inTangents": [[-165.69, 0], [0, -165.69], [165.69, 0], [0, 165.69]],
+          "outTangents": [[165.69, 0], [0, 165.69], [-165.69, 0], [0, -165.69]]
+        },
+        {
+          "closed": true,
+          "vertices": [[540, 390], [690, 540], [540, 690], [390, 540]],
+          "inTangents": [[-82.84, 0], [0, -82.84], [82.84, 0], [0, 82.84]],
+          "outTangents": [[82.84, 0], [0, 82.84], [-82.84, 0], [0, -82.84]]
+        }
+      ],
+      "fillRule": "evenodd",
+      "fills": [
+        {
+          "type": "linearGradient",
+          "start": [240, 540],
+          "end": [840, 540],
+          "stops": [
+            { "offset": 0, "color": [1, 0.6, 0] },
+            { "offset": 0.5, "color": [0.9, 0.1, 0.5], "opacity": 0.8 },
+            { "offset": 1, "color": [0.3, 0.1, 0.9] }
+          ]
+        }
+      ],
+      "strokes": [
+        {
+          "paint": {
+            "type": "radialGradient",
+            "center": [540, 540],
+            "radiusPoint": [840, 540],
+            "focalPoint": [600, 480],
+            "stops": [
+              { "offset": 0, "color": [1, 1, 1], "midpoint": 0.3 },
+              { "offset": 1, "color": [0, 0, 0] }
+            ]
+          },
+          "width": 12,
+          "join": "miter",
+          "miterLimit": 10,
+          "dashes": [24, 12],
+          "dashOffset": 6,
+          "alignment": "inside"
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    {
+      "code": "unsupported_paint_angular",
+      "itemId": "12:9",
+      "itemName": "Sweep",
+      "message": "Angular gradients have no After Effects equivalent. The layer was skipped."
+    }
+  ]
+}

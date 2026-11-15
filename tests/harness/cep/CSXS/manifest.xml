@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pulley test harness (development only, never shipped). Starts hidden at app launch, fetches
+  a job list from tests/harness/devserver.mjs, runs fixed ExtendScript functions, posts the
+  results back, then quits the host.
+-->
+<ExtensionManifest Version="7.0" ExtensionBundleId="dev.pulley.harness" ExtensionBundleVersion="0.1.0"
+  ExtensionBundleName="Pulley Test Harness" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ExtensionList>
+    <Extension Id="dev.pulley.harness.bg" Version="0.1.0" />
+  </ExtensionList>
+  <ExecutionEnvironment>
+    <HostList>
+      <Host Name="AEFT" Version="[25.0,99.9]" />
+      <Host Name="ILST" Version="[29.5,99.9]" />
+    </HostList>
+    <LocaleList><Locale Code="All" /></LocaleList>
+    <RequiredRuntimeList><RequiredRuntime Name="CSXS" Version="9.0" /></RequiredRuntimeList>
+  </ExecutionEnvironment>
+  <DispatchInfoList>
+    <Extension Id="dev.pulley.harness.bg">
+      <DispatchInfo>
+        <Resources><MainPath>./harness.html</MainPath></Resources>
+        <Lifecycle>
+          <AutoVisible>false</AutoVisible>
+          <StartOn>
+            <Event>com.adobe.csxs.events.ApplicationActivate</Event>
+            <Event>com.adobe.csxs.events.ApplicationInitialized</Event>
+            <Event>applicationActivate</Event>
+          </StartOn>
+        </Lifecycle>
+        <UI><Type>Custom</Type><Geometry><Size><Height>1</Height><Width>1</Width></Size></Geometry></UI>
+      </DispatchInfo>
+    </Extension>
+  </DispatchInfoList>
+</ExtensionManifest>

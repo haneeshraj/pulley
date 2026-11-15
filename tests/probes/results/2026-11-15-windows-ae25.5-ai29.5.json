@@ -1,0 +1,595 @@
+[
+ {
+  "t": "2026-11-15T02:27:09.465Z",
+  "kind": "ws-upgrade",
+  "origin": "file://",
+  "host": "127.0.0.1:47813",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 AdobeCEP/12.0.1 Safari/537.36"
+ },
+ {
+  "t": "2026-11-15T02:28:29.730Z",
+  "kind": "result",
+  "url": "/result?app=AEFT",
+  "body": {
+   "startedAt": "2026-11-15T02:27:05.146Z",
+   "href": "file:///~/AppData/Roaming/Adobe/CEP/extensions/dev.pulley.probe/bg.html",
+   "origin": "file://",
+   "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 AdobeCEP/12.0.1 Safari/537.36",
+   "typeofRequire": "undefined",
+   "typeofProcess": "undefined",
+   "hasCepFs": true,
+   "steps": {
+    "websocket": {
+     "opened": true,
+     "ms": 49.80000000074506
+    },
+    "cepFs": {
+     "writeErr": 0,
+     "readErr": 0,
+     "readBack": "pulley",
+     "userData": "~/AppData/Roaming"
+    },
+    "caps": {
+     "appVersion": "25.5x4",
+     "buildName": "25.5x4",
+     "esVersion": "4.5.6",
+     "typeofJSON": "undefined",
+     "isoLanguage": "en_US",
+     "typeofAppFonts": "object",
+     "fontsAllFamilies": 216,
+     "typeofGetFontsByPostScriptName": "function",
+     "arialByPostScript": {
+      "count": 1,
+      "postScriptName": "ArialMT",
+      "familyName": "Arial",
+      "styleName": "Regular",
+      "isSubstitute": false,
+      "technology": "12413"
+     },
+     "typeofGetFontsByFamilyNameAndStyleName": "function",
+     "missingOrSubstitutedBefore": 0,
+     "newProject": true,
+     "addComp": "pulley-probe",
+     "shapeBasics": {
+      "groupChildren": [
+       "ADBE Vector Blend Mode",
+       "ADBE Vectors Group/",
+       "ADBE Vector Transform Group/",
+       "ADBE Vector Materials Group/"
+      ]
+     },
+     "fill": {
+      "children": [
+       "ADBE Vector Blend Mode",
+       "ADBE Vector Composite Order",
+       "ADBE Vector Fill Rule",
+       "ADBE Vector Fill Color",
+       "ADBE Vector Fill Opacity"
+      ],
+      "ruleDefault": 1,
+      "ruleAfterSet2": 2
+     },
+     "stroke": {
+      "children": [
+       "ADBE Vector Blend Mode",
+       "ADBE Vector Composite Order",
+       "ADBE Vector Stroke Color",
+       "ADBE Vector Stroke Opacity",
+       "ADBE Vector Stroke Width",
+       "ADBE Vector Stroke Line Cap",
+       "ADBE Vector Stroke Line Join",
+       "ADBE Vector Stroke Miter Limit",
+       "ADBE Vector Stroke Dashes/",
+       "ADBE Vector Stroke Taper/",
+       "ADBE Vector Stroke Wave/"
+      ],
+      "lineCapDefault": 1,
+      "lineJoinDefault": 1,
+      "dashChildrenAfterAdd": [
+       "ADBE Vector Stroke Dash 1",
+       "ADBE Vector Stroke Gap 1",
+       "ADBE Vector Stroke Dash 2",
+       "ADBE Vector Stroke Gap 2",
+       "ADBE Vector Stroke Dash 3",
+       "ADBE Vector Stroke Gap 3",
+       "ADBE Vector Stroke Offset"
+      ],
+      "dashAddErrors": []
+     },
+     "gradientFill": {
+      "children": [
+       "ADBE Vector Blend Mode",
+       "ADBE Vector Composite Order",
+       "ADBE Vector Fill Rule",
+       "ADBE Vector Grad Type",
+       "ADBE Vector Grad Start Pt",
+       "ADBE Vector Grad End Pt",
+       "ADBE Vector Grad HiLite Length",
+       "ADBE Vector Grad HiLite Angle",
+       "ADBE Vector Grad Colors",
+       "ADBE Vector Fill Opacity"
+      ],
+      "colorsValueType": "NO_VALUE",
+      "colorsCanSetExpression": false,
+      "colorsCanVaryOverTime": true,
+      "colorsValueError": "Error: After Effects error: Can not get or set a value from this property (matchname is “ADBE Vector Grad Colors”). This property’s propertyValueType is PropertyValueType.NO_VALUE.",
+      "colorsSetValueError": "Error: After Effects error: Can not get or set a value from this property (matchname is “ADBE Vector Grad Colors”). This property’s propertyValueType is PropertyValueType.NO_VALUE.",
+      "colorsSetExpressionError": "Error: After Effects error: Can not set expression or expressionEnabled on this property.",
+      "gradTypeDefault": 1
+     },
+     "refInvalidation": {
+      "firstGroupNameAfterSiblingAdd": null,
+      "firstGroupAfterSiblingAdd": "ERROR: ReferenceError: Object is invalid",
+      "parentStillValid": 2
+     },
+     "trackMatte": {
+      "typeofSetTrackMatte": "function",
+      "trackMatteLayerIndex": 1,
+      "trackMatteType": "ALPHA",
+      "matteLayerEnabledAfter": false
+     },
+     "text": {
+      "typeofCharacterRange": "function",
+      "typeofParagraphRange": "function",
+      "typeofFontObject": "object",
+      "defaultFont": "ArialNarrow-Bold",
+      "sizeInRange": 72,
+      "sizeOutsideRange": 118,
+      "colorInRange": [
+       1,
+       0,
+       0
+      ],
+      "fontInRange": "Arial-BoldMT",
+      "fontOutsideRange": "ArialNarrow-Bold",
+      "trackingAfterSet": 50,
+      "justificationAfterSet": "CENTER_JUSTIFY",
+      "missingFontReadBack": "PulleyNoSuchFont-Regular",
+      "missingFontIsSubstitute": true,
+      "missingOrSubstitutedAfter": 1,
+      "boxText": {
+       "boxText": true,
+       "boxTextSize": [
+        400,
+        200
+       ]
+      }
+     }
+    },
+    "sceneSizes": {
+     "jsonChars": 431402,
+     "csvChars": 347002
+    },
+    "transportJsonLiteral": {
+     "result": "431402",
+     "msRoundTrip": 86.29999999888241
+    },
+    "transportCsvLiteral": {
+     "result": "347002",
+     "msRoundTrip": 58.600000001490116
+    },
+    "transportTempFile": {
+     "writeErr": 0,
+     "msWrite": 6.199999999254942,
+     "result": "431402",
+     "msRead": 41.5
+    },
+    "evalScriptCapacity": [
+     {
+      "mb": 1,
+      "result": "1048576",
+      "ms": 126.09999999962747
+     },
+     {
+      "mb": 5,
+      "result": "5242880",
+      "ms": 669.8000000007451
+     },
+     {
+      "mb": 10,
+      "result": "10485760",
+      "ms": 1326.5
+     }
+    ],
+    "parseJsonRecursiveDescent": {
+     "esMicros": {
+      "micros": 6159894,
+      "paths": 500
+     },
+     "msRoundTrip": 6176.799999998882
+    },
+    "parseCsvSplit": {
+     "esMicros": {
+      "micros": 51136482,
+      "paths": 500
+     },
+     "msRoundTrip": 51247.5
+    },
+    "build500x20_oneLayer": {
+     "es": {
+      "micros": 4294307,
+      "items": 500,
+      "layersInComp": 6
+     },
+     "msRoundTrip": 4320.4000000003725
+    },
+    "build500x20_500Layers": {
+     "es": {
+      "micros": 13807800,
+      "items": 500,
+      "layersInComp": 506
+     },
+     "msRoundTrip": 13843.300000000745
+    }
+   },
+   "hostEnvironment": {
+    "appVersion": "25.5",
+    "appLocale": "en_US",
+    "isAppOnline": true,
+    "appUILocale": "en_US",
+    "appName": "AEFT",
+    "appId": "AEFT"
+   },
+   "finishedAt": "2026-11-15T02:28:29.724Z"
+  }
+ },
+ {
+  "t": "2026-11-15T02:30:41.323Z",
+  "kind": "ws-upgrade",
+  "origin": "file://",
+  "host": "127.0.0.1:47813",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 AdobeCEP/12.1.0 Safari/537.36"
+ },
+ {
+  "t": "2026-11-15T02:30:57.007Z",
+  "kind": "result",
+  "url": "/result?app=ILST",
+  "body": {
+   "startedAt": "2026-11-15T02:30:37.232Z",
+   "href": "file:///~/AppData/Roaming/Adobe/CEP/extensions/dev.pulley.probe/bg.html",
+   "origin": "file://",
+   "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 AdobeCEP/12.1.0 Safari/537.36",
+   "typeofRequire": "undefined",
+   "typeofProcess": "undefined",
+   "hasCepFs": true,
+   "typeofWebAssembly": "object",
+   "steps": {
+    "websocket": {
+     "opened": true,
+     "ms": 13.199999999254942
+    },
+    "cepFs": {
+     "writeErr": 0,
+     "readErr": 0,
+     "readBack": "pulley",
+     "userData": "~/AppData/Roaming"
+    },
+    "caps": {
+     "appVersion": "29.5.0",
+     "esVersion": "4.5.6",
+     "typeofJSON": "undefined",
+     "locale": "en_US",
+     "coordinateSystem": "CoordinateSystem.DOCUMENTCOORDINATESYSTEM",
+     "typeofConvertSampleColor": "function",
+     "documentsOpenAtStart": 0,
+     "addCmykDoc": "DocumentColorSpace.CMYK",
+     "cmykRedToRgb_defaultpurpose": [
+      237.268753051758,
+      28.4703826904297,
+      36.2406921386719
+     ],
+     "cmykRedToRgb_exportpurpose": [
+      237.268753051758,
+      28.4703826904297,
+      36.2406921386719
+     ],
+     "cmykRedToRgb_previewpurpose": [
+      236.996383666992,
+      27.9995727539062,
+      35.9994506835938
+     ],
+     "cmykRedToRgb_dummypurpose": [
+      237.268753051758,
+      28.4703826904297,
+      36.2406921386719
+     ],
+     "richBlackToRgb_default": [
+      0.33851623535156,
+      0.42800903320312,
+      0.45913696289062
+     ],
+     "undoCountsAvailable": "undefined"
+    },
+    "aiBench": {
+     "createMicros": 2764366,
+     "uuidError": "Error: No such element",
+     "domReadMicros": 602,
+     "domReadPaths": 0,
+     "domReadChars": 0,
+     "svgExportMicros": 1405475,
+     "svgBytes": 301305,
+     "svgFileRemoved": true,
+     "docSavedFlagBeforeClose": true
+    }
+   },
+   "hostEnvironment": {
+    "appVersion": "29.5.0",
+    "appLocale": "en_US",
+    "isAppOnline": true,
+    "appUILocale": "en_US",
+    "appName": "ILST",
+    "appId": "ILST"
+   },
+   "finishedAt": "2026-11-15T02:30:57.001Z"
+  }
+ },
+ {
+  "t": "2026-11-15T02:33:39.886Z",
+  "kind": "result",
+  "url": "/result?app=AEFT&run=2",
+  "body": {
+   "startedAt": "2026-11-15T02:33:03.670Z",
+   "href": "file:///~/AppData/Roaming/Adobe/CEP/extensions/dev.pulley.probe/bg.html",
+   "origin": "file://",
+   "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 AdobeCEP/12.0.1 Safari/537.36",
+   "typeofRequire": "undefined",
+   "typeofProcess": "undefined",
+   "hasCepFs": true,
+   "typeofWebAssembly": "object",
+   "steps": {
+    "aeMicro": {
+     "es": {
+      "decodeLinesMicros": 1106791,
+      "decodeLinesPaths": 500,
+      "decodeXmlMicros": 925131,
+      "decodeXmlPaths": 500,
+      "perCall200Micros": {
+       "addGroup": 618559,
+       "setName": 110405,
+       "getContents": 50764,
+       "addPath": 205837,
+       "setShape": 345869,
+       "addFill": 183934,
+       "setColor": 187578
+      },
+      "oneLayerPer100Micros": [
+       843324,
+       868334,
+       939988,
+       883571,
+       1225618
+      ],
+      "oneLayerNoUndoMicros": 4157622,
+      "nested25x20Micros": 3351936,
+      "flat500PathsOnlyMicros": 1115400,
+      "addShape100Micros": 1096147,
+      "duplicate100Micros": 369305,
+      "duplicateThenSetShape100Micros": 156422,
+      "manyLayersPer100Micros": [
+       2057793,
+       2436419,
+       2550327,
+       2604326,
+       2829241
+      ],
+      "layersInComp": 601
+     },
+     "msRoundTrip": 31904.599999999627,
+     "linesChars": 345498,
+     "xmlChars": 355898
+    }
+   },
+   "hostEnvironment": {
+    "appVersion": "25.5",
+    "appLocale": "en_US",
+    "isAppOnline": true,
+    "appUILocale": "en_US",
+    "appName": "AEFT",
+    "appId": "AEFT"
+   },
+   "finishedAt": "2026-11-15T02:33:39.879Z"
+  }
+ },
+ {
+  "t": "2026-11-15T02:36:03.444Z",
+  "kind": "ws-upgrade",
+  "origin": "file://",
+  "host": "127.0.0.1:47813",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 AdobeCEP/12.1.0 Safari/537.36"
+ },
+ {
+  "t": "2026-11-15T02:36:12.573Z",
+  "kind": "result",
+  "url": "/result?app=ILST",
+  "body": {
+   "startedAt": "2026-11-15T02:35:59.345Z",
+   "href": "file:///~/AppData/Roaming/Adobe/CEP/extensions/dev.pulley.probe/bg.html",
+   "origin": "file://",
+   "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 AdobeCEP/12.1.0 Safari/537.36",
+   "typeofRequire": "undefined",
+   "typeofProcess": "undefined",
+   "hasCepFs": true,
+   "typeofWebAssembly": "object",
+   "steps": {
+    "websocket": {
+     "opened": true,
+     "ms": 20.899999998509884
+    },
+    "cepFs": {
+     "writeErr": 0,
+     "readErr": 0,
+     "readBack": "pulley",
+     "userData": "~/AppData/Roaming"
+    },
+    "caps": {
+     "appVersion": "29.5.0",
+     "esVersion": "4.5.6",
+     "typeofJSON": "undefined",
+     "locale": "en_US",
+     "coordinateSystem": "CoordinateSystem.DOCUMENTCOORDINATESYSTEM",
+     "typeofConvertSampleColor": "function",
+     "documentsOpenAtStart": 0,
+     "addCmykDoc": "DocumentColorSpace.CMYK",
+     "cmykRedToRgb_defaultpurpose": [
+      237.268753051758,
+      28.4703826904297,
+      36.2406921386719
+     ],
+     "cmykRedToRgb_exportpurpose": [
+      237.268753051758,
+      28.4703826904297,
+      36.2406921386719
+     ],
+     "cmykRedToRgb_previewpurpose": [
+      236.996383666992,
+      27.9995727539062,
+      35.9994506835938
+     ],
+     "cmykRedToRgb_dummypurpose": [
+      237.268753051758,
+      28.4703826904297,
+      36.2406921386719
+     ],
+     "richBlackToRgb_default": [
+      0.33851623535156,
+      0.42800903320312,
+      0.45913696289062
+     ],
+     "undoCountsAvailable": "undefined"
+    },
+    "aiBench": {
+     "createMicros": 1144413,
+     "uuidError": "Error: No such element",
+     "domReadMicros": 58,
+     "domReadPaths": 0,
+     "domReadChars": 0,
+     "svgExportMicros": 625093,
+     "svgBytes": 301305,
+     "svgFileRemoved": true,
+     "docSavedFlagBeforeClose": true
+    }
+   },
+   "hostEnvironment": {
+    "appVersion": "29.5.0",
+    "appLocale": "en_US",
+    "isAppOnline": true,
+    "appUILocale": "en_US",
+    "appName": "ILST",
+    "appId": "ILST"
+   },
+   "finishedAt": "2026-11-15T02:36:12.565Z"
+  }
+ },
+ {
+  "t": "2026-11-15T02:39:02.236Z",
+  "kind": "ws-upgrade",
+  "origin": "file://",
+  "host": "127.0.0.1:47813",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 AdobeCEP/12.1.0 Safari/537.36"
+ },
+ {
+  "t": "2026-11-15T02:40:35.390Z",
+  "kind": "result",
+  "url": "/result?app=ILST",
+  "body": {
+   "startedAt": "2026-11-15T02:38:58.186Z",
+   "href": "file:///~/AppData/Roaming/Adobe/CEP/extensions/dev.pulley.probe/bg.html",
+   "origin": "file://",
+   "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 AdobeCEP/12.1.0 Safari/537.36",
+   "typeofRequire": "undefined",
+   "typeofProcess": "undefined",
+   "hasCepFs": true,
+   "typeofWebAssembly": "object",
+   "steps": {
+    "websocket": {
+     "opened": true,
+     "ms": 5.900000000372529
+    },
+    "cepFs": {
+     "writeErr": 0,
+     "readErr": 0,
+     "readBack": "pulley",
+     "userData": "~/AppData/Roaming"
+    },
+    "caps": {
+     "appVersion": "29.5.0",
+     "esVersion": "4.5.6",
+     "typeofJSON": "undefined",
+     "locale": "en_US",
+     "coordinateSystem": "CoordinateSystem.DOCUMENTCOORDINATESYSTEM",
+     "typeofConvertSampleColor": "function",
+     "documentsOpenAtStart": 0,
+     "addCmykDoc": "DocumentColorSpace.CMYK",
+     "cmykRedToRgb_defaultpurpose": [
+      237.268753051758,
+      28.4703826904297,
+      36.2406921386719
+     ],
+     "cmykRedToRgb_exportpurpose": [
+      237.268753051758,
+      28.4703826904297,
+      36.2406921386719
+     ],
+     "cmykRedToRgb_previewpurpose": [
+      236.996383666992,
+      27.9995727539062,
+      35.9994506835938
+     ],
+     "cmykRedToRgb_dummypurpose": [
+      237.268753051758,
+      28.4703826904297,
+      36.2406921386719
+     ],
+     "richBlackToRgb_default": [
+      0.33851623535156,
+      0.42800903320312,
+      0.45913696289062
+     ],
+     "undoCountsAvailable": "undefined"
+    },
+    "aiBench": {
+     "createMicros": 1452979,
+     "uuidError": "Error: No such element",
+     "domReadMicros": 64,
+     "domReadPaths": 0,
+     "domReadChars": 0,
+     "svgExportMicros": 681208,
+     "svgBytes": 301305,
+     "svgFileRemoved": true,
+     "docSavedFlagBeforeClose": true
+    },
+    "aiDiag": {
+     "docsAfterAdd": 2,
+     "activeIsNew": true,
+     "firstPathPoints": 20,
+     "layerCountAfterFirst": 1,
+     "docCountAfterFirst": 0,
+     "createMicros": 3666858,
+     "layerPathItems": 500,
+     "docPathItems": 0,
+     "docPageItems": 0,
+     "savedAfterCreate": false,
+     "typeofUuid": "string",
+     "uuidSample": "973",
+     "typeofGetPageItemFromUuid": "function",
+     "domReadMicros": 78557785,
+     "domReadPaths": 500,
+     "domReadChars": 1014265,
+     "domReadAnchorsOnlyMicros": 121437,
+     "svgExportMicros": 1004724,
+     "svgBytes": 301305,
+     "savedAfterExport": true
+    }
+   },
+   "hostEnvironment": {
+    "appVersion": "29.5.0",
+    "appLocale": "en_US",
+    "isAppOnline": true,
+    "appUILocale": "en_US",
+    "appName": "ILST",
+    "appId": "ILST"
+   },
+   "finishedAt": "2026-11-15T02:40:35.380Z"
+  }
+ }
+]

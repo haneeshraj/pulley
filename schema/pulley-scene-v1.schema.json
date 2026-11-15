@@ -1,0 +1,817 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulley.invalid/schema/pulley-scene-v1.schema.json",
+  "title": "pulley-scene v1",
+  "description": "Canonical vector scene exchanged between Pulley components. Every object rejects unknown fields (matches serde deny_unknown_fields). Coordinates are pixels, y-down, origin at the top-left of the source artboard/frame. Tangents are relative to their vertex. Colors are gamma-encoded floats 0..1 in the header colorSpace. Limits that JSON Schema cannot express (nesting depth, total vertex and item counts, total message size) are enforced by pulley-core; see schema/SCENE.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "source",
+    "units",
+    "colorSpace",
+    "bounds",
+    "items",
+    "warnings"
+  ],
+  "properties": {
+    "schema": {
+      "const": "pulley-scene"
+    },
+    "version": {
+      "description": "Major version. Readers accept only versions they know; any change to this schema bumps it.",
+      "const": 1
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "units": {
+      "$ref": "#/$defs/units"
+    },
+    "colorSpace": {
+      "description": "Color space of every color in this scene.",
+      "enum": [
+        "srgb",
+        "display-p3"
+      ]
+    },
+    "bounds": {
+      "description": "Artboard (Illustrator) or top-level frame / selection bounds (Figma) in scene space. Used for 'keep original positions' and for sizing a new comp.",
+      "$ref": "#/$defs/rect"
+    },
+    "items": {
+      "description": "Top-level selected items, topmost first (same order as AE layers).",
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/warning"
+      }
+    }
+  },
+  "$defs": {
+    "finite": {
+      "description": "Any finite number inside the coordinate limit. NaN and Infinity cannot appear in JSON; pulley-core also rejects numbers that overflow f64.",
+      "type": "number",
+      "minimum": -10000000,
+      "maximum": 10000000
+    },
+    "unit": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/finite"
+        },
+        {
+          "$ref": "#/$defs/finite"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "rgb": {
+      "description": "[r, g, b], gamma-encoded, 0..1.",
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/unit"
+        },
+        {
+          "$ref": "#/$defs/unit"
+        },
+        {
+          "$ref": "#/$defs/unit"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "matrix": {
+      "description": "2D affine [a, b, c, d, tx, ty] mapping item-local space to scene space: x' = a*x + c*y + tx, y' = b*x + d*y + ty.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finite"
+      },
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "rect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/finite"
+        },
+        "y": {
+          "$ref": "#/$defs/finite"
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000000
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000000
+        }
+      }
+    },
+    "name": {
+      "description": "Untrusted display text from the source document. Never interpreted as code.",
+      "type": "string",
+      "maxLength": 1024
+    },
+    "id": {
+      "description": "Stable source identifier (Illustrator PageItem.uuid, Figma node id). Opaque string.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "app",
+        "appVersion",
+        "pulleyVersion"
+      ],
+      "properties": {
+        "app": {
+          "enum": [
+            "illustrator",
+            "figma"
+          ]
+        },
+        "appVersion": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "pulleyVersion": {
+          "description": "Version of the Pulley component that produced the scene (used in version-mismatch errors).",
+          "type": "string",
+          "maxLength": 64
+        },
+        "documentName": {
+          "$ref": "#/$defs/name"
+        },
+        "documentColorMode": {
+          "description": "Color mode of the source document before conversion to colorSpace.",
+          "enum": [
+            "rgb",
+            "cmyk"
+          ]
+        }
+      }
+    },
+    "units": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "pxPerSourceUnit"
+      ],
+      "properties": {
+        "source": {
+          "description": "Unit of the source document.",
+          "enum": [
+            "pt",
+            "px"
+          ]
+        },
+        "pxPerSourceUnit": {
+          "description": "Scale already applied to every coordinate in this scene (default 1: 1 pt = 1 px).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000
+        }
+      }
+    },
+    "blendMode": {
+      "enum": [
+        "passThrough",
+        "normal",
+        "darken",
+        "multiply",
+        "linearBurn",
+        "colorBurn",
+        "lighten",
+        "screen",
+        "linearDodge",
+        "colorDodge",
+        "overlay",
+        "softLight",
+        "hardLight",
+        "difference",
+        "exclusion",
+        "hue",
+        "saturation",
+        "color",
+        "luminosity"
+      ]
+    },
+    "item": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/group"
+        },
+        {
+          "$ref": "#/$defs/shape"
+        },
+        {
+          "$ref": "#/$defs/text"
+        }
+      ]
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "id",
+        "name",
+        "children"
+      ],
+      "properties": {
+        "type": {
+          "const": "group"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "opacity": {
+          "$ref": "#/$defs/unit",
+          "default": 1
+        },
+        "blendMode": {
+          "$ref": "#/$defs/blendMode",
+          "default": "normal"
+        },
+        "clip": {
+          "description": "Clipping mask: children are visible only inside this geometry (Illustrator clipping path, Figma frame with clipsContent).",
+          "$ref": "#/$defs/clip"
+        },
+        "children": {
+          "description": "Topmost first.",
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        }
+      }
+    },
+    "clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paths",
+        "fillRule"
+      ],
+      "properties": {
+        "sourceId": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "fillRule": {
+          "$ref": "#/$defs/fillRule"
+        }
+      }
+    },
+    "fillRule": {
+      "enum": [
+        "nonzero",
+        "evenodd"
+      ]
+    },
+    "shape": {
+      "description": "A path or compound path. One path = simple path; several = compound path sharing one fill rule, fill and stroke.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "id",
+        "name",
+        "paths",
+        "fillRule"
+      ],
+      "properties": {
+        "type": {
+          "const": "shape"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "opacity": {
+          "$ref": "#/$defs/unit",
+          "default": 1
+        },
+        "blendMode": {
+          "$ref": "#/$defs/blendMode",
+          "default": "normal"
+        },
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "fillRule": {
+          "$ref": "#/$defs/fillRule"
+        },
+        "fills": {
+          "description": "Bottom-most first (AE stacking: later paints draw on top).",
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/paint"
+          }
+        },
+        "strokes": {
+          "description": "Bottom-most first.",
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/stroke"
+          }
+        }
+      }
+    },
+    "path": {
+      "description": "AE's model: absolute vertices, tangents relative to their vertex. All three arrays have the same length.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "closed",
+        "vertices",
+        "inTangents",
+        "outTangents"
+      ],
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        },
+        "vertices": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100000,
+          "items": {
+            "$ref": "#/$defs/point"
+          }
+        },
+        "inTangents": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100000,
+          "items": {
+            "$ref": "#/$defs/point"
+          }
+        },
+        "outTangents": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100000,
+          "items": {
+            "$ref": "#/$defs/point"
+          }
+        }
+      }
+    },
+    "gradientStop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "offset",
+        "color"
+      ],
+      "properties": {
+        "offset": {
+          "$ref": "#/$defs/unit"
+        },
+        "color": {
+          "$ref": "#/$defs/rgb"
+        },
+        "opacity": {
+          "$ref": "#/$defs/unit",
+          "default": 1
+        },
+        "midpoint": {
+          "description": "Position of the 50% blend between this stop and the next, as a fraction of the gap (Illustrator 13%..87%; Figma always 0.5).",
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 0.99,
+          "default": 0.5
+        }
+      }
+    },
+    "stops": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/gradientStop"
+      }
+    },
+    "paint": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "color"
+          ],
+          "properties": {
+            "type": {
+              "const": "solid"
+            },
+            "color": {
+              "$ref": "#/$defs/rgb"
+            },
+            "opacity": {
+              "$ref": "#/$defs/unit",
+              "default": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "stops",
+            "start",
+            "end"
+          ],
+          "properties": {
+            "type": {
+              "const": "linearGradient"
+            },
+            "stops": {
+              "$ref": "#/$defs/stops"
+            },
+            "start": {
+              "$ref": "#/$defs/point"
+            },
+            "end": {
+              "$ref": "#/$defs/point"
+            },
+            "opacity": {
+              "$ref": "#/$defs/unit",
+              "default": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "stops",
+            "center",
+            "radiusPoint"
+          ],
+          "properties": {
+            "type": {
+              "const": "radialGradient"
+            },
+            "stops": {
+              "$ref": "#/$defs/stops"
+            },
+            "center": {
+              "$ref": "#/$defs/point"
+            },
+            "radiusPoint": {
+              "description": "A point on the 100% ring (AE End Point).",
+              "$ref": "#/$defs/point"
+            },
+            "focalPoint": {
+              "description": "Highlight / focal point if it differs from center (Illustrator highlight).",
+              "$ref": "#/$defs/point"
+            },
+            "opacity": {
+              "$ref": "#/$defs/unit",
+              "default": 1
+            }
+          }
+        }
+      ]
+    },
+    "stroke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paint",
+        "width"
+      ],
+      "properties": {
+        "paint": {
+          "$ref": "#/$defs/paint"
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "cap": {
+          "enum": [
+            "butt",
+            "round",
+            "square"
+          ],
+          "default": "butt"
+        },
+        "join": {
+          "enum": [
+            "miter",
+            "round",
+            "bevel"
+          ],
+          "default": "miter"
+        },
+        "miterLimit": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 4
+        },
+        "dashes": {
+          "description": "Alternating dash and gap lengths, starting with a dash. Empty = solid.",
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "default": []
+        },
+        "dashOffset": {
+          "$ref": "#/$defs/finite",
+          "default": 0
+        },
+        "alignment": {
+          "enum": [
+            "center",
+            "inside",
+            "outside"
+          ],
+          "default": "center"
+        }
+      }
+    },
+    "fontRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "postScriptName",
+        "family",
+        "style"
+      ],
+      "properties": {
+        "postScriptName": {
+          "description": "Empty string when the source cannot provide one (Figma); pulley-core then maps family/style to a PostScript name.",
+          "type": "string",
+          "maxLength": 256
+        },
+        "family": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "style": {
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    },
+    "textRun": {
+      "description": "A style run over [start, end) in UTF-16 code units of content.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "font",
+        "size",
+        "fill"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65536
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65536
+        },
+        "font": {
+          "$ref": "#/$defs/fontRef"
+        },
+        "size": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        },
+        "tracking": {
+          "description": "Thousandths of an em (Illustrator/AE convention).",
+          "type": "number",
+          "minimum": -10000,
+          "maximum": 10000,
+          "default": 0
+        },
+        "leading": {
+          "description": "Line height in px; omitted = auto.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "baselineShift": {
+          "$ref": "#/$defs/finite",
+          "default": 0
+        },
+        "fill": {
+          "$ref": "#/$defs/paint"
+        },
+        "stroke": {
+          "$ref": "#/$defs/stroke"
+        }
+      }
+    },
+    "text": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "id",
+        "name",
+        "kind",
+        "content",
+        "matrix",
+        "runs",
+        "justification",
+        "outlines"
+      ],
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "opacity": {
+          "$ref": "#/$defs/unit",
+          "default": 1
+        },
+        "blendMode": {
+          "$ref": "#/$defs/blendMode",
+          "default": "normal"
+        },
+        "kind": {
+          "enum": [
+            "point",
+            "area"
+          ]
+        },
+        "content": {
+          "description": "Untrusted. Paragraphs separated by \\r (AE convention).",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "matrix": {
+          "description": "Text-local to scene space. Local origin = first baseline start (point text) or box top-left (area text).",
+          "$ref": "#/$defs/matrix"
+        },
+        "box": {
+          "description": "Area text box size in text-local space. Required when kind = area.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "width",
+            "height"
+          ],
+          "properties": {
+            "width": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            }
+          }
+        },
+        "justification": {
+          "enum": [
+            "left",
+            "center",
+            "right",
+            "justifyLeft",
+            "justifyCenter",
+            "justifyRight",
+            "justifyAll"
+          ]
+        },
+        "runs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/textRun"
+          }
+        },
+        "outlines": {
+          "description": "Fallback geometry (text converted to shapes) used when a font is missing in AE. May be empty if the source could not outline without side effects; then a warning is present.",
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "$ref": "#/$defs/shapeItem"
+          }
+        }
+      }
+    },
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "description": "Stable machine-readable code (see schema/SCENE.md). Readers must accept codes they do not know and show the message.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "itemId": {
+          "$ref": "#/$defs/id"
+        },
+        "itemName": {
+          "$ref": "#/$defs/name"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      }
+    },
+    "shapeItem": {
+      "description": "A shape item (type = shape).",
+      "$ref": "#/$defs/shape"
+    }
+  }
+}

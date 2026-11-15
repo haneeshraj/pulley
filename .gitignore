@@ -1,0 +1,12 @@
+/target
+/.tools
+node_modules/
+/dist
+*.log
+/figma-plugin/build
+/panels/*/build
+/fuzz/artifacts
+/fuzz/corpus/*/
+!/fuzz/corpus/*/.keep
+/fuzz/target
+.DS_Store

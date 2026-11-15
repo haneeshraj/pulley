@@ -1,0 +1,78 @@
+{
+  "schema": "pulley-scene",
+  "version": 1,
+  "source": {
+    "app": "illustrator",
+    "appVersion": "29.5.0",
+    "pulleyVersion": "0.1.0",
+    "documentName": "poster.ai",
+    "documentColorMode": "cmyk"
+  },
+  "units": { "source": "pt", "pxPerSourceUnit": 1 },
+  "colorSpace": "srgb",
+  "bounds": { "x": 0, "y": 0, "width": 612, "height": 792 },
+  "items": [
+    {
+      "type": "group",
+      "id": "a1b2-clip",
+      "name": "Clip Group",
+      "clip": {
+        "sourceId": "a1b2-mask",
+        "name": "<Clipping Path>",
+        "fillRule": "nonzero",
+        "paths": [
+          {
+            "closed": true,
+            "vertices": [[50, 50], [350, 50], [350, 250], [50, 250]],
+            "inTangents": [[0, 0], [0, 0], [0, 0], [0, 0]],
+            "outTangents": [[0, 0], [0, 0], [0, 0], [0, 0]]
+          }
+        ]
+      },
+      "children": [
+        {
+          "type": "text",
+          "id": "a1b2-text",
+          "name": "Headline",
+          "kind": "point",
+          "content": "Pulley\rmotion",
+          "matrix": [1, 0, 0, 1, 60, 140],
+          "justification": "left",
+          "runs": [
+            {
+              "start": 0,
+              "end": 7,
+              "font": { "postScriptName": "Arial-BoldMT", "family": "Arial", "style": "Bold" },
+              "size": 96,
+              "tracking": -20,
+              "leading": 100,
+              "fill": { "type": "solid", "color": [0.08, 0.08, 0.1] }
+            },
+            {
+              "start": 7,
+              "end": 13,
+              "font": { "postScriptName": "ArialMT", "family": "Arial", "style": "Regular" },
+              "size": 48,
+              "fill": { "type": "solid", "color": [0.85, 0.2, 0.25] }
+            }
+          ],
+          "outlines": []
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    {
+      "code": "text_outlines_missing",
+      "itemId": "a1b2-text",
+      "itemName": "Headline",
+      "message": "Outline fallback was not captured for this text. If a font is missing in After Effects the text will use a substitute font."
+    },
+    {
+      "code": "unsupported_raster",
+      "itemId": "a1b2-img",
+      "itemName": "photo.jpg",
+      "message": "Placed and embedded images are not imported. The item was skipped."
+    }
+  ]
+}

@@ -109,9 +109,9 @@ var PulleyApply = (function () {
      * Apply a plan file. `cancelPath`: if this file exists, stop and remove what was built.
      * Returns JSON text with counts, missing fonts, warnings and timing.
      */
-    function apply(planPath, cancelPath, compOverride) {
+    function apply(planPath, cancelPath, compOverride, ffxPrefix) {
         var t0 = new Date().getTime();
-        var res = { ok: false, layers: 0, groups: 0, paths: 0, texts: 0, comps: 0, missingFonts: [], warnings: [], gradients: [], cancelled: false };
+        var res = { ok: false, layers: 0, groups: 0, paths: 0, texts: 0, comps: 0, missingFonts: [], warnings: [], gradients: 0, cancelled: false };
         var text;
         try { text = readFile(planPath); } catch (eR) { res.error = { code: "plan_unreadable", message: String(eR) }; return PulleyJSON.stringify(res); }
         if (text.indexOf("PULLEY-PLAN 1\n") !== 0) {
@@ -126,11 +126,17 @@ var PulleyApply = (function () {
         // screen). For big plans, show a tiny placeholder comp while building, and open new
         // comps only once they are finished.
         var viewSwap = null, openAtEnd = null;
+        var gradRefs = [];
+        var userSelection = [];
         var createdLayers = [], createdComps = [], missing = {}, textState = null;
         var skipFallback = false, inFallback = false, lineNo = 0, ops = 0;
         var total = 0, pos = 0, len = text.length, idx;
         for (idx = text.indexOf("\n"); idx >= 0; idx = text.indexOf("\n", idx + 1)) { total++; }
-        if (comp) { compStack.push(comp); layerLists.push([]); }
+        if (comp) {
+            compStack.push(comp);
+            layerLists.push([]);
+            try { var sl = comp.selectedLayers; for (var si = 0; si < sl.length; si++) { userSelection.push(sl[si]); } } catch (eSel) {}
+        }
         var big = total > 200;
         function hideViewer() {
             if (!big || viewSwap) { return; }
@@ -145,7 +151,7 @@ var PulleyApply = (function () {
         function top() { return containers[containers.length - 1]; }
         function curComp() { return compStack[compStack.length - 1]; }
         function curList() { return layerLists[layerLists.length - 1]; }
-        function warn(msg) { if (res.warnings.length < 200) { res.warnings.push("line " + lineNo + ": " + msg); } }
+        function warn(msg, noLine) { if (res.warnings.length < 200) { res.warnings.push(noLine ? msg : "line " + lineNo + ": " + msg); } }
         function newLayer(L) { createdLayers.push(L); curList().push(L); res.layers++; }
 
         function nextLine() {
@@ -328,7 +334,7 @@ var PulleyApply = (function () {
                                 st.property("ADBE Vector Grad End Pt").setValue([+f[5], +f[6]]);
                                 if (+f[7] !== 0) { st.property("ADBE Vector Grad HiLite Length").setValue(+f[7]); }
                                 if (+f[8] !== 0) { st.property("ADBE Vector Grad HiLite Angle").setValue(+f[8]); }
-                                res.gradients.push({ index: +f[14], layer: curList().length - 1, comp: compStack.length - 1, path: propPath(st), kind: "stroke" });
+                                gradRefs.push({ index: +f[15], layer: layer, path: propPath(st) });
                             } else {
                                 st.property("ADBE Vector Stroke Color").setValue([+f[2], +f[3], +f[4]]);
                             }
@@ -354,7 +360,7 @@ var PulleyApply = (function () {
                             if (+f[8] !== 0) { gf.property("ADBE Vector Grad HiLite Angle").setValue(+f[8]); }
                             if (f[1] === "2") { gf.property("ADBE Vector Fill Rule").setValue(2); }
                             if (+f[9] !== 100) { gf.property("ADBE Vector Fill Opacity").setValue(+f[9]); }
-                            res.gradients.push({ index: +f[10], layer: curList().length - 1, comp: compStack.length - 1, path: propPath(gf), kind: "fill" });
+                            gradRefs.push({ index: +f[10], layer: layer, path: propPath(gf) });
                             break;
                         }
                         case "O": {
@@ -425,6 +431,37 @@ var PulleyApply = (function () {
                 res.error = { code: "no_comp", message: "No composition is active in After Effects." };
             }
         }
+        // Gradient colors can't be set by script: apply a generated preset to each gradient
+        // property. applyPreset works on the selection, so select, apply, deselect, and put
+        // the user's layer selection back afterwards.
+        if (res.ok && gradRefs.length) {
+            var applied = 0, failed = 0;
+            for (var gi = 0; gi < gradRefs.length; gi++) {
+                var g = gradRefs[gi];
+                var ff = ffxPrefix ? new File(ffxPrefix + g.index + ".ffx") : null;
+                if (!ff || !ff.exists) { failed++; continue; }
+                try {
+                    var GL = g.layer, GC = GL.containingComp;
+                    var others = GC.selectedLayers;
+                    for (var oi = 0; oi < others.length; oi++) { others[oi].selected = false; }
+                    GL.selected = true;
+                    var sp = GL.selectedProperties;
+                    for (var pi = 0; pi < sp.length; pi++) { try { sp[pi].selected = false; } catch (eP) {} }
+                    var target = GL;
+                    for (var k2 = 0; k2 < g.path.length; k2++) { target = target.property(g.path[k2]); }
+                    target.selected = true;
+                    GL.applyPreset(ff);
+                    target.selected = false;
+                    GL.selected = false;
+                    applied++;
+                } catch (eG) { failed++; warn("Gradient colors: " + String(eG), true); }
+            }
+            res.gradientsApplied = applied;
+            res.gradientsFailed = failed;
+            if (failed) { warn(failed + " gradient(s) kept After Effects' default colors.", true); }
+        }
+        res.gradients = gradRefs.length;
+        try { for (var ui = 0; ui < userSelection.length; ui++) { userSelection[ui].selected = true; } } catch (eU2) {}
         try {
             if (openAtEnd && !res.cancelled) { openAtEnd.openInViewer(); }
             else if (viewSwap && comp) { comp.openInViewer(); }
@@ -439,11 +476,11 @@ var PulleyApply = (function () {
     return { apply: apply };
 })();
 
-function pulleyApplyPlan(planPath, cancelPath) {
-    return PulleyApply.apply(planPath, cancelPath);
+function pulleyApplyPlan(planPath, cancelPath, ffxPrefix) {
+    return PulleyApply.apply(planPath, cancelPath, null, ffxPrefix);
 }
 
 /** Test hook: apply into a given comp instead of the active one. */
-function pulleyApplyPlanInto(planPath, comp) {
-    return PulleyApply.apply(planPath, planPath + ".cancel", comp);
+function pulleyApplyPlanInto(planPath, comp, ffxPrefix) {
+    return PulleyApply.apply(planPath, planPath + ".cancel", comp, ffxPrefix);
 }

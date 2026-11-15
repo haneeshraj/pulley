@@ -105,6 +105,7 @@
     var summary = { ok: false, layers: 0, groups: 0, paths: 0, texts: 0, missingFonts: [], warnings: [], errors: [], cancelled: false, timings: {} };
     var planPath = tmpDir + '/plan-' + safe + '.txt';
     var ffxFiles = [];
+    var ffxPrefix = tmpDir + '/grad-' + safe + '-';
     try {
       var core = await window.PulleyWasm.load();
       var stats = JSON.parse(core.checkScene(text, 'ae'));
@@ -118,21 +119,18 @@
       if (!C.fs.write(planPath, plan.text)) { throw { message: 'Pulley could not write its temporary file.', hint: 'Check that ' + tmpDir + ' is writable.' }; }
       for (var i = 0; i < plan.ffx.length; i++) {
         if (plan.ffx[i]) {
-          var f = tmpDir + '/grad-' + safe + '-' + i + '.ffx';
+          var f = ffxPrefix + i + '.ffx';
           C.fs.writeBase64(f, plan.ffx[i]);
           ffxFiles.push(f);
         }
       }
       state.progress = { done: 0, total: 1, stage: 'Building layers' };
       emit();
-      var res = JSON.parse(await C.call('pulleyApplyPlan', [planPath, busy.cancelPath], 30 * 60 * 1000));
+      var res = JSON.parse(await C.call('pulleyApplyPlan', [planPath, busy.cancelPath, ffxPrefix], 30 * 60 * 1000));
       var warnings = [];
       (plan.sceneWarnings || []).forEach(function (w) { warnings.push((w.itemName ? w.itemName + ': ' : '') + w.message); });
       (plan.warnings || []).forEach(function (w) { warnings.push((w.itemName ? w.itemName + ': ' : '') + w.message); });
       (res.warnings || []).forEach(function (w) { warnings.push(w); });
-      if (plan.gradients.length && !plan.ffx.some(function (b) { return !!b; })) {
-        warnings.push('Gradient colors could not be applied automatically; the gradients keep their positions with After Effects\' default colors.');
-      }
       summary = {
         ok: !!res.ok, layers: res.layers || 0, groups: res.groups || 0, paths: res.paths || 0, texts: res.texts || 0,
         missingFonts: res.missingFonts || [], warnings: warnings.slice(0, 500),

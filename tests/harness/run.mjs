@@ -47,8 +47,10 @@ const extra = args.includes('--multi') && app === 'AEFT' ? ['-m'] : [];
 const child = spawn(EXE[app], extra, { cwd: dir, detached: false, stdio: 'ignore' });
 console.log(`launched ${app} pid ${child.pid}; results in ${dir}`);
 // Click "Continue" if After Effects asks to start in safe mode (after a forced quit).
-const dismisser = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'dismiss-dialogs.ps1'), '-ProcessId', String(child.pid), '-Seconds', '240'], { stdio: ['ignore', 'pipe', 'ignore'] });
+const dismisser = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'dismiss-dialogs.ps1'), '-ProcessId', String(child.pid), '-Seconds', String(Math.ceil(timeout / 1000))], { stdio: ['ignore', 'pipe', 'ignore'] });
 dismisser.stdout.on('data', (d) => process.stdout.write('[dismiss] ' + d));
+// --list-windows: log the app's windows to <dir>/windows.log (to diagnose a blocked run).
+const lister = args.includes('--list-windows') ? spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'list-windows.ps1'), '-ProcessId', String(child.pid), '-Seconds', '200', '-Out', path.join(dir, 'windows.log')], { stdio: 'ignore' }) : null;
 const exited = new Promise((r) => child.on('exit', (code) => r(code)));
 const timer = new Promise((r) => setTimeout(() => r('timeout'), timeout));
 const how = await Promise.race([exited, timer]);
@@ -58,6 +60,7 @@ if (how === 'timeout') {
 }
 if (server) server.close();
 try { dismisser.kill(); } catch {}
+try { if (lister) lister.kill(); } catch {}
 if (!args.includes('--keep')) for (const d of installed) fs.rmSync(d, { recursive: true, force: true });
 console.log(`finished in ${((Date.now() - t0) / 1000).toFixed(0)}s (${how === 'timeout' ? 'timeout' : 'exit ' + how})`);
 for (const f of fs.readdirSync(dir).filter((f) => f.startsWith('result-'))) {

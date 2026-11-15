@@ -29,6 +29,7 @@ function pulleyDumpProp(p, depth) {
                 o.value = v;
             }
         } catch (e) { o.err = String(e); }
+        try { o.keys = p.numKeys; } catch (eK) {}
         return o;
     }
     o.children = [];
@@ -81,10 +82,10 @@ function pulleyDumpComp(comp) {
 }
 
 /** Apply a plan into a fresh project (with or without an active comp) and dump the result. */
-function pulleyTestApply(planPath, withComp, outPath) {
+function pulleyTestApply(planPath, withComp, outPath, ffxPrefix, saveAs) {
     pulleyTestNewProject(withComp);
     var t0 = new Date().getTime();
-    var res = pulleyApplyPlan(planPath, planPath + ".cancel");
+    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
     var ms = new Date().getTime() - t0;
     var comp = app.project.activeItem;
     var dump = null;
@@ -99,6 +100,8 @@ function pulleyTestApply(planPath, withComp, outPath) {
         }
         dump = pulleyDumpComp(comp);
     }
+    // Gradient colors can only be read back from a saved project (tests/ae/check.mjs parses it).
+    if (saveAs) { app.project.save(new File(saveAs)); }
     var text = PulleyJSON.stringify({ result: res, totalMs: ms, dump: dump });
     var f = new File(outPath);
     f.encoding = "UTF-8";
@@ -119,3 +122,4 @@ function pulleyTestDumpActive(outPath) {
     f.close();
     return "ok";
 }
+

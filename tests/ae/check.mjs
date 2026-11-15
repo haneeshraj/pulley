@@ -1,9 +1,14 @@
 // Checks the AE dumps written by tests/ae/dump.jsx (via the harness) against expectations.
-// Usage: node tests/ae/check.mjs <dir with *.result.json>
+// Usage: node tests/ae/check.mjs <dir with *.result.json> [--only name,name] [--skip-perf]
+// (tests/ae/run.mjs runs the whole suite and then this.)
 import fs from 'node:fs';
 import path from 'node:path';
 
-const dir = process.argv[2] || 'target/ae-test';
+const argv = process.argv.slice(2);
+const dir = argv[0] && !argv[0].startsWith('--') ? argv[0] : 'target/ae-test';
+const onlyArg = argv.indexOf('--only');
+const only = onlyArg >= 0 ? argv[onlyArg + 1].split(',') : [];
+const skipPerf = argv.includes('--skip-perf');
 let failed = 0;
 let passed = 0;
 const near = (a, b, tol = 0.01) => Math.abs(a - b) <= tol;
@@ -26,6 +31,46 @@ function findProps(node, mn, out = []) {
   if (node.mn === mn) out.push(node);
   if (node.children) findProps(node.children, mn, out);
   return out;
+}
+// Gradient colors: AE has no scripting access to them, so they are read from the project the
+// test saved (binary .aep: GCky chunks hold the prop.map XML) and compared, number by number,
+// with the presets Pulley generated (AE re-serializes the XML, so text can differ).
+const floats = (xml) => [...xml.matchAll(/<float>([^<]+)<\/float>/g)].map((m) => +m[1]);
+const utf8After = (b, pos) => { const u = b.indexOf('Utf8', pos); return b.slice(u + 8, u + 8 + b.readUInt32BE(u + 4)).toString('utf8'); };
+function savedGradients(name) {
+  const f = path.join(dir, name + '.aep');
+  if (!fs.existsSync(f)) return null;
+  const b = fs.readFileSync(f);
+  const list = [];
+  for (let pos = b.indexOf('GCky'); pos > 0; pos = b.indexOf('GCky', pos + 1)) {
+    const before = b.slice(Math.max(0, pos - 20000), pos).toString('latin1');
+    const kind = before.lastIndexOf('ADBE Vector Graphic - G-Stroke') > before.lastIndexOf('ADBE Vector Graphic - G-Fill') ? 'stroke' : 'fill';
+    list.push({ kind, stops: floats(utf8After(b, pos)) });
+  }
+  return list;
+}
+function presetStops(name) {
+  const out = [];
+  for (let i = 0; fs.existsSync(path.join(dir, `${name}-grad-${i}.ffx`)); i++) {
+    const b = fs.readFileSync(path.join(dir, `${name}-grad-${i}.ffx`));
+    out.push(floats(utf8After(b, b.indexOf('GCky'))));
+  }
+  return out;
+}
+const sameStops = (a, b) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 1e-4);
+// Every generated preset ended up on exactly one gradient, and no gradient kept the defaults.
+function checkGradientColors(n, r, name) {
+  const want = presetStops(name);
+  const got = savedGradients(name);
+  check(n, r.res.gradients === want.length && r.res.gradientsApplied === want.length && !r.res.gradientsFailed, `all ${want.length} gradient presets applied (applied ${r.res.gradientsApplied}, failed ${r.res.gradientsFailed})`);
+  check(n, !!got && got.length === want.length, `project stores ${want.length} gradient color sets (got ${got && got.length})`);
+  if (!got) return got;
+  const left = want.slice();
+  const unmatched = got.filter((g) => { const i = left.findIndex((w) => sameStops(g.stops, w)); if (i < 0) return true; left.splice(i, 1); return false; });
+  check(n, unmatched.length === 0 && left.length === 0, `saved gradient colors match the generated presets (${unmatched.length} unmatched)`);
+  const keyed = findProps(r.dump.layers.map((l) => ({ children: l.contents || [] })), 'ADBE Vector Grad Colors').filter((p) => p.keys > 0);
+  check(n, keyed.length === 0, 'gradient colors are not keyframed');
+  return got;
 }
 const child = (node, mn) => (node.children || []).find((c) => c.mn === mn);
 const layer = (dump, name) => dump.layers.find((l) => l.name === name);
@@ -70,6 +115,18 @@ const tests = {
     }
     const off = findProps(L.contents, 'ADBE Vector Filter - Offset')[0];
     check(this.n, !!off && child(off, 'ADBE Vector Offset Amount').value === -6, 'inside stroke emulated with Offset Paths -6');
+    const saved = checkGradientColors(this.n, r, 'gradients');
+    const want = presetStops('gradients');
+    // The plan numbers the stroke gradient 0 and the fill gradient 1 (see the plan file).
+    check(this.n, saved && saved.length === 2 && saved.find((g) => g.kind === 'stroke') && sameStops(saved.find((g) => g.kind === 'stroke').stops, want[0]) && sameStops(saved.find((g) => g.kind === 'fill').stops, want[1]), 'each gradient got its own colors (stroke vs fill)');
+  },
+  'ai-gradients'(r) {
+    check(this.n, r.dump.layers.length === 5, `five layers (got ${r.dump.layers.length})`);
+    checkGradientColors(this.n, r, 'ai-gradients');
+    const radial = findProps(layer(r.dump, 'Radial').contents, 'ADBE Vector Graphic - G-Fill')[0];
+    check(this.n, radial && child(radial, 'ADBE Vector Grad Type').value === 2, 'radial gradient type');
+    const gs = findProps(layer(r.dump, 'Gradient stroke').contents, 'ADBE Vector Graphic - G-Stroke')[0];
+    check(this.n, !!gs, 'gradient stroke');
   },
   cliptext(r) {
     const d = r.dump;
@@ -140,6 +197,8 @@ const tests = {
 };
 
 for (const [name, fn] of Object.entries(tests)) {
+  if (only.length && !only.includes(name)) continue;
+  if (skipPerf && name.includes('perf')) continue;
   const r = load(name);
   if (!r) { failed++; console.log(`FAIL ${name}: no result`); continue; }
   if (!r.res.ok) { failed++; console.log(`FAIL ${name}: apply failed ${JSON.stringify(r.res.error || r.res.warnings)}`); continue; }

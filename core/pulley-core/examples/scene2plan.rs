@@ -15,8 +15,15 @@ fn main() {
         let text = std::fs::read_to_string(&a[1]).expect("scene");
         (parse_scene(&text, Component::AePanel).expect("scene"), &a[2..])
     };
-    let opts: AeOptions = rest.get(1).map(|o| serde_json::from_str(o).expect("options")).unwrap_or_default();
+    let opts: AeOptions = rest.get(1).filter(|o| o.starts_with('{')).map(|o| serde_json::from_str(o).expect("options")).unwrap_or_default();
     let plan = build_plan(&scene, &opts).expect("plan");
     std::fs::write(&rest[0], &plan.text).expect("write");
+    // --ffx-prefix P: also write each gradient's preset as P<index>.ffx
+    if let Some(i) = std::env::args().position(|a| a == "--ffx-prefix") {
+        let prefix = std::env::args().nth(i + 1).expect("prefix");
+        for g in &plan.gradients {
+            std::fs::write(format!("{prefix}{}.ffx", g.index), pulley_core::ffx::gradient_preset(&g.stops)).expect("ffx");
+        }
+    }
     eprintln!("{:?} gradients={} warnings={}", plan.summary, plan.gradients.len(), plan.warnings.len());
 }

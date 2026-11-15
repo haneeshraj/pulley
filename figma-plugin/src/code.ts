@@ -18,8 +18,25 @@ function post(msg: Record<string, unknown>): void {
 }
 
 function selectionInfo(): Record<string, unknown> {
-  const sel = figma.currentPage.selection;
-  return { type: 'selection', count: sel.length, names: sel.slice(0, 3).map((n) => n.name) };
+  try {
+    const sel = figma.currentPage.selection;
+    return { type: 'selection', count: sel.length, names: sel.slice(0, 3).map((n) => n.name) };
+  } catch (e) {
+    return { type: 'selection', count: 0, names: [], error: String((e && (e as Error).message) || e) };
+  }
+}
+
+// Tell the UI when the selection changes: on Figma's events, and also by checking twice a
+// second while the plugin is open, so a missed event can't leave the UI out of date (only the
+// count and up to three names are read).
+let lastSelection = '';
+function postSelection(force: boolean): void {
+  const info = selectionInfo();
+  const key = JSON.stringify(info);
+  if (force || key !== lastSelection) {
+    lastSelection = key;
+    post(info);
+  }
 }
 
 function colorProfile(): string {
@@ -31,8 +48,9 @@ function colorProfile(): string {
   }
 }
 
-figma.on('selectionchange', () => post(selectionInfo()));
-figma.on('currentpagechange', () => post(selectionInfo()));
+figma.on('selectionchange', () => postSelection(false));
+figma.on('currentpagechange', () => postSelection(false));
+setInterval(() => postSelection(false), 500);
 
 figma.ui.onmessage = async (msg: unknown) => {
   if (!msg || typeof msg !== 'object') { return; }
@@ -44,9 +62,14 @@ figma.ui.onmessage = async (msg: unknown) => {
         const v = await figma.clientStorage.getAsync(SECRET_KEY);
         if (typeof v === 'string' && SECRET_RE.test(v)) { secret = v; }
       } catch (e) { /* no stored pairing */ }
-      post(Object.assign(selectionInfo(), { type: 'init', secret, documentName: figma.root.name }));
+      const info = selectionInfo();
+      lastSelection = JSON.stringify(info);
+      post(Object.assign(info, { type: 'init', secret, documentName: figma.root.name }));
       break;
     }
+    case 'get-selection':
+      postSelection(true);
+      break;
     case 'read': {
       const request = String(m.request || '').slice(0, 64);
       try {

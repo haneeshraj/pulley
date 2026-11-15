@@ -46,7 +46,7 @@ const show = (id: string, on: boolean): void => { $(id).classList.toggle('hidden
 
 let secret: string | null = null;
 let documentName = 'Figma';
-let selection = { count: 0, names: [] as string[] };
+let selection = { count: 0, names: [] as string[], error: '' };
 let clients: ClientInfo[] = [];
 let state = 'disconnected';
 let detail = '';
@@ -122,14 +122,17 @@ function render(): void {
   $('apps').textContent = state === 'connected' ? 'After Effects: ' + (aeConnected() ? 'connected' : 'not connected') : '';
 
   const n = selection.count;
-  $('selection').textContent = n === 0
-    ? 'Select layers to send.'
-    : `${n} layer${n === 1 ? '' : 's'} selected: ${selection.names.join(', ')}${n > selection.names.length ? ', …' : ''}`;
+  $('selection').textContent = selection.error
+    ? `Couldn't read the selection (${selection.error}).`
+    : n === 0
+      ? 'Select layers to send.'
+      : `${n} layer${n === 1 ? '' : 's'} selected: ${selection.names.join(', ')}${n > selection.names.length ? ', …' : ''}`;
+  // Not tied to the selection count: if nothing is selected, sending says so.
   const push = $('push') as HTMLButtonElement;
-  push.disabled = !!busy || n === 0 || state !== 'connected' || !aeConnected();
+  push.disabled = !!busy || state !== 'connected' || !aeConnected();
   push.title = state !== 'connected' ? 'Not connected to the Pulley bridge.'
     : !aeConnected() ? 'After Effects is not connected to Pulley: open After Effects with Pulley installed.' : '';
-  ($('save') as HTMLButtonElement).disabled = !!busy || n === 0;
+  ($('save') as HTMLButtonElement).disabled = !!busy;
   show('busy', !!busy);
   ($('cancel') as HTMLButtonElement).disabled = !busy || busy.kind === 'save';
 }
@@ -336,20 +339,20 @@ function activity(): void {
   }
 }
 
+// Only Figma's own frames can reach this window; messages are checked by type and content.
 window.addEventListener('message', (ev: MessageEvent) => {
-  if (ev.source && ev.source !== parent) { return; }
   const m = ev.data && ev.data.pluginMessage;
   if (!m || typeof m !== 'object') { return; }
   switch (m.type) {
     case 'init':
       secret = typeof m.secret === 'string' ? m.secret : null;
       documentName = typeof m.documentName === 'string' ? m.documentName : 'Figma';
-      selection = { count: +m.count || 0, names: Array.isArray(m.names) ? m.names.map(String) : [] };
+      selection = readSelectionInfo(m);
       client.connect();
       render();
       break;
     case 'selection':
-      selection = { count: +m.count || 0, names: Array.isArray(m.names) ? m.names.map(String) : [] };
+      selection = readSelectionInfo(m);
       render();
       activity();
       break;
@@ -396,7 +399,12 @@ $('forget').addEventListener('click', () => {
   detail = '';
   render();
 });
+function readSelectionInfo(m: { count?: unknown; names?: unknown; error?: unknown }): typeof selection {
+  return { count: Number(m.count) || 0, names: Array.isArray(m.names) ? m.names.map(String) : [], error: typeof m.error === 'string' ? m.error : '' };
+}
+
 window.addEventListener('focus', activity);
+window.addEventListener('focus', () => postMain({ type: 'get-selection' }));
 document.addEventListener('pointerdown', activity);
 
 decorate();

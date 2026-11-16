@@ -32,12 +32,26 @@ pub fn encode(bytes: &[u8]) -> String {
     STANDARD.encode(bytes)
 }
 
-/// Decode standard, padded base64; None if malformed or larger than `MAX_IMAGE_BYTES`.
+/// Is this base64 text more than `MAX_IMAGE_BYTES` once decoded? (Line breaks count, so this
+/// errs on the large side by about 3%.)
+pub fn too_large(text: &str) -> bool {
+    text.len() / 4 * 3 > MAX_IMAGE_BYTES + MAX_IMAGE_BYTES / 16
+}
+
+/// Decode standard, padded base64. ASCII whitespace is ignored: CEP's file reader (the
+/// Illustrator panel reading linked images) wraps its base64 output in lines. None if malformed
+/// or larger than `MAX_IMAGE_BYTES`.
 pub fn decode(text: &str) -> Option<Vec<u8>> {
-    if text.len() / 4 * 3 > MAX_IMAGE_BYTES + 3 {
+    if too_large(text) {
         return None;
     }
-    STANDARD.decode(text).ok().filter(|b| b.len() <= MAX_IMAGE_BYTES)
+    let bytes = if text.bytes().any(|b| b.is_ascii_whitespace()) {
+        let clean: Vec<u8> = text.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
+        STANDARD.decode(clean).ok()?
+    } else {
+        STANDARD.decode(text).ok()?
+    };
+    (bytes.len() <= MAX_IMAGE_BYTES).then_some(bytes)
 }
 
 /// The file format, from its signature, if After Effects can import it.
@@ -204,5 +218,15 @@ pub(crate) mod tests {
         assert_eq!(inspect(&[0x89, b'P', b'N', b'G']), None, "truncated");
         assert!(!is_content_id("ABC") && !is_content_id(&"g".repeat(64)) && is_content_id(&"0".repeat(64)));
         assert_eq!(decode("not base64!"), None);
+        // Line-wrapped base64 (as CEP's file reader returns it) decodes the same.
+        let wrapped: String = a.data.as_bytes().chunks(76).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join(
+            "
+",
+        );
+        assert!(wrapped.contains(
+            "
+"
+        ));
+        assert_eq!(decode(&wrapped).unwrap(), png);
     }
 }

@@ -422,7 +422,8 @@ pub fn capture_to_scene_with_images(capture_json: &str, svg_text: &str, opts: &A
     }
     for (path, data) in &files.images {
         let entry = match crate::image::decode(data) {
-            None => Err(format!("This linked image is larger than {} MB.", crate::limits::MAX_IMAGE_BYTES / (1024 * 1024))),
+            None if crate::image::too_large(data) => Err(format!("This linked image is larger than {} MB.", crate::limits::MAX_IMAGE_BYTES / (1024 * 1024))),
+            None => Err("This linked image file could not be read (it is damaged or was not sent completely).".into()),
             Some(bytes) => match crate::image::asset(&bytes) {
                 None => Err(format!("This linked {} file can't be imported by After Effects.", crate::image::unsupported_kind(&bytes))),
                 Some(_) if ctx.assets.len() >= crate::limits::MAX_IMAGES => {

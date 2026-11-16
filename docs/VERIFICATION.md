@@ -304,6 +304,12 @@ layer building:
 - **End to end:** the release bridge (headless) and the installed After Effects extension; the
   effects and images examples pushed through the bridge were forwarded in 2.6 and 1.8 ms and
   imported in 2.4 and 0.9 s, with the effects and footage in place.
+- **Illustrator panel, linked images:** Illustrator with the installed extension, `images.ai`
+  open and selected, the release bridge, and a stand-in After Effects client asking for a pull:
+  answered in 0.15 s with the four linked images (one file) placed exactly as in the golden test
+  and the embedded one reported. The first attempt found a bug the fixture tests could not: CEP's
+  `cep.fs.readFile(..., Base64)` returns the file wrapped in lines, which the decoder rejected
+  (and reported as "larger than 48 MB"); the decoder now ignores line breaks.
 - **Fuzzing:** 60,000 inputs each for the scene and Figma parsers with the new seeds; earlier
   runs: see [Fuzzing](#fuzzing) above.
 

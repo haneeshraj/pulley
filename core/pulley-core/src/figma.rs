@@ -358,7 +358,8 @@ pub fn nodes_to_scene(json: &str, _opts: &FigmaOptions) -> Result<Scene> {
     };
     for (hash, data) in &input.images {
         let entry = match crate::image::decode(data) {
-            None => Err(format!("This image could not be read (larger than {} MB, or damaged).", crate::limits::MAX_IMAGE_BYTES / (1024 * 1024))),
+            None if crate::image::too_large(data) => Err(format!("This image is larger than {} MB.", crate::limits::MAX_IMAGE_BYTES / (1024 * 1024))),
+            None => Err("This image file could not be read (it is damaged or was not sent completely).".into()),
             Some(bytes) => match crate::image::asset(&bytes) {
                 None => Err(format!("This {} image can't be imported by After Effects.", crate::image::unsupported_kind(&bytes))),
                 Some(_) if ctx.assets.len() >= crate::limits::MAX_IMAGES => {

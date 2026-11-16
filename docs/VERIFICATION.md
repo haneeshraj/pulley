@@ -320,8 +320,9 @@ Full After Effects suite afterwards: 123 checks passed, 0 failed; 500 × 20 path
 Final runs after re-push, the pairing-code clipboard, shadows and blurs, images and the faster
 layer building:
 
-- **After Effects suite** (`node tests/ae/run.mjs`, full run): **123 checks passed, 0 failed**
-  across 31 cases. 500 × 20 timings: one layer per item 3.2 s, merged 5.7 s.
+- **After Effects suite** (`node tests/ae/run.mjs`, full run, after the Illustrator effects
+  work): **132 checks passed, 0 failed** across 32 cases. 500 × 20 timings: one layer per item
+  3.6 s, merged 2.6 s (the previous full run: 3.2 s and 5.7 s).
 - **Rust:** every workspace test passes (core 95 unit tests, 15 Illustrator golden tests, 13
   bridge tests, the fuzz harness, and the rest); `cargo clippy` and `cargo fmt --check` clean;
   `cargo deny check` passes. `cargo audit` reports only the two known warnings from Linux-only
@@ -331,6 +332,9 @@ layer building:
 - **End to end:** the release bridge (headless) and the installed After Effects extension; the
   effects and images examples pushed through the bridge were forwarded in 2.6 and 1.8 ms and
   imported in 2.4 and 0.9 s, with the effects and footage in place.
+- **Illustrator panel, final build:** `effects.ai` pulled in 6.6 s (5 effect pictures, 4 files,
+  shapes and live text intact) and `images.ai` in 1.9 s (5 images, the embedded one included, no
+  warnings); no temporary pictures left in Pulley's temp folder.
 - **Illustrator panel, linked images:** Illustrator with the installed extension, `images.ai`
   open and selected, the release bridge, and a stand-in After Effects client asking for a pull:
   answered in 0.15 s with the four linked images (one file) placed exactly as in the golden test

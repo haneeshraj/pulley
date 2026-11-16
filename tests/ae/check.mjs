@@ -291,6 +291,52 @@ const tests = {
     check(this.n, fxNames(byItem(u, 'figma:1:2')) === 'Pulley Drop Shadow, Pulley Drop Shadow 2, Pulley Blur, Gaussian Blur' && fxOf(byItem(u, 'figma:1:42')).length === 0,
       'one Undo restores the effects as they were before the second push');
   },
+  images(r) {
+    const d = r.dump;
+    const IMG = 'b1b830aa189aea84d1f8c148a3f670e94a0925a1ebadfcf808cae21f72bd22c9.png';
+    check(this.n, r.res.images === 3, `3 image layers (got ${r.res.images})`);
+    check(this.n, r.footage.length === 1 && r.footage[0].file === IMG && r.footage[0].folder === 'Pulley images', `one footage item for the image used three times, in "Pulley images" (got ${JSON.stringify(r.footage)})`);
+    const photo = layer(d, 'Photo');
+    check(this.n, !!photo && photo.kind === 'image' && nearArr(photo.anchor, [32, 16]) && nearArr(photo.position, [164, 132]) && nearArr(photo.scale, [200, 200]) && photo.masks === 1,
+      `"Photo": anchor at the image center, scaled 2x, one mask (got ${JSON.stringify(photo && [photo.anchor, photo.position, photo.scale, photo.masks])})`);
+    check(this.n, fxNames(photo) === 'Pulley Drop Shadow' && isShadow(fxOf(photo)[0], { color: [0, 0, 0], opacity: 0.5, direction: 180, distance: 3, softness: 7.8751 }), 'its shadow is in the layer\'s own (2x) space');
+    const rot = layer(d, 'Rotated photo');
+    check(this.n, !!rot && near(rot.rotation, 90) && nearArr(rot.position, [384, 132]) && rot.masks === 0, 'the rotated image is a rotated layer without masks');
+    const px = r.samples;
+    const is = (i, rgb, a = 1) => nearArr(px[i], [...rgb, a], 0.02);
+    check(this.n, is(0, [0, 1, 0]) && is(1, [1, 0, 0]) && is(2, [0, 0, 1]), `"Photo" shows the image the right way round (got ${JSON.stringify(px.slice(0, 3))})`);
+    check(this.n, near(px[3][3], 0, 0.02), `its rounded corner is cut away by the mask (alpha ${px[3][3]})`);
+    check(this.n, is(4, [0, 1, 0]) && is(5, [1, 0, 0]) && is(6, [0, 0, 1]), `"Rotated photo" is turned 90 degrees clockwise (got ${JSON.stringify(px.slice(4, 7))})`);
+    // 80% red over white: (1, 0.2, 0.2); 80% blue over white: (0.2, 0.2, 1).
+    check(this.n, is(7, [1, 0.2, 0.2]) && is(8, [0.2, 0.2, 1]) && near(px[9][3], 0, 0.02), `"Card": the image at 80% over the white fill, inside the card only (got ${JSON.stringify(px.slice(7))})`);
+    const order = d.layers.map((l) => l.name);
+    const at = (n) => order.indexOf(n);
+    check(this.n, at('Card') < at('Card image') && at('Card image') < at('Card fill'), `card layers: stroke over image over fill (got ${order.join(', ')})`);
+  },
+  'ai-images'(r) {
+    const px = r.samples;
+    const is = (i, rgb) => nearArr(px[i], [...rgb, 1], 0.02);
+    check(this.n, r.res.images === 4, `4 image layers from Illustrator (got ${r.res.images})`);
+    check(this.n, r.footage.filter((f) => f.file === 'b1b830aa189aea84d1f8c148a3f670e94a0925a1ebadfcf808cae21f72bd22c9.png').length === 1, 'the linked file is imported once');
+    check(this.n, is(0, [0, 1, 0]) && is(1, [1, 0, 0]) && is(2, [0, 0, 1]), `"Plain" is the right way up (got ${JSON.stringify(px.slice(0, 3))})`);
+    check(this.n, is(3, [0, 1, 0]) && is(4, [1, 0, 0]) && is(5, [0, 0, 1]), `"Mirrored" is mirrored left to right (got ${JSON.stringify(px.slice(3, 6))})`);
+    check(this.n, is(6, [0, 0, 1]) && near(px[7][3], 0, 0.02), `the clipped image shows only inside its clip (got ${JSON.stringify(px.slice(6))})`);
+    check(this.n, r.res.warnings.length === 0, 'no apply warnings');
+  },
+  'undo-images'(r) {
+    check(this.n, r.undo.layersAfter === 0 && r.undo.itemsAfter === 1, `one Undo removes the layers, the footage and its folder (layers ${r.undo.layersBefore} -> ${r.undo.layersAfter}, items ${r.undo.itemsBefore} -> ${r.undo.itemsAfter})`);
+  },
+  'twice-images'(r) {
+    const c = r.counts;
+    check(this.n, c.layers2 === c.layers1 && c.items2 === c.items1 && r.res.updated === 5, `second push: no new layers or footage, 5 updated (layers ${c.layers1} -> ${c.layers2}, items ${c.items1} -> ${c.items2}, updated ${r.res.updated})`);
+  },
+  'repush-images'(r) {
+    const photo = r.dump.layers.find((l) => l.name === 'Photo');
+    check(this.n, r.dump.layers.length === r.layersA, `no layers added (got ${r.dump.layers.length}, was ${r.layersA})`);
+    check(this.n, !!photo && photo.file === '0da7739e263721f05a45c81ded5a7dd9ef79caca26742e696c1cb504715771ad.png' && nearArr(photo.scale, [400, 400]) && nearArr(photo.anchor, [16, 16]),
+      `"Photo" now shows the other image at 4x (got ${JSON.stringify(photo && [photo.file, photo.scale, photo.anchor])})`);
+    check(this.n, r.footage === 2, `both image files are in the project (got ${r.footage})`);
+  },
   'repush-off'(r) {
     check(this.n, r.res.updated === 0 && r.res.layers === 4 && r.dump.layers.length === 8, `update off: the second push adds 4 new layers (got ${r.res.layers} added, ${r.dump.layers.length} total)`);
   },

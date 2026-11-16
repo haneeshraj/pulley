@@ -1,0 +1,424 @@
+{
+  "schema": "pulley-scene",
+  "version": 2,
+  "source": {
+    "app": "figma",
+    "appVersion": "figma",
+    "pulleyVersion": "0.1.0",
+    "documentName": "Images test"
+  },
+  "units": {
+    "source": "px",
+    "pxPerSourceUnit": 1
+  },
+  "colorSpace": "srgb",
+  "bounds": {
+    "x": 0,
+    "y": 0,
+    "width": 800,
+    "height": 600
+  },
+  "items": [
+    {
+      "type": "image",
+      "id": "figma:2:3",
+      "name": "Rotated photo",
+      "image": "b1b830aa189aea84d1f8c148a3f670e94a0925a1ebadfcf808cae21f72bd22c9",
+      "matrix": [
+        0,
+        1,
+        -1,
+        0,
+        400,
+        100
+      ]
+    },
+    {
+      "type": "group",
+      "id": "figma:2:2",
+      "name": "Card",
+      "children": [
+        {
+          "type": "shape",
+          "id": "figma:2:2/top",
+          "name": "Card",
+          "paths": [
+            {
+              "closed": true,
+              "vertices": [
+                [
+                  100,
+                  300
+                ],
+                [
+                  300,
+                  300
+                ],
+                [
+                  300,
+                  400
+                ],
+                [
+                  100,
+                  400
+                ]
+              ],
+              "inTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ],
+              "outTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            }
+          ],
+          "fillRule": "nonzero",
+          "strokes": [
+            {
+              "paint": {
+                "type": "solid",
+                "color": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "width": 2
+            }
+          ]
+        },
+        {
+          "type": "image",
+          "id": "figma:2:2/image-0",
+          "name": "Card image",
+          "image": "b1b830aa189aea84d1f8c148a3f670e94a0925a1ebadfcf808cae21f72bd22c9",
+          "opacity": 0.8,
+          "matrix": [
+            3.125,
+            0,
+            0,
+            3.125,
+            100,
+            300
+          ],
+          "clip": {
+            "paths": [
+              {
+                "closed": true,
+                "vertices": [
+                  [
+                    100,
+                    300
+                  ],
+                  [
+                    300,
+                    300
+                  ],
+                  [
+                    300,
+                    400
+                  ],
+                  [
+                    100,
+                    400
+                  ]
+                ],
+                "inTangents": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "outTangents": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    0
+                  ]
+                ]
+              }
+            ],
+            "fillRule": "nonzero"
+          }
+        },
+        {
+          "type": "shape",
+          "id": "figma:2:2/fill-0",
+          "name": "Card fill",
+          "paths": [
+            {
+              "closed": true,
+              "vertices": [
+                [
+                  100,
+                  300
+                ],
+                [
+                  300,
+                  300
+                ],
+                [
+                  300,
+                  400
+                ],
+                [
+                  100,
+                  400
+                ]
+              ],
+              "inTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ],
+              "outTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            }
+          ],
+          "fillRule": "nonzero",
+          "fills": [
+            {
+              "type": "solid",
+              "color": [
+                1,
+                1,
+                1
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "image",
+      "id": "figma:2:1",
+      "name": "Photo",
+      "image": "b1b830aa189aea84d1f8c148a3f670e94a0925a1ebadfcf808cae21f72bd22c9",
+      "matrix": [
+        2,
+        0,
+        0,
+        2,
+        100,
+        100
+      ],
+      "clip": {
+        "paths": [
+          {
+            "closed": true,
+            "vertices": [
+              [
+                116,
+                100
+              ],
+              [
+                212,
+                100
+              ],
+              [
+                228,
+                116
+              ],
+              [
+                228,
+                148
+              ],
+              [
+                212,
+                164
+              ],
+              [
+                116,
+                164
+              ],
+              [
+                100,
+                148
+              ],
+              [
+                100,
+                116
+              ]
+            ],
+            "inTangents": [
+              [
+                -8.8368,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                -8.8368
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                8.8368,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                8.8368
+              ],
+              [
+                0,
+                0
+              ]
+            ],
+            "outTangents": [
+              [
+                0,
+                0
+              ],
+              [
+                8.8368,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                8.8368
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                -8.8368,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                -8.8368
+              ]
+            ]
+          }
+        ],
+        "fillRule": "nonzero"
+      },
+      "effects": [
+        {
+          "type": "dropShadow",
+          "color": [
+            0,
+            0,
+            0
+          ],
+          "opacity": 0.5,
+          "offset": [
+            0,
+            6
+          ],
+          "stdDeviation": 4
+        }
+      ]
+    }
+  ],
+  "warnings": [],
+  "images": [
+    {
+      "id": "b1b830aa189aea84d1f8c148a3f670e94a0925a1ebadfcf808cae21f72bd22c9",
+      "format": "png",
+      "width": 64,
+      "height": 32,
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAIAAAAt/+nTAAAAQklEQVR42u3PwQkAMAgEweu/adNA8hCCIAzsy4fcJJVrj3O7fPvUDAAAAABgdCgAAAAAAAAAAAAAAAAAAAAAwCrAAfp8+GqMpkTmAAAAAElFTkSuQmCC"
+    }
+  ]
+}

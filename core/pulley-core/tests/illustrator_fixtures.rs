@@ -3,7 +3,7 @@
 //! Geometry tolerance: 0.01 px (spec). Gradient origins: 1.5 px (Illustrator truncates them).
 
 use pulley_core::ErrorCode;
-use pulley_core::illustrator::{AiOptions, capture_to_scene};
+use pulley_core::illustrator::{AiImages, AiOptions, capture_to_scene, capture_to_scene_with_images};
 use pulley_core::scene::*;
 use pulley_core::validate::{Component, parse_scene, serialize_scene};
 use std::path::PathBuf;
@@ -22,6 +22,46 @@ fn load(name: &str) -> Scene {
     let json = serialize_scene(&scene).unwrap();
     assert_eq!(parse_scene(&json, Component::AePanel).unwrap(), scene);
     scene
+}
+
+#[test]
+fn linked_images_land_where_illustrator_draws_them() {
+    // images.ai: marker.png (64 x 32 px, placed at 72 ppi, so 1 pt per pixel) placed linked as is,
+    // scaled 2x and rotated 30 degrees, mirrored, inside a clip group (3x), and once embedded.
+    let cap = std::fs::read_to_string(dir().join("images.capture.json")).unwrap();
+    let png = std::fs::read(dir().join("../marker.png")).unwrap();
+    let mut files = AiImages::default();
+    files.images.insert("<fixtures>\\marker.png".into(), pulley_core::image::encode(&png));
+    let s = capture_to_scene_with_images(&cap, "", &AiOptions::default(), &files).unwrap();
+    let image = |name: &str| match find(&s.items, name) {
+        Item::Image(im) => im.clone(),
+        other => panic!("{name}: image expected, got {other:?}"),
+    };
+    let close = |m: [f64; 6], want: [f64; 6]| m.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-6);
+    // Top-left pixel at the artboard position it was placed at; rows go down.
+    let plain = image("Plain");
+    assert!(close(plain.matrix, [1.0, 0.0, 0.0, 1.0, 50.0, 50.0]), "{:?}", plain.matrix);
+    // Mirrored horizontally: the first column is on the right.
+    let mirrored = image("Mirrored");
+    assert!(close(mirrored.matrix, [-1.0, 0.0, 0.0, 1.0, 514.0, 50.0]), "{:?}", mirrored.matrix);
+    // Scaled 2x and rotated 30 degrees counterclockwise (y up), so -30 in scene space (y down).
+    let turned = image("Scaled rotated");
+    let [a, b, ..] = turned.matrix;
+    assert!((a.hypot(b) - 2.0).abs() < 1e-6 && (b.atan2(a).to_degrees() + 30.0).abs() < 1e-6, "{:?}", turned.matrix);
+    // Inside its clip group, 3x.
+    let Item::Group(g) = find(&s.items, "Image clip group") else { panic!("group expected") };
+    assert!(g.clip.is_some());
+    assert!(close(image("Clipped image").matrix, [3.0, 0.0, 0.0, 3.0, 186.0, 218.0]));
+    // One file, used four times, carried once.
+    assert_eq!(s.images.len(), 1);
+    assert_eq!(s.images[0].id, pulley_core::image::content_id(&png));
+    // Embedded pixels can't be read: reported, not imported.
+    assert!(try_find(&s.items, "Embedded").is_none());
+    let codes: Vec<&str> = s.warnings.iter().map(|w| w.code.as_str()).collect();
+    assert!(codes.contains(&"image_embedded"), "{codes:?}");
+    // Without the files (as with an older panel), the images are reported as missing.
+    let bare = capture_to_scene(&cap, "", &AiOptions::default()).unwrap();
+    assert!(bare.images.is_empty() && bare.warnings.iter().any(|w| w.code == "image_missing"));
 }
 
 fn find<'a>(items: &'a [Item], name: &str) -> &'a Item {

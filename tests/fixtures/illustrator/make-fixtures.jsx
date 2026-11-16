@@ -6,7 +6,7 @@
  * Coordinates below are artboard-relative, y-down, in points (like the scene format).
  */
 
-function pulleyMakeFixtures(outDir) {
+function pulleyMakeFixtures(outDir, only) {
     var made = [];
     var log = [];
 
@@ -46,6 +46,8 @@ function pulleyMakeFixtures(outDir) {
         return g;
     }
     function step(name, fn) {
+        // `only`: comma-separated step names to (re)build; all when empty.
+        if (only && ("," + only + ",").indexOf("," + name + ",") < 0) { return; }
         try { fn(); } catch (e) { log.push(name + ": " + e.toString() + (e.line ? " (line " + e.line + ")" : "")); while (app.documents.length > 0) { app.activeDocument.close(SaveOptions.DONOTSAVECHANGES); } }
     }
 
@@ -258,6 +260,36 @@ function pulleyMakeFixtures(outDir) {
         var pr = rect(d, 20, 200, 150, 150); pr.name = "Pattern fill";
         if (pat) { pr.filled = true; pr.fillColor = pat; } else { fillOnly(pr, rgb(128, 128, 128)); log.push("no pattern swatch in new document"); }
         save(d, "unsupported");
+    });
+
+    // 10b. Images: marker.png (64 x 32: left half red, right half blue, green 8 x 8 top-left
+    // corner) placed linked as is, scaled and rotated, mirrored, inside a clip group, and once
+    // embedded.
+    step("images", function () {
+        var d = newDoc(DocumentColorSpace.RGB, 600, 400);
+        var png = new File(outDir + "/marker.png");
+        function place(name, x, y) {
+            var p = d.placedItems.add();
+            p.file = png;
+            p.position = [X(d, x), Y(d, y)];
+            p.name = name;
+            return p;
+        }
+        place("Plain", 50, 50);
+        var sr = place("Scaled rotated", 250, 60);
+        sr.resize(200, 200);
+        sr.rotate(30);
+        var fl = place("Mirrored", 450, 50);
+        fl.resize(-100, 100);
+        var em = place("Embedded", 50, 250);
+        em.embed();
+        d.rasterItems[0].name = "Embedded";
+        var ci = place("Clipped image", 250, 250);
+        ci.resize(300, 300);
+        var clip = rect(d, 260, 260, 100, 60);
+        var g = group(d, "Image clip group", [clip, ci]);
+        g.clipped = true;
+        save(d, "images");
     });
 
     // 11. CMYK document, spot and global colors, gray

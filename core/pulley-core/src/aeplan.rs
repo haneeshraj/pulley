@@ -34,6 +34,9 @@
 //! MATTE                                         previous layer uses the layer just built as alpha matte
 //! MASK <mode> <closed> <n> <x,y,ix,iy,ox,oy,...>   add a mask to the current layer
 //! LEND                                          finish the current layer
+//! IMG <id> <ext> <name%> <ax> <ay> <px> <py> <rot> <sx> <sy> <op> <blend>
+//!                                               new footage layer showing the image file
+//!                                               `<id>.<ext>` (becomes current; masks may follow)
 //! FX SHADOW <r> <g> <b> <op> <direction> <distance> <softness>   Drop Shadow effect
 //! FX BLUR <blurriness>                          Gaussian Blur effect
 //! END
@@ -55,6 +58,7 @@ use crate::error::{Error, ErrorCode, Result};
 use crate::geom::{Bounds, Pt, path_bounds};
 use crate::scene::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Write as _;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -142,6 +146,7 @@ pub struct PlanSummary {
     pub texts: usize,
     pub comps: usize,
     pub effects: usize,
+    pub images: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -264,17 +269,32 @@ fn path_csv(p: &Path, dx: f64, dy: f64) -> String {
     s
 }
 
+/// Pixel size and file extension of each image asset, by id.
+type Sizes<'a> = HashMap<&'a str, (f64, f64, &'static str)>;
+
 /// Content bounds of a list of items (geometry only, strokes ignored).
-fn items_bounds(items: &[&Item]) -> Bounds {
+fn items_bounds(items: &[&Item], sizes: &Sizes) -> Bounds {
     let mut b = Bounds::empty();
     for it in items {
-        item_bounds(it, &mut b);
+        item_bounds(it, &mut b, sizes);
     }
     b
 }
 
-fn item_bounds(it: &Item, b: &mut Bounds) {
+fn item_bounds(it: &Item, b: &mut Bounds, sizes: &Sizes) {
     match it {
+        Item::Image(im) => {
+            if let Some(c) = &im.clip {
+                for p in &c.paths {
+                    b.union(&path_bounds(&p.vertices, &p.in_tangents, &p.out_tangents, p.closed));
+                }
+            } else if let Some(&(w, h, _)) = sizes.get(im.image.as_str()) {
+                let [a, bb, c, d, e, f] = im.matrix;
+                for (x, y) in [(0.0, 0.0), (w, 0.0), (0.0, h), (w, h)] {
+                    b.add(Pt::new(e + x * a + y * c, f + x * bb + y * d));
+                }
+            }
+        }
         Item::Group(g) => {
             if let Some(c) = &g.clip {
                 for p in &c.paths {
@@ -282,7 +302,7 @@ fn item_bounds(it: &Item, b: &mut Bounds) {
                 }
             } else {
                 for c in &g.children {
-                    item_bounds(c, b);
+                    item_bounds(c, b, sizes);
                 }
             }
         }
@@ -313,7 +333,7 @@ fn item_bounds(it: &Item, b: &mut Bounds) {
                 }
             }
             for ol in &t.outlines {
-                item_bounds(ol, b);
+                item_bounds(ol, b, sizes);
             }
         }
     }
@@ -326,6 +346,7 @@ fn needs_layers(it: &Item) -> bool {
         Item::Text(_) => true,
         Item::Group(g) => !g.effects.is_empty() || g.clip.is_some() || g.children.iter().any(needs_layers),
         Item::Shape(s) => !s.effects.is_empty(),
+        Item::Image(_) => true,
     }
 }
 
@@ -351,6 +372,7 @@ fn paint_margin(it: &Item) -> f64 {
         Item::Group(g) if g.clip.is_some() => 0.0,
         Item::Group(g) => g.children.iter().map(paint_margin).fold(0.0, f64::max),
         Item::Text(t) => t.runs.iter().filter_map(|r| r.stroke.as_ref()).map(stroke).fold(0.0, f64::max),
+        Item::Image(_) => 0.0,
     }
 }
 
@@ -401,6 +423,7 @@ struct Gen<'a> {
     warned_split: bool,
     /// Precomp nesting: only layers at depth 0 (in the target comp) are tagged.
     depth: usize,
+    sizes: Sizes<'a>,
 }
 
 impl Gen<'_> {
@@ -474,7 +497,7 @@ impl Gen<'_> {
 
     /// Start a shape layer whose anchor is the center of `content` bounds.
     fn shape_layer(&mut self, name: &str, content: &[&Item], opacity: f64, blend: BlendMode) {
-        let b = items_bounds(content);
+        let b = items_bounds(content, &self.sizes);
         let c = if b.is_empty() { Pt::ZERO } else { b.center() };
         let line = format!(
             "LS {} {} {} {} {} {} {}",
@@ -661,8 +684,8 @@ impl Gen<'_> {
                 }
                 self.line("E");
             }
-            // Text never reaches here: needs_layers() routes it to its own layer.
-            Item::Text(_) => {}
+            // Text and images never reach here: needs_layers() gives them their own layers.
+            Item::Text(_) | Item::Image(_) => {}
         }
     }
 
@@ -681,7 +704,81 @@ impl Gen<'_> {
                 self.fx(&s.effects, it, LayerXf::IDENTITY, true);
             }
             Item::Group(g) => self.group_layers(g, it, parent_opacity, true),
+            Item::Image(im) => self.image_layer(im, it, parent_opacity),
         }
+    }
+
+    /// An image as a footage layer. The layer's anchor is the image center; its rotation and
+    /// scale come from the image matrix (After Effects layers can't be skewed). A clip becomes
+    /// masks, which live in the layer's own pixel space.
+    fn image_layer(&mut self, im: &Image, it: &Item, parent_opacity: f64) {
+        let Some(&(w, h, ext)) = self.sizes.get(im.image.as_str()) else {
+            return;
+        };
+        let [a, b, c, d, e, f] = im.matrix;
+        let sx = a.hypot(b);
+        let sy = if sx > 1e-12 { (a * d - b * c) / sx } else { 0.0 };
+        let rot = b.atan2(a).to_degrees();
+        let skew = if sx > 1e-12 { (a * c + b * d) / (sx * sx) } else { 0.0 };
+        if skew.abs() > 1e-6 {
+            self.warn("image_skew_ignored", it, "After Effects layers can't be skewed; the image's skew was dropped.");
+        }
+        let anchor = Pt::new(w / 2.0, h / 2.0);
+        let center = Pt::new(a * anchor.x + c * anchor.y + e + self.offset.x, b * anchor.x + d * anchor.y + f + self.offset.y);
+        self.id(&im.id);
+        let line = format!(
+            "IMG {} {} {} {} {} {} {} {} {} {} {} {}",
+            im.image,
+            ext,
+            pct(&im.name),
+            num(anchor.x),
+            num(anchor.y),
+            num(center.x),
+            num(center.y),
+            num(rot),
+            num(sx * 100.0),
+            num(sy * 100.0),
+            op(im.opacity * parent_opacity),
+            blend_name(im.blend_mode)
+        );
+        self.line(&line);
+        let xf = LayerXf { rot_deg: rot, sx, sy };
+        if let Some(clip) = &im.clip {
+            let offset = self.offset;
+            let to_layer = |q: Pt| {
+                let (x, y) = xf.to_layer([q.x + offset.x - center.x, q.y + offset.y - center.y]);
+                Pt::new(anchor.x + x, anchor.y + y)
+            };
+            for (i, p) in clip.paths.iter().enumerate() {
+                let mode = if i == 0 || clip.fill_rule == FillRule::Nonzero { "ADD" } else { "DIFFERENCE" };
+                let mapped = Path {
+                    closed: p.closed,
+                    vertices: p.vertices.iter().map(|v| to_layer(Pt::from_arr(*v)).arr()).collect(),
+                    in_tangents: p
+                        .in_tangents
+                        .iter()
+                        .map(|t| {
+                            let (x, y) = xf.to_layer(*t);
+                            [x, y]
+                        })
+                        .collect(),
+                    out_tangents: p
+                        .out_tangents
+                        .iter()
+                        .map(|t| {
+                            let (x, y) = xf.to_layer(*t);
+                            [x, y]
+                        })
+                        .collect(),
+                };
+                let line = format!("MASK {} {} {} {}", mode, u8::from(p.closed), p.vertices.len(), path_csv(&mapped, 0.0, 0.0));
+                self.line(&line);
+            }
+        }
+        self.line("LEND");
+        self.summary.layers += 1;
+        self.summary.images += 1;
+        self.fx(&im.effects, it, xf, true);
     }
 
     fn children_layers(&mut self, children: &[Item]) {
@@ -788,7 +885,7 @@ impl Gen<'_> {
 
     /// Build `body` inside a new precomp spanning `content`, then add the precomp as a layer.
     fn precomp(&mut self, key: &str, name: &str, content: &[&Item], opacity: f64, blend: BlendMode, body: impl FnOnce(&mut Self)) {
-        let b = items_bounds(content);
+        let b = items_bounds(content, &self.sizes);
         let margin = content.iter().map(|i| paint_margin(i)).fold(0.0, f64::max).min(1000.0);
         // The precomp spans the content bounds (plus room for strokes); layers inside use scene
         // coordinates shifted so the bounds' top-left is the precomp origin.
@@ -903,6 +1000,7 @@ fn source_app_key(app: SourceApp) -> &'static str {
 /// Build the plan for a validated scene.
 pub fn build_plan(scene: &Scene, opts: &AeOptions) -> Result<Plan> {
     crate::validate::validate(scene)?;
+    let sizes: Sizes = scene.images.iter().map(|a| (a.id.as_str(), (f64::from(a.width), f64::from(a.height), a.format.extension()))).collect();
     let mut g = Gen {
         out: String::with_capacity(1024),
         opts,
@@ -912,6 +1010,7 @@ pub fn build_plan(scene: &Scene, opts: &AeOptions) -> Result<Plan> {
         warnings: Vec::new(),
         warned_split: false,
         depth: 0,
+        sizes,
     };
     g.line("PULLEY-PLAN 1");
     g.line("UNDO Pulley%20Import");
@@ -937,7 +1036,7 @@ pub fn build_plan(scene: &Scene, opts: &AeOptions) -> Result<Plan> {
     let line = format!("DOC {} {}", pct(&doc), u8::from(opts.update_existing));
     g.line(&line);
     let all: Vec<&Item> = scene.items.iter().filter(|i| i.visible()).collect();
-    let content = items_bounds(&all);
+    let content = items_bounds(&all, &g.sizes);
     g.offset = match opts.placement {
         Placement::Original => Pt::ZERO,
         Placement::Center if content.is_empty() => Pt::ZERO,
@@ -1063,6 +1162,30 @@ mod tests {
         assert!(p.text.contains("\nLS Badge "), "the badge keeps its own layer for its effects");
         assert_eq!(fx_after(&p.text, "PREEND Card ").len(), 1);
         assert_eq!(p.summary.effects, 7);
+    }
+
+    const IMAGES: &str = include_str!("../../../schema/examples/images.json");
+
+    #[test]
+    fn images_become_footage_layers_with_masks_in_their_own_space() {
+        let p = plan(IMAGES, AeOptions { comp: comp(), placement: Placement::Original, ..Default::default() });
+        let id = "b1b830aa189aea84d1f8c148a3f670e94a0925a1ebadfcf808cae21f72bd22c9";
+        let lines: Vec<&str> = p.text.lines().collect();
+        let photo = lines.iter().position(|l| l.starts_with("IMG ") && l.contains(" Photo ")).unwrap();
+        // 64 x 32 image scaled 2x at (100, 100): anchor at the image center, placed at its center.
+        assert_eq!(lines[photo], format!("IMG {id} png Photo 32 16 164 132 0 200 200 100 NORMAL"));
+        // The rounded clip in the image's own pixels: (100..228, 100..164) becomes (0..64, 0..32).
+        assert!(lines[photo + 1].starts_with("MASK ADD 1 8 8,0,"), "{}", lines[photo + 1]);
+        // Its shadow in the layer's 2x space: 6 px down becomes 3; stdDeviation 4 becomes 2.
+        assert_eq!(&lines[photo + 2..photo + 4], ["LEND", "FX SHADOW 0 0 0 50 180 3 7.8751"]);
+        let rotated = lines.iter().find(|l| l.contains(" Rotated%20photo ")).unwrap();
+        assert_eq!(*rotated, format!("IMG {id} png Rotated%20photo 32 16 384 132 90 100 100 100 NORMAL"));
+        assert_eq!(p.summary.images, 3);
+        // Tagged like any other top-level layer.
+        assert!(p.text.contains("ID figma%3A2%3A1\nIMG "));
+        // Merge mode keeps images as their own layers.
+        let m = plan(IMAGES, AeOptions { comp: comp(), placement: Placement::Original, layer_mode: LayerMode::Merge, ..Default::default() });
+        assert_eq!(m.text.lines().filter(|l| l.starts_with("IMG ")).count(), 3);
     }
 
     #[test]

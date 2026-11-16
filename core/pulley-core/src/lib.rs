@@ -14,6 +14,7 @@ pub mod figma;
 pub mod fuzz;
 pub mod geom;
 pub mod illustrator;
+pub mod image;
 pub mod limits;
 pub mod protocol;
 pub mod scene;

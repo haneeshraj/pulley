@@ -2,7 +2,8 @@
 // the real pulley-core WebAssembly module (as in the plugin UI).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readSelection, ReadError, MAX_DEPTH } from './.bundle/read.mjs';
+import fs from 'node:fs';
+import { readSelection, readSelectionData, attachImages, ReadError, MAX_DEPTH } from './.bundle/read.mjs';
 import { loadCore } from './helpers.mjs';
 import { opts, box, rect, frame } from './fixtures.mjs';
 
@@ -80,4 +81,34 @@ test('core errors come back as code, message and hint', async () => {
   try { core.figmaToScene(JSON.stringify({ format: 'pulley-figma-nodes', version: 99, bounds: box(0, 0, 1, 1), nodes: [] }), '{}'); } catch (e) { err = asError(e); }
   assert.equal(err.code, 'protocol_mismatch');
   assert.match(err.hint, /Reinstall/);
+});
+
+test('image fills: settings always, bytes for visible ones within the budget, converted by the core', async () => {
+  const example = JSON.parse(fs.readFileSync(new URL('../../schema/examples/images.json', import.meta.url), 'utf8'));
+  const png = Buffer.from(example.images[0].data, 'base64');
+  const pic = rect('9:1', 'Pic', 110, 70, 100, 50, { fills: [{ type: 'IMAGE', visible: true, opacity: 1, blendMode: 'NORMAL', imageHash: 'h1',
+    scaleMode: 'CROP', imageTransform: [[0.5, 0, 0.25], [0, 1, 0]], filters: { exposure: 0.2 } }] });
+  const hidden = rect('9:2', 'Hidden', 110, 70, 10, 10, { visible: false, fills: [{ type: 'IMAGE', visible: true, imageHash: 'h2', scaleMode: 'FILL' }] });
+  const big = rect('9:3', 'Big', 110, 70, 10, 10, { fills: [{ type: 'IMAGE', visible: true, imageHash: 'h3', scaleMode: 'FIT', rotation: 90 }] });
+  const sel = readSelectionData([pic, hidden, big], opts);
+  assert.deepEqual(sel.imageHashes, ['h1', 'h3'], 'hidden layers send no image bytes');
+  assert.deepEqual(sel.data.nodes[0].fills[0], {
+    type: 'IMAGE', visible: true, opacity: 1, imageHash: 'h1', scaleMode: 'CROP', imageTransform: [[0.5, 0, 0.25], [0, 1, 0]], filters: { exposure: 0.2 },
+  });
+  const loaded = [];
+  const json = await attachImages(sel, async (h) => { loaded.push(h); return h === 'h1' ? new Uint8Array(png) : new Uint8Array(1000); },
+    (b) => Buffer.from(b).toString('base64'), png.length + 10);
+  assert.deepEqual(loaded, ['h1', 'h3']);
+  const data = JSON.parse(json);
+  assert.deepEqual(Object.keys(data.images), ['h1']);
+  assert.deepEqual(data.imagesSkipped, ['h3'], 'past the budget: left out and listed');
+  const { core } = await loadCore();
+  const scene = JSON.parse(core.figmaToScene(json, '{}'));
+  assert.equal(scene.images.length, 1);
+  assert.equal(scene.images[0].id, example.images[0].id, 'the image is identified by the SHA-256 of its bytes');
+  const item = scene.items.find((i) => i.id === 'figma:9:1');
+  assert.equal(item.type, 'image');
+  assert.deepEqual(item.matrix.map((v) => Math.round(v * 1000) / 1000), [3.125, 0, 0, 1.563, -50, 0], 'CROP placement');
+  const codes = scene.warnings.map((w) => w.code);
+  for (const c of ['image_adjustments_dropped', 'image_too_large']) assert.ok(codes.includes(c), `${c} reported (got ${codes})`);
 });

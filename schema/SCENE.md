@@ -38,6 +38,15 @@ produced and consumed by pulley-core. See [ARCHITECTURE.md](../docs/ARCHITECTURE
   path; several form a compound path. Booleans in Figma are exported as their resolved geometry.
 - **text**: `content`, style `runs`, `justification`, `kind` (`point`/`area`, plus `box` for area
   text), a `matrix`, and `outlines`: fallback shapes used when AE lacks the font.
+- **image** (v2): an `image` (the id of an entry in the scene's `images`), a `matrix` from the
+  image's pixel space (0..width, 0..height, y down) to scene space, and an optional `clip`: the
+  image shows only inside those paths (the shape a Figma image fill fills).
+
+**Images** (v2): the scene's `images` list holds each image file once: `id` (lowercase hex
+SHA-256 of the bytes), `format` (`png`, `jpeg`, `gif`, `bmp`, `tiff`, `psd`: formats After Effects
+imports), `width` and `height` in pixels (they must match the file's header) and `data` (the file,
+base64). Readers check the format and size; the After Effects extension also checks that the id
+is the hash of the bytes before it writes the file, since the id names the file on disk.
 
 Paints are `solid`, `linearGradient` (absolute `start`/`end`) and `radialGradient` (`center`,
 `radiusPoint` on the 100% ring, optional `focalPoint`). Gradient stops carry `offset`, `color`,
@@ -79,7 +88,7 @@ After Effects effect values is in [`aeplan.rs`](../core/pulley-core/src/aeplan.r
 | Version | Change |
 |---|---|
 | 1 | First version. |
-| 2 | `effects` on groups, shapes and text (drop shadows, layer blurs). A v1 scene is a valid v2 scene without effects. |
+| 2 | `effects` on groups, shapes and text (drop shadows, layer blurs); `image` items and the `images` list. A v1 scene is a valid v2 scene. |
 
 ## Limits
 
@@ -104,6 +113,8 @@ also in the schema file.
 | Numbers | finite only. JSON can't carry NaN/Infinity; serde_json rejects `NaN` tokens and overflow such as `1e400` (tested in `validate.rs`). | |
 | Paints per shape | 32 | |
 | Effects per item | 16 | |
+| Images in a scene | 1,000 distinct files | |
+| One image file | 48 MiB, at most 30,000 px a side | After Effects' footage size limit. All images together are also bound by the 64 MiB scene size. |
 
 ## Warning codes
 
@@ -119,6 +130,8 @@ concerns. Codes produced by the converters (in the scene):
 | `unsupported_paint_angular`, `unsupported_paint_diamond`, `unsupported_paint_image`, `unsupported_paint_video`, `unsupported_paint` | Figma paints After Effects can't draw |
 | `unsupported_effect`, `unsupported_node` | Figma effects (inner shadow, background blur, noise, texture, glass) and node types not imported |
 | `shadow_blend_dropped`, `progressive_blur_even`, `too_many_effects` | A shadow's blend mode dropped, a progressive blur made even, effects past the 16th dropped |
+| `image_missing`, `image_too_large`, `image_unsupported`, `image_embedded`, `image_transform_invalid` | An image left out: no pixels (missing link or file), past the size budget, a format After Effects can't import, embedded in Illustrator, or placement unreadable |
+| `image_tile_single`, `image_adjustments_dropped` | A Figma tile fill imported as one tile; image adjustments dropped |
 | `appearance_not_imported` | The item looks larger than its path (art brush, live effect, extra stroke); only the basic fill and stroke are imported |
 | `gradient_transform_approximated`, `radial_highlight_approximated`, `gradient_geometry_missing` | Gradient geometry simplified or unreadable |
 | `clip_appearance_dropped`, `clip_missing`, `mask_unsupported` | Clipping path appearance dropped, or a clip/mask that couldn't be read |
@@ -131,7 +144,7 @@ concerns. Codes produced by the converters (in the scene):
 Codes added when the After Effects plan is built (shown the same way):
 `stroke_alignment_emulated`, `dash_pattern_truncated`, `group_split`, `clip_matte_used`,
 `text_gradient_simplified`, `text_skew_ignored`, `shadows_stacked` (several shadows on one
-item), `shadow_spread_dropped`.
+item), `shadow_spread_dropped`, `image_skew_ignored`.
 
 ## Examples
 
@@ -144,3 +157,6 @@ item), `shadow_spread_dropped`.
   with two style runs, plus warnings.
 - [`examples/effects.json`](examples/effects.json) (v2): shadows and blurs on a group with text,
   a shape (two shadows and a blur), a clipped frame, one child of a group, and rotated text.
+- [`examples/images.json`](examples/images.json) (v2): one 64 x 32 PNG shown three times: scaled
+  into a rounded box with a shadow, rotated 90 degrees, and as an image fill between a white fill
+  and a stroke.

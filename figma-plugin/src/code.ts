@@ -6,7 +6,7 @@
  * everything else: conversion with pulley-core (WebAssembly) and the connection to the local
  * Pulley bridge. This thread has no network access and changes nothing in the document.
  */
-import { readSelection, ReadError } from './read';
+import { readSelectionData, attachImages, ReadError } from './read';
 
 const SECRET_KEY = 'pulley.bridge-secret';
 const SECRET_RE = /^[0-9a-f]{64}$/;
@@ -73,7 +73,16 @@ figma.ui.onmessage = async (msg: unknown) => {
     case 'read': {
       const request = String(m.request || '').slice(0, 64);
       try {
-        const json = readSelection(figma.currentPage.selection, { documentName: figma.root.name, colorProfile: colorProfile(), mixed: figma.mixed });
+        const sel = readSelectionData(figma.currentPage.selection, { documentName: figma.root.name, colorProfile: colorProfile(), mixed: figma.mixed });
+        // Image fills: their original file bytes (read only; nothing in the file changes).
+        const json = await attachImages(
+          sel,
+          async (hash) => {
+            const image = figma.getImageByHash(hash);
+            return image ? await image.getBytesAsync() : null;
+          },
+          (bytes) => figma.base64Encode(bytes),
+        );
         post({ type: 'nodes', request, json });
       } catch (e) {
         const err = e instanceof ReadError ? e : new ReadError(

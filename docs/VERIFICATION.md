@@ -240,6 +240,38 @@ so offsets are kept as they are. **Not yet compared side by side with Figma.**
 Plugin: the reader sends drop shadow and layer blur values; the Node tests check them and their
 conversion by the real WebAssembly core.
 
+### Images
+
+After Effects suite cases (all passing). The rendered comp is read back with `sampleImage()` at
+chosen points (through a temporary parent comp), so orientation, rotation, mirroring, masks and
+opacity are checked on actual pixels:
+
+| Case | What it checks |
+|---|---|
+| images | [`images.json`](../schema/examples/images.json): one footage item for an image used three times, in a "Pulley images" folder; a 2x image with its anchor at its center, one mask and its shadow in the layer's 2x space; the image the right way round (green corner, red and blue halves where they belong), its rounded corner cut away; a 90-degree rotation clockwise; an image at 80% over a white fill and under a stroke, inside its card only, layers in that order |
+| ai-images | Illustrator fixture `images.ai` (marker.png placed linked): as placed, mirrored left to right, and inside a clip group (only inside the clip); the file imported once |
+| undo-images | One Undo removes the layers, the footage and its folder |
+| twice-images | Pushing the same images again adds no layers or footage; 5 layers updated |
+| repush-images | Changing an item's image and size: the same layer shows the new file at the new size; no layers added |
+
+Illustrator geometry: placed PNGs probed in Illustrator 29.5 (as placed, moved, scaled 2x,
+rotated 30 degrees, mirrored, and embedded). Mapping pixels into the item's `boundingBox` and
+through its `matrix` reproduces `geometricBounds` exactly for placed items once the matrix's two
+off-diagonal terms are negated; an embedded raster needs its box mirrored vertically instead.
+Golden test: `linked_images_land_where_illustrator_draws_them` in
+[`illustrator_fixtures.rs`](../core/pulley-core/tests/illustrator_fixtures.rs).
+`images.ai` itself is not committed (Illustrator stores the absolute path of its linked file);
+its capture is, with that path made relative. Rebuild it with `pulleyMakeFixtures(dir, "images")`.
+
+**Test-harness finding (After Effects 25.5):** once a project has been closed or a new one
+created, `sampleImage()` returns only zeros for the rest of that session (also after reopening a
+saved project). The pixel-reading cases therefore run first, in the project After Effects starts
+with.
+
+Fuzzing after adding effects and images: 60,000 mutated inputs each for the scene and Figma
+parsers, seeded with the effects and images examples and a Figma selection with image fills and
+effects: no crash; slowest inputs 0.8 s (1.8 MB) and 0.9 s (4.2 MB).
+
 ## Latest runs (2026-11-15)
 
 **After Effects suite** (`node tests/ae/run.mjs`, full run): **60 checks passed, 0 failed**

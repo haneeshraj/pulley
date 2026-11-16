@@ -1,4 +1,4 @@
-//! pulley-scene v1: the only data format exchanged between Pulley components.
+//! pulley-scene v2: the only data format exchanged between Pulley components.
 //!
 //! Must match `schema/pulley-scene-v2.schema.json` exactly. Every struct denies unknown
 //! fields. See `schema/SCENE.md` for conventions (scene space is pixels, y-down; tangents
@@ -54,12 +54,64 @@ pub struct Scene {
     pub bounds: Rect,
     pub items: Vec<Item>,
     pub warnings: Vec<Warning>,
+    /// v2: the pixels of the images `image` items show, each stored once.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<ImageAsset>,
 }
 
 impl Scene {
     /// An empty scene with the current schema name and version.
     pub fn new(source: Source, units: Units, color_space: ColorSpace, bounds: Rect) -> Scene {
-        Scene { schema: SCHEMA_NAME.to_string(), version: SCHEMA_VERSION, source, units, color_space, bounds, items: Vec::new(), warnings: Vec::new() }
+        Scene {
+            schema: SCHEMA_NAME.to_string(),
+            version: SCHEMA_VERSION,
+            source,
+            units,
+            color_space,
+            bounds,
+            items: Vec::new(),
+            warnings: Vec::new(),
+            images: Vec::new(),
+        }
+    }
+}
+
+/// v2: an image file, carried whole (After Effects imports the file itself).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ImageAsset {
+    /// Lowercase hex SHA-256 of the file's bytes.
+    pub id: String,
+    pub format: ImageFormat,
+    /// Pixel size, as the file's header gives it.
+    pub width: u32,
+    pub height: u32,
+    /// The file's bytes, base64 (standard alphabet, padded).
+    pub data: String,
+}
+
+/// Image file formats After Effects imports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImageFormat {
+    Png,
+    Jpeg,
+    Gif,
+    Bmp,
+    Tiff,
+    Psd,
+}
+
+impl ImageFormat {
+    pub fn extension(self) -> &'static str {
+        match self {
+            ImageFormat::Png => "png",
+            ImageFormat::Jpeg => "jpg",
+            ImageFormat::Gif => "gif",
+            ImageFormat::Bmp => "bmp",
+            ImageFormat::Tiff => "tif",
+            ImageFormat::Psd => "psd",
+        }
     }
 }
 
@@ -161,6 +213,8 @@ pub enum Item {
     Group(Group),
     Shape(Shape),
     Text(Text),
+    /// v2.
+    Image(Image),
 }
 
 impl Item {
@@ -169,6 +223,7 @@ impl Item {
             Item::Group(g) => &g.id,
             Item::Shape(s) => &s.id,
             Item::Text(t) => &t.id,
+            Item::Image(i) => &i.id,
         }
     }
 
@@ -177,6 +232,7 @@ impl Item {
             Item::Group(g) => &g.name,
             Item::Shape(s) => &s.name,
             Item::Text(t) => &t.name,
+            Item::Image(i) => &i.name,
         }
     }
 
@@ -185,6 +241,7 @@ impl Item {
             Item::Group(g) => g.visible,
             Item::Shape(s) => s.visible,
             Item::Text(t) => t.visible,
+            Item::Image(i) => i.visible,
         }
     }
 
@@ -193,8 +250,32 @@ impl Item {
             Item::Group(g) => &g.effects,
             Item::Shape(s) => &s.effects,
             Item::Text(t) => &t.effects,
+            Item::Image(i) => &i.effects,
         }
     }
+}
+
+/// v2: an image, placed by `matrix` and shown only inside `clip` when there is one.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Image {
+    pub id: String,
+    pub name: String,
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub visible: bool,
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub opacity: f64,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub blend_mode: BlendMode,
+    /// The id of the `ImageAsset` shown.
+    pub image: String,
+    /// Image pixel space (0..width, 0..height, y down) to scene space: `[a, b, c, d, e, f]`.
+    pub matrix: [f64; 6],
+    /// The image shows only inside these paths (scene space), such as the shape it fills.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clip: Option<Clip>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<Effect>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

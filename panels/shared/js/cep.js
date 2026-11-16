@@ -68,6 +68,10 @@
     },
     write: function (path, text) { return root.cep.fs.writeFile(path, text).err === 0; },
     writeBase64: function (path, b64) { return root.cep.fs.writeFile(path, b64, root.cep.encoding.Base64).err === 0; },
+    readBase64: function (path) {
+      var r = root.cep.fs.readFile(path, root.cep.encoding.Base64);
+      return r.err === 0 ? r.data : null;
+    },
     remove: function (path) { try { root.cep.fs.deleteFile(path); } catch (e) { /* ignore */ } },
     mkdir: function (path) { try { root.cep.fs.makedir(path); } catch (e) { /* exists */ } },
     list: function (path) { var r = root.cep.fs.readdir(path); return r.err === 0 ? r.data : []; },

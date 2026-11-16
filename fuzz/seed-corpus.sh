@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p corpus/scene corpus/protocol corpus/svg_path corpus/illustrator corpus/figma
 cp ../schema/examples/*.json corpus/scene/
-cp ../core/pulley-core/tests/fuzz-seeds/figma-frame.json corpus/figma/
+cp ../core/pulley-core/tests/fuzz-seeds/figma-*.json corpus/figma/
 caps=../tests/fixtures/illustrator/captures
 for c in "$caps"/*.capture.json; do
   name=$(basename "$c" .capture.json)

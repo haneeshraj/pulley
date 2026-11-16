@@ -17,6 +17,10 @@ pulley-core = { path = "core/pulley-core" }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = { version = "1.0.140", features = ["float_roundtrip", "raw_value"] }
 roxmltree = "0.20"
+# Images: content ids, transport encoding, and size probing (no pixel decoding).
+sha2 = { version = "0.11", default-features = false }
+base64 = "0.23"
+imagesize = "0.15"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

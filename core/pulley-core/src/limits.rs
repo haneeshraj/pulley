@@ -41,3 +41,9 @@ pub const MAX_SVG_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_LENGTH: f64 = 100_000.0;
 /// Effects (shadows, blurs) on one item.
 pub const MAX_EFFECTS: usize = 16;
+/// Distinct images in a scene.
+pub const MAX_IMAGES: usize = 1_000;
+/// One image file, in bytes (the whole scene is also bound by `MAX_MESSAGE_BYTES`).
+pub const MAX_IMAGE_BYTES: usize = 48 * 1024 * 1024;
+/// Largest image side, in pixels (After Effects' limit for footage).
+pub const MAX_IMAGE_SIDE: u32 = 30_000;

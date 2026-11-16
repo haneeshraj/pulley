@@ -48,31 +48,53 @@ const cases = [
   // Shadows and blurs: with track mattes (clip group precomposed) and with layer masks.
   ['effects', 'schema/examples/effects.json', { ...comp, placement: 'original' }, true],
   ['effects-mask', 'schema/examples/effects.json', { ...comp, placement: 'original', clipMode: 'mask' }, true],
+  // Images: placed, rotated, cut to their shape; read back from the rendered comp.
+  ['images', 'schema/examples/images.json', { ...comp, placement: 'original' }, true, 'pulleyTestApplySample',
+    // Inside "Photo" (scaled 2x at 100,100): the green corner, red, blue; outside its rounded corner.
+    '110,110;140,140;200,140;101,101;' +
+    // "Rotated photo" (90 degrees clockwise, pixel 0,0 at 400,100): green corner, red, blue.
+    '396,104;384,116;384,148;' +
+    // "Card": the image at 80% over white, inside the card; just outside the card.
+    '150,350;250,350;310,350'],
+  // Illustrator: marker.png placed linked (see tests/fixtures/illustrator/make-fixtures.jsx).
+  ['ai-images', [`${F}/images.capture.json`, '-'], { ...comp, placement: 'original' }, true, 'pulleyTestApplySample',
+    // "Plain" at (50,50): green corner, red, blue. "Mirrored" at (450,50): green at the top right.
+    '54,54;66,66;98,66;510,54;498,66;466,66;' +
+    // "Clipped image" (3x at 186,218) inside its clip (260..360, 260..320), and outside the clip.
+    '300,280;200,250'],
+  ['undo-images', 'schema/examples/images.json', { ...comp, placement: 'original' }, true, 'pulleyTestApplyUndo'],
+  ['twice-images', 'schema/examples/images.json', { ...comp, placement: 'original' }, true, 'pulleyTestPushTwice'],
 ].filter(([name]) => (only.length ? only.includes(name) : true))
   .filter(([name]) => !(args.includes('--skip-perf') && name.includes('perf')));
 
 fs.mkdirSync(out, { recursive: true });
-for (const f of fs.readdirSync(out)) fs.rmSync(path.join(out, f), { force: true });
+for (const f of fs.readdirSync(out)) fs.rmSync(path.join(out, f), { force: true, recursive: true });
 
 execFileSync('cargo', ['build', '-q', '-p', 'pulley-core', '--example', 'scene2plan'], { cwd: root, stdio: 'inherit' });
 const exe = path.join(root, 'target', 'debug', 'examples', process.platform === 'win32' ? 'scene2plan.exe' : 'scene2plan');
 
+const media = path.join(out, 'media');
+// The load job keeps the project After Effects started with: the pixel-reading case must run in
+// it (see pulleyTestApplySample), so it goes first.
 const jobs = [{
   id: 'load',
   load: ['panels/shared/jsx/json.jsx', 'panels/ae/jsx/apply.jsx', 'tests/ae/dump.jsx'].map((p) => fwd(path.join(root, p))),
-  call: 'pulleyTestNewProject',
-  args: ['0'],
+  call: 'pulleyTestSetMedia',
+  args: [fwd(media)],
 }];
-for (const [name, input, options, withComp, call = 'pulleyTestApply'] of cases) {
+cases.sort((x, y) => (y[4] === 'pulleyTestApplySample') - (x[4] === 'pulleyTestApplySample'));
+for (const [name, input, options, withComp, call = 'pulleyTestApply', extra] of cases) {
   const plan = path.join(out, `${name}.plan`);
   const prefix = path.join(out, `${name}-grad-`);
   const inputArgs = Array.isArray(input) ? ['--capture', ...input] : [input];
-  execFileSync(exe, [...inputArgs, plan, JSON.stringify(options), '--ffx-prefix', prefix], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
+  // Flags go after the positional arguments; captures' linked images are in the fixtures folder.
+  const imageRoot = Array.isArray(input) ? ['--image-root', path.join(root, 'tests/fixtures/illustrator')] : [];
+  execFileSync(exe, [...inputArgs, plan, JSON.stringify(options), '--ffx-prefix', prefix, '--media-dir', media, ...imageRoot], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
   const hasGradients = fs.readdirSync(out).some((f) => f.startsWith(`${name}-grad-`));
   jobs.push({
     id: name,
     call,
-    args: [fwd(plan), withComp ? '1' : '0', fwd(path.join(out, `${name}.result.json`)), fwd(prefix), hasGradients && call === 'pulleyTestApply' ? fwd(path.join(out, `${name}.aep`)) : ''],
+    args: [fwd(plan), withComp ? '1' : '0', fwd(path.join(out, `${name}.result.json`)), fwd(prefix), extra || (hasGradients && call === 'pulleyTestApply' ? fwd(path.join(out, `${name}.aep`)) : '')],
     timeoutMs: 15 * 60 * 1000,
   });
 }
@@ -117,6 +139,25 @@ if (!only.length || only.includes('repush') || only.includes('repush-off')) {
     if (only.length && !only.includes(id)) continue;
     jobs.push({ id, call: 'pulleyTestRepush', args: [plans['repush-a'], plans[planB], fwd(path.join(out, `${id}.result.json`)), pre('repush-a'), pre(planB)], timeoutMs: 15 * 60 * 1000 });
   }
+}
+// Re-push images: A = schema/examples/images.json; B shows another image file in "Photo", at 4x.
+if (!only.length || only.includes('repush-images')) {
+  const a = JSON.parse(fs.readFileSync(path.join(root, 'schema/examples/images.json'), 'utf8'));
+  const other = JSON.parse(fs.readFileSync(path.join(root, 'tests/ae/repush-image-b.json'), 'utf8'));
+  const b = JSON.parse(JSON.stringify(a));
+  b.images.push(other);
+  const photo = b.items.find((i) => i.id === 'figma:2:1');
+  photo.image = other.id;
+  photo.matrix = [4, 0, 0, 4, 100, 100];
+  const plans = {};
+  for (const [name, scene] of [['repush-images-a', a], ['repush-images-b', b]]) {
+    const sceneFile = path.join(out, `${name}.scene.json`);
+    fs.writeFileSync(sceneFile, JSON.stringify(scene));
+    const plan = path.join(out, `${name}.plan`);
+    execFileSync(exe, [sceneFile, plan, JSON.stringify({ ...comp, placement: 'original' }), '--media-dir', media], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
+    plans[name] = fwd(plan);
+  }
+  jobs.push({ id: 'repush-images', call: 'pulleyTestRepushImages', args: [plans['repush-images-a'], plans['repush-images-b'], fwd(path.join(out, 'repush-images.result.json'))], timeoutMs: 15 * 60 * 1000 });
 }
 // Re-push with effects: A = schema/examples/effects.json, B changes and removes effects.
 if (!only.length || only.includes('repush-effects')) {

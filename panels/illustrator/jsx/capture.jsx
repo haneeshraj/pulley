@@ -221,6 +221,27 @@ var PulleyAI = (function () {
         return "unsupported_item";
     }
 
+    /**
+     * Placed (linked) and raster (embedded) images: the linked file's path and size, and the
+     * item's own box and matrix, from which pulley-core places the image's pixels. Embedded
+     * pixels can't be read by script; only the fact is recorded.
+     */
+    function imageOf(it, t) {
+        var r = { kind: t === "PlacedItem" ? "placed" : "raster", embedded: false };
+        if (t === "RasterItem") { try { r.embedded = it.embedded !== false; } catch (eE) { r.embedded = true; } }
+        if (!r.embedded) {
+            try {
+                var f = it.file;
+                r.path = f.fsName;
+                if (!f.exists) { r.missing = true; } else { r.size = f.length; }
+            } catch (eF) { r.missing = true; }
+        }
+        try { r.box = arr(it.boundingBox); } catch (eB) {}
+        try { r.matrix = matrixOf(it.matrix); } catch (eM) {}
+        try { r.bounds = arr(it.geometricBounds); } catch (eG) {}
+        return r;
+    }
+
     var BIG_PATH = 1000;
 
     function walk(it, state, deferred) {
@@ -273,6 +294,10 @@ var PulleyAI = (function () {
         if (t === "SymbolItem") {
             try { m.symbol = it.symbol.name; } catch (eS) {}
             deferred.push({ kind: "symbol", item: it, meta: m });
+            return m;
+        }
+        if (t === "PlacedItem" || t === "RasterItem") {
+            m.image = imageOf(it, t);
             return m;
         }
         m.unsupported = unsupportedKind(t);

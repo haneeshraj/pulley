@@ -35,6 +35,7 @@ fn walk(items: &[Item], depth: usize) {
                     println!("{pad}  first vertices: {:?}", &p.vertices[..p.vertices.len().min(4)]);
                 }
             }
+            Item::Image(im) => println!("{pad}image \"{}\" asset={} matrix={:?} clip={}", im.name, &im.image[..8], im.matrix, im.clip.is_some()),
             Item::Text(t) => println!(
                 "{pad}text \"{}\" kind={:?} matrix={:?} box={:?} runs={} outlines={}",
                 t.name,

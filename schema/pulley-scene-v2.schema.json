@@ -20,7 +20,7 @@
       "const": "pulley-scene"
     },
     "version": {
-      "description": "Major version. Readers accept only versions they know; any change to this schema bumps it. v2 added `effects`; a v1 scene is a valid v2 scene without them.",
+      "description": "Major version. Readers accept only versions they know; any change to this schema bumps it. v2 added `effects` and images (`image` items, `images`); a v1 scene is a valid v2 scene without them.",
       "enum": [
         1,
         2
@@ -56,6 +56,14 @@
       "maxItems": 10000,
       "items": {
         "$ref": "#/$defs/warning"
+      }
+    },
+    "images": {
+      "description": "v2. Image files shown by `image` items, each stored once.",
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/imageAsset"
       }
     }
   },
@@ -241,6 +249,9 @@
         },
         {
           "$ref": "#/$defs/text"
+        },
+        {
+          "$ref": "#/$defs/image"
         }
       ]
     },
@@ -907,6 +918,106 @@
           }
         }
       ]
+    },
+    "imageAsset": {
+      "description": "v2. An image file, carried whole: After Effects imports the file itself.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "format",
+        "width",
+        "height",
+        "data"
+      ],
+      "properties": {
+        "id": {
+          "description": "Lowercase hex SHA-256 of the file's bytes.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "format": {
+          "enum": [
+            "png",
+            "jpeg",
+            "gif",
+            "bmp",
+            "tiff",
+            "psd"
+          ]
+        },
+        "width": {
+          "description": "Pixels, as the file's header gives it.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30000
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30000
+        },
+        "data": {
+          "description": "The file's bytes, base64 (standard alphabet, padded); at most 48 MiB decoded.",
+          "type": "string",
+          "contentEncoding": "base64"
+        }
+      }
+    },
+    "image": {
+      "description": "v2. An image placed by `matrix`, shown only inside `clip` when there is one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "id",
+        "name",
+        "image",
+        "matrix"
+      ],
+      "properties": {
+        "type": {
+          "const": "image"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "opacity": {
+          "$ref": "#/$defs/unit",
+          "default": 1
+        },
+        "blendMode": {
+          "$ref": "#/$defs/blendMode",
+          "default": "normal"
+        },
+        "image": {
+          "description": "The id of an entry in `images`.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "matrix": {
+          "description": "[a, b, c, d, e, f]: image pixel space (0..width, 0..height, y down) to scene space.",
+          "$ref": "#/$defs/matrix"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
+        },
+        "effects": {
+          "description": "v2. Effects on the item as a whole (for a group: on what the group draws).",
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        }
+      }
     }
   }
 }

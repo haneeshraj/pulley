@@ -10,3 +10,7 @@ node_modules/
 !/fuzz/corpus/*/.keep
 /fuzz/target
 .DS_Store
+
+# Rebuilt by tests/fixtures/illustrator/make-fixtures.jsx ("images" step); it stores the
+# absolute path of its linked image, so it is not committed (its capture is).
+tests/fixtures/illustrator/images.ai

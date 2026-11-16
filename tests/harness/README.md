@@ -27,6 +27,10 @@ capture.
 
 Windows only for now (the dialog helpers use PowerShell and UI Automation).
 
+After Effects 25.5: once a project has been closed or a new one created, `sampleImage()` (used
+by the suite to read rendered pixels) returns only zeros for the rest of the session, so cases
+that read pixels run first, in the project After Effects starts with.
+
 ## Usage
 
 ```sh

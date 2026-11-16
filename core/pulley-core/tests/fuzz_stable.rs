@@ -210,7 +210,13 @@ struct Target {
 }
 
 fn targets() -> Vec<Target> {
-    let examples = ["schema/examples/basic-shapes.json", "schema/examples/gradients-compound.json", "schema/examples/clip-and-text.json"];
+    let examples = [
+        "schema/examples/basic-shapes.json",
+        "schema/examples/gradients-compound.json",
+        "schema/examples/clip-and-text.json",
+        "schema/examples/effects.json",
+        "schema/examples/images.json",
+    ];
     let caps = ["clipping", "colors-cmyk", "compound", "gradients", "groups", "hidden", "shapes", "strokes", "transforms", "unsupported", "text", "large"];
     let cap_seeds = caps
         .iter()
@@ -251,7 +257,12 @@ fn targets() -> Vec<Target> {
     vec![
         Target { name: "scene", run: fuzz::scene, seeds: examples.iter().map(|p| read(p)).collect(), json: true },
         Target { name: "illustrator", run: fuzz::illustrator, seeds: cap_seeds, json: false },
-        Target { name: "figma", run: fuzz::figma, seeds: vec![read("core/pulley-core/tests/fuzz-seeds/figma-frame.json")], json: true },
+        Target {
+            name: "figma",
+            run: fuzz::figma,
+            seeds: vec![read("core/pulley-core/tests/fuzz-seeds/figma-frame.json"), read("core/pulley-core/tests/fuzz-seeds/figma-images.json")],
+            json: true,
+        },
         Target { name: "protocol", run: fuzz::protocol, seeds: msgs.into_iter().map(String::into_bytes).collect(), json: true },
         Target { name: "svg_path", run: fuzz::svg_path, seeds: paths.iter().map(|p| p.as_bytes().to_vec()).collect(), json: false },
     ]

@@ -39,6 +39,7 @@ pub struct SceneStats {
     pub paths: usize,
     pub vertices: usize,
     pub max_depth: usize,
+    pub images: usize,
 }
 
 #[derive(Deserialize)]
@@ -127,7 +128,7 @@ fn scene_error(e: serde_json::Error) -> Error {
     if e.to_string().contains("recursion limit") {
         return too_deep();
     }
-    Error::data(ErrorCode::InvalidScene, format!("The scene does not match pulley-scene v1 ({e})."))
+    Error::data(ErrorCode::InvalidScene, format!("The scene does not match pulley-scene v{SCHEMA_VERSION} ({e})."))
 }
 
 fn too_deep() -> Error {
@@ -164,8 +165,10 @@ pub fn clean_name(s: &str) -> String {
     truncate_utf16(&filtered, MAX_NAME_LEN).to_string()
 }
 
-struct Ctx {
+struct Ctx<'a> {
     stats: SceneStats,
+    /// Ids of the scene's image assets.
+    assets: std::collections::HashSet<&'a str>,
 }
 
 fn bad(item: &str, what: impl std::fmt::Display) -> Error {
@@ -231,7 +234,14 @@ pub fn validate(scene: &Scene) -> Result<SceneStats> {
     for w in &scene.warnings {
         check_warning(w)?;
     }
-    let mut ctx = Ctx { stats: SceneStats::default() };
+    let mut ctx = Ctx { stats: SceneStats::default(), assets: std::collections::HashSet::new() };
+    limit("images", scene.images.len(), MAX_IMAGES)?;
+    for a in &scene.images {
+        check_asset(a)?;
+        if !ctx.assets.insert(a.id.as_str()) {
+            return Err(bad("images", "two images have the same id"));
+        }
+    }
     limit("items", scene.items.len(), MAX_ITEMS)?;
     for item in &scene.items {
         check_item(item, 1, &mut ctx)?;
@@ -310,8 +320,45 @@ fn check_item(item: &Item, depth: usize, ctx: &mut Ctx) -> Result<()> {
             check_effects(&t.name, &t.effects)?;
             check_text(t, depth, ctx)?;
         }
+        Item::Image(im) => check_image(im, depth, ctx)?,
     }
     Ok(())
+}
+
+/// An image file: well-formed id, base64 that decodes to a file of the stated format and size.
+/// (That the id is the hash of the bytes is checked where the file is written to disk, see
+/// `image::media_files`.)
+fn check_asset(a: &ImageAsset) -> Result<()> {
+    if !crate::image::is_content_id(&a.id) {
+        return Err(bad("images", "an image id is not a SHA-256 hex digest"));
+    }
+    let bytes = crate::image::decode(&a.data)
+        .ok_or_else(|| bad("images", format!("an image is not valid base64 or is larger than {} MB", MAX_IMAGE_BYTES / (1024 * 1024))))?;
+    match crate::image::inspect(&bytes) {
+        Some((format, w, h)) if format == a.format && w == a.width && h == a.height => Ok(()),
+        Some(_) => Err(bad("images", "an image's format or size does not match its data")),
+        None => Err(bad("images", "an image is not a file After Effects can import")),
+    }
+}
+
+fn check_image(im: &Image, depth: usize, ctx: &mut Ctx) -> Result<()> {
+    check_common(&im.name, &im.id, im.opacity, depth, ctx)?;
+    ctx.stats.images += 1;
+    if !ctx.assets.contains(im.image.as_str()) {
+        return Err(bad(&im.name, "shows an image that is not in the scene"));
+    }
+    for (i, v) in im.matrix.iter().enumerate() {
+        let lim = if i < 4 { MAX_LENGTH } else { MAX_COORD };
+        range(&im.name, "image matrix", *v, -lim, lim)?;
+    }
+    let [a, b, c, d, _, _] = im.matrix;
+    if (a * d - b * c).abs() < 1e-12 {
+        return Err(bad(&im.name, "image matrix has no area"));
+    }
+    if let Some(clip) = &im.clip {
+        check_paths(&im.name, &clip.paths, ctx)?;
+    }
+    check_effects(&im.name, &im.effects)
 }
 
 fn check_shape(s: &Shape, depth: usize, ctx: &mut Ctx) -> Result<()> {
@@ -596,6 +643,48 @@ mod tests {
         }
         // Scenes from before effects existed still read.
         assert_eq!(parse_scene(BASIC, Component::AePanel).unwrap().version, 1);
+    }
+
+    #[test]
+    fn images_are_checked() {
+        let png = crate::image::tests::tiny_png();
+        let asset = crate::image::asset(&png).unwrap();
+        let with = |asset: serde_json::Value, item: serde_json::Value| {
+            mutate(BASIC, move |v| {
+                v["version"] = 2.into();
+                v["images"] = serde_json::json!([asset]);
+                v["items"] = serde_json::json!([item]);
+            })
+        };
+        let good_asset = serde_json::to_value(&asset).unwrap();
+        let item = serde_json::json!({"type":"image","id":"i","name":"Pic","image":asset.id,"matrix":[50,0,0,50,0,0]});
+        let scene = parse_scene(&with(good_asset.clone(), item.clone()), Component::AePanel).unwrap();
+        assert_eq!(validate(&scene).unwrap().images, 1);
+        let bad = |field: &str, value: serde_json::Value| {
+            let mut a = good_asset.clone();
+            a[field] = value;
+            a
+        };
+        for (what, a, it) in [
+            ("id not a digest", bad("id", "abc".into()), item.clone()),
+            ("format mismatch", bad("format", "jpeg".into()), item.clone()),
+            ("size mismatch", bad("width", 3.into()), item.clone()),
+            ("not base64", bad("data", "%%%".into()), item.clone()),
+            ("not an image", bad("data", crate::image::encode(b"hello").into()), item.clone()),
+            ("unknown image", good_asset.clone(), serde_json::json!({"type":"image","id":"i","name":"Pic","image":"0".repeat(64),"matrix":[1,0,0,1,0,0]})),
+            ("no area", good_asset.clone(), serde_json::json!({"type":"image","id":"i","name":"Pic","image":asset.id,"matrix":[1,0,2,0,0,0]})),
+        ] {
+            assert!(parse_scene(&with(a, it), Component::Bridge).is_err(), "accepted: {what}");
+        }
+        // Writing an image file checks that its id is the hash of its bytes.
+        let mut forged = scene.clone();
+        forged.images[0].id = "f".repeat(64);
+        let Item::Image(im) = &mut forged.items[0] else { unreachable!() };
+        im.image = "f".repeat(64);
+        assert!(crate::image::media_files(&forged).is_err());
+        let files = crate::image::media_files(&scene).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, format!("{}.png", asset.id));
     }
 
     #[test]

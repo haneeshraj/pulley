@@ -62,8 +62,11 @@ text, a layout with clipping masks, a CMYK document, a Large Canvas document, a 
 - [ ] Drop shadows and layer blurs (on a rectangle, a frame with text, a clipped frame, a text
       layer): After Effects shows "Pulley Drop Shadow" / "Pulley Blur" effects that look like
       Figma's (compare side by side at 100%).
-- [ ] Inner shadows, background blurs, image fills, angular/diamond gradients: warnings shown,
-      rest imports.
+- [ ] Image fills (fill, fit, crop; on a rectangle, an ellipse, a frame background; with a
+      solid fill and a stroke over the image): image layers placed like Figma shows them, cut to
+      the shape; the images are in the "Pulley images" folder.
+- [ ] A rotated image fill (rotate button in Figma's image settings): turned the same way.
+- [ ] Inner shadows, background blurs, angular/diamond gradients: warnings shown, rest imports.
 - [ ] Change a shadow in Figma and send again: the same effect updates; remove it and send: the
       effect is removed; an effect you added yourself in After Effects stays.
 - [ ] Pull selection from After Effects while the plugin is open.
@@ -71,6 +74,12 @@ text, a layout with clipping masks, a CMYK document, a Large Canvas document, a 
       same result as a direct send.
 - [ ] The Figma file shows no changes and nothing in its undo history.
 - [ ] Display P3 file: the warning appears.
+
+## Illustrator images
+
+- [ ] Place a PNG and a JPEG linked (File > Place, Link on), scale, rotate and mirror one, put one
+      in a clipping mask, then push: image layers where Illustrator shows them.
+- [ ] An embedded image: reported, the rest imports. A missing link: reported.
 
 ## Re-push
 

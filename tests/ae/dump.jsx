@@ -3,6 +3,36 @@
  * dumps what was built, so tests/ae/check.mjs can compare it with expectations.
  * Requires PulleyJSON and PulleyApply.
  */
+/** Where the test plans' image files are (written by tests/ae/run.mjs). */
+var pulleyTestMedia = null;
+function pulleyTestSetMedia(dir) {
+    pulleyTestMedia = dir;
+    return "ok";
+}
+
+/**
+ * The composite of `comp` at comp-space points ([[x, y], ...]) as [r, g, b, a] each: `comp` is
+ * nested in a temporary comp and that layer is read with sampleImage() from a text layer's
+ * expression (test code only), then the temporary comp is removed.
+ */
+function pulleyTestSample(comp, points) {
+    var host = app.project.items.addComp("Pulley sample", comp.width, comp.height, 1, 1, comp.frameRate);
+    var L = host.layers.add(comp);
+    L.name = "S";
+    var t = host.layers.addText("x");
+    var pts = [];
+    for (var i = 0; i < points.length; i++) { pts.push("[" + points[i][0] + "," + points[i][1] + "]"); }
+    var st = t.property("ADBE Text Properties").property("ADBE Text Document");
+    st.expression = "var L = thisComp.layer(\"S\"); var p = [" + pts.join(",") + "]; var s = [];" +
+        " for (var i = 0; i < p.length; i++) { var c = L.sampleImage(p[i], [0.5, 0.5], true, 0);" +
+        " s.push(c[0].toFixed(3) + ' ' + c[1].toFixed(3) + ' ' + c[2].toFixed(3) + ' ' + c[3].toFixed(3)); } s.join(';');";
+    var v = st.valueAtTime(0, false).text;
+    host.remove();
+    var out = [], parts = v.split(";");
+    for (var j = 0; j < parts.length; j++) { var q = parts[j].split(" "); out.push([+q[0], +q[1], +q[2], +q[3]]); }
+    return out;
+}
+
 function pulleyTestNewProject(withComp) {
     // Close without saving first: newProject() on a modified project opens a modal dialog.
     try { app.project.close(CloseOptions.DO_NOT_SAVE_CHANGES); } catch (e) {}
@@ -92,6 +122,10 @@ function pulleyDumpComp(comp) {
             try { var r = L.sourceRectAtTime(0, false); d.rect = [r.left, r.top, r.width, r.height]; } catch (eS) {}
         }
         if (L.source && L.source instanceof CompItem) { d.precomp = pulleyDumpComp(L.source); }
+        if (L.source && L.source instanceof FootageItem) {
+            d.kind = "image";
+            try { d.file = L.source.file.name; d.folder = L.source.parentFolder.name; d.size = [L.source.width, L.source.height]; } catch (eI) {}
+        }
         out.layers.push(d);
     }
     return out;
@@ -101,7 +135,7 @@ function pulleyDumpComp(comp) {
 function pulleyTestApply(planPath, withComp, outPath, ffxPrefix, saveAs) {
     pulleyTestNewProject(withComp);
     var t0 = new Date().getTime();
-    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
+    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null, pulleyTestMedia);
     var ms = new Date().getTime() - t0;
     var comp = app.project.activeItem;
     var dump = null;
@@ -149,7 +183,7 @@ function pulleyTestSaveProject(path) {
 /** Apply a plan into a fresh comp, then Undo once: everything the import built must go away. */
 function pulleyTestApplyUndo(planPath, withComp, outPath, ffxPrefix) {
     pulleyTestNewProject(withComp);
-    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
+    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null, pulleyTestMedia);
     var count = function () {
         var n = 0;
         for (var i = 1; i <= app.project.numItems; i++) { var it = app.project.item(i); if (it instanceof CompItem) { n += it.numLayers; } }
@@ -180,7 +214,7 @@ function pulleyTestSelectionKept(planPath, withComp, outPath, ffxPrefix) {
     var mine = comp.layers.addNull();
     mine.name = "User layer";
     mine.selected = true;
-    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
+    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null, pulleyTestMedia);
     var sel = comp.selectedLayers, names = [];
     for (var i = 0; i < sel.length; i++) { names.push(sel[i].name); }
     var text = PulleyJSON.stringify({ result: res, selection: names, dump: pulleyDumpComp(comp) });
@@ -209,7 +243,7 @@ function pulleyTestLayerByItem(comp, item) {
 function pulleyTestRepush(planA, planB, outPath, ffxA, ffxB) {
     pulleyTestNewProject("1");
     var comp = app.project.activeItem;
-    var resA = pulleyApplyPlan(planA, planA + ".cancel", ffxA || null);
+    var resA = pulleyApplyPlan(planA, planA + ".cancel", ffxA || null, pulleyTestMedia);
     var rounded = pulleyTestLayerByItem(comp, "4f1c2a");
     var circle = pulleyTestLayerByItem(comp, "4f1c2b");
     var edits = { found: !!rounded && !!circle };
@@ -222,7 +256,7 @@ function pulleyTestRepush(planA, planB, outPath, ffxA, ffxB) {
         pos.setValueAtTime(0, [100, 100]);
         pos.setValueAtTime(1, [300, 300]);
     }
-    var resB = pulleyApplyPlan(planB, planB + ".cancel", ffxB || null);
+    var resB = pulleyApplyPlan(planB, planB + ".cancel", ffxB || null, pulleyTestMedia);
     var dumpB = pulleyDumpComp(comp);
     app.executeCommand(16); // Edit > Undo: the second push only
     var dumpUndo = pulleyDumpComp(comp);
@@ -243,7 +277,7 @@ function pulleyTestRepush(planA, planB, outPath, ffxA, ffxB) {
 function pulleyTestRepushEffects(planA, planB, outPath) {
     pulleyTestNewProject("1");
     var comp = app.project.activeItem;
-    var resA = pulleyApplyPlan(planA, planA + ".cancel", null);
+    var resA = pulleyApplyPlan(planA, planA + ".cancel", null, pulleyTestMedia);
     var badge = pulleyTestLayerByItem(comp, "figma%3A1%3A2");
     var card = pulleyTestLayerByItem(comp, "figma%3A1%3A1");
     var edits = { found: !!badge && !!card };
@@ -253,7 +287,7 @@ function pulleyTestRepushEffects(planA, planB, outPath) {
         soft.setValueAtTime(0, 10);
         soft.setValueAtTime(1, 40);
     }
-    var resB = pulleyApplyPlan(planB, planB + ".cancel", null);
+    var resB = pulleyApplyPlan(planB, planB + ".cancel", null, pulleyTestMedia);
     var dumpB = pulleyDumpComp(comp);
     app.executeCommand(16); // Edit > Undo: the second push only
     var dumpUndo = pulleyDumpComp(comp);
@@ -266,13 +300,58 @@ function pulleyTestRepushEffects(planA, planB, outPath) {
     return resB;
 }
 
+/**
+ * Apply a plan into a new comp, dump it, and read the composite at the given points
+ * ("x,y;x,y;..."), plus the project's image footage. Runs in the project After Effects started
+ * with: once a project has been closed or a new one made, sampleImage() returns only zeros for
+ * the rest of the session (After Effects 25.5), so tests/ae/run.mjs runs this case first.
+ */
+function pulleyTestApplySample(planPath, withComp, outPath, ffxPrefix, points) {
+    var comp = app.project.items.addComp("Pulley Test (pixels)", 1920, 1080, 1, 10, 30);
+    comp.openInViewer();
+    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null, pulleyTestMedia);
+    var dump = pulleyDumpComp(comp);
+    var pts = [], parts = points.split(";");
+    for (var i = 0; i < parts.length; i++) { var xy = parts[i].split(","); pts.push([+xy[0], +xy[1]]); }
+    var footage = [];
+    for (var j = 1; j <= app.project.numItems; j++) {
+        var it = app.project.item(j);
+        if (it instanceof FootageItem && it.file) { footage.push({ name: it.name, folder: it.parentFolder.name, file: it.file.name }); }
+    }
+    var text = PulleyJSON.stringify({ result: res, dump: dump, samples: pulleyTestSample(comp, pts), footage: footage });
+    var f = new File(outPath);
+    f.encoding = "UTF-8";
+    f.open("w");
+    f.write(text);
+    f.close();
+    return res;
+}
+
+/** Re-push images: plan A, then plan B (another image file, another size) into the same comp. */
+function pulleyTestRepushImages(planA, planB, outPath) {
+    pulleyTestNewProject("1");
+    var comp = app.project.activeItem;
+    var resA = pulleyApplyPlan(planA, planA + ".cancel", null, pulleyTestMedia);
+    var layersA = comp.numLayers;
+    var resB = pulleyApplyPlan(planB, planB + ".cancel", null, pulleyTestMedia);
+    var footage = 0;
+    for (var j = 1; j <= app.project.numItems; j++) { if (app.project.item(j) instanceof FootageItem) { footage++; } }
+    var text = PulleyJSON.stringify({ result: resB, resultA: resA, layersA: layersA, footage: footage, dump: pulleyDumpComp(comp) });
+    var f = new File(outPath);
+    f.encoding = "UTF-8";
+    f.open("w");
+    f.write(text);
+    f.close();
+    return resB;
+}
+
 /** Apply the same plan twice into one comp: the second push must update, not duplicate. */
 function pulleyTestPushTwice(planPath, withComp, outPath, ffxPrefix) {
     pulleyTestNewProject("1");
     var comp = app.project.activeItem;
-    var first = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
+    var first = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null, pulleyTestMedia);
     var counts = { layers1: comp.numLayers, items1: app.project.numItems };
-    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
+    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null, pulleyTestMedia);
     counts.layers2 = comp.numLayers;
     counts.items2 = app.project.numItems;
     var text = PulleyJSON.stringify({ result: res, resultFirst: first, counts: counts, dump: pulleyDumpComp(comp) });

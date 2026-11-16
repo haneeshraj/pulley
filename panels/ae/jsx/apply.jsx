@@ -30,6 +30,9 @@ var PulleyApply = (function () {
         FULL_JUSTIFY_LASTLINE_CENTER: 1, FULL_JUSTIFY_LASTLINE_RIGHT: 1, FULL_JUSTIFY_LASTLINE_FULL: 1
     };
     var MASK_NAMES = { ADD: 1, SUBTRACT: 1, INTERSECT: 1, DIFFERENCE: 1 };
+    // Image files Pulley saved in its media folder: <sha-256 hex>.<one of these>.
+    var IMAGE_EXT = { png: 1, jpg: 1, gif: 1, bmp: 1, tif: 1, psd: 1 };
+    var IMAGE_FOLDER = "Pulley images";
     var DASH_NAMES = ["ADBE Vector Stroke Dash 1", "ADBE Vector Stroke Gap 1", "ADBE Vector Stroke Dash 2",
         "ADBE Vector Stroke Gap 2", "ADBE Vector Stroke Dash 3", "ADBE Vector Stroke Gap 3"];
 
@@ -194,9 +197,9 @@ var PulleyApply = (function () {
      * Apply a plan file. `cancelPath`: if this file exists, stop and remove what was built.
      * Returns JSON text with counts, missing fonts, warnings and timing.
      */
-    function apply(planPath, cancelPath, compOverride, ffxPrefix) {
+    function apply(planPath, cancelPath, compOverride, ffxPrefix, mediaDir) {
         var t0 = new Date().getTime();
-        var res = { ok: false, layers: 0, groups: 0, paths: 0, texts: 0, comps: 0, effects: 0, missingFonts: [], warnings: [], gradients: 0, cancelled: false };
+        var res = { ok: false, layers: 0, groups: 0, paths: 0, texts: 0, comps: 0, effects: 0, images: 0, missingFonts: [], warnings: [], gradients: 0, cancelled: false };
         var text;
         try { text = readFile(planPath); } catch (eR) { res.error = { code: "plan_unreadable", message: String(eR) }; return PulleyJSON.stringify(res); }
         if (text.indexOf("PULLEY-PLAN 1\n") !== 0) {
@@ -222,6 +225,8 @@ var PulleyApply = (function () {
         // effects Pulley added then are updated in place, and the ones no longer in the source
         // removed (unless animated).
         var fxSession = null, layerIsUpdate = false;
+        // Images: footage items by file path (found in the project or imported now).
+        var footage = null, createdItems = [], imagesFolder = null;
         res.updated = 0;
         var total = 0, pos = 0, len = text.length, idx;
         for (idx = text.indexOf("\n"); idx >= 0; idx = text.indexOf("\n", idx + 1)) { total++; }
@@ -260,6 +265,35 @@ var PulleyApply = (function () {
             return list[0];
         }
         function updated(L) { curList().push(L); res.updated++; }
+
+        /** The footage item for an image file Pulley saved: reused if the project has it. */
+        function footageFor(id, ext) {
+            if (!/^[0-9a-f]{64}$/.test(id) || IMAGE_EXT[ext] !== 1 || !mediaDir) { throw new Error("bad image reference"); }
+            var file = new File(mediaDir + "/" + id + "." + ext), key = file.fsName.toLowerCase();
+            if (footage === null) {
+                footage = {};
+                for (var i = 1; i <= app.project.numItems; i++) {
+                    var it = app.project.item(i);
+                    try { if (it instanceof FootageItem && it.file) { footage[it.file.fsName.toLowerCase()] = it; } } catch (eF) {}
+                }
+            }
+            if (footage[key]) { return footage[key]; }
+            if (!file.exists) { throw new Error("an image file is missing from Pulley's media folder"); }
+            var io = new ImportOptions(file);
+            if (io.canImportAs(ImportAsType.FOOTAGE)) { io.importAs = ImportAsType.FOOTAGE; }
+            var item = app.project.importFile(io);
+            createdItems.push(item);
+            if (!imagesFolder) {
+                for (var j = 1; j <= app.project.numItems && !imagesFolder; j++) {
+                    var fo = app.project.item(j);
+                    if (fo instanceof FolderItem && fo.name === IMAGE_FOLDER && fo.parentFolder === app.project.rootFolder) { imagesFolder = fo; }
+                }
+                if (!imagesFolder) { imagesFolder = app.project.items.addFolder(IMAGE_FOLDER); createdItems.push(imagesFolder); }
+            }
+            item.parentFolder = imagesFolder;
+            footage[key] = item;
+            return item;
+        }
 
         function endFx() {
             var fs = fxSession;
@@ -424,6 +458,7 @@ var PulleyApply = (function () {
             var i;
             for (i = createdLayers.length - 1; i >= 0; i--) { try { createdLayers[i].remove(); } catch (e1) {} }
             for (i = createdComps.length - 1; i >= 0; i--) { try { createdComps[i].remove(); } catch (e2) {} }
+            for (i = createdItems.length - 1; i >= 0; i--) { try { createdItems[i].remove(); } catch (e3) {} }
         }
 
         try {
@@ -588,6 +623,53 @@ var PulleyApply = (function () {
                             setLayerBlend(layer, f[7]);
                             containers = [layer.property("ADBE Root Vectors Group")];
                             newLayer(layer);
+                            break;
+                        }
+                        case "IMG": {
+                            // IMG id ext name ax ay px py rot sx sy op blend
+                            if (compStack.length === 0) { throw new Error("no comp"); }
+                            var iid = pendingId;
+                            pendingId = null;
+                            var src;
+                            try { src = footageFor(f[1], f[2]); } catch (eImg) {
+                                // Skip this image; its masks and effects must not land on another layer.
+                                endFx();
+                                layer = null;
+                                warn(dec(f[3]) + ": the image could not be imported (" + String(eImg) + ").", true);
+                                break;
+                            }
+                            var oldImg = takeExisting(iid);
+                            if (oldImg && !(oldImg instanceof AVLayer && oldImg.source instanceof FootageItem)) { oldImg = null; }
+                            if (oldImg) {
+                                layer = oldImg;
+                                if (layer.source !== src) { layer.replaceSource(src, false); }
+                                var ikept = [];
+                                var itr = layer.property("ADBE Transform Group");
+                                setStatic(itr.property("ADBE Anchor Point"), [+f[4], +f[5]], ikept, "anchor point");
+                                setPosition(itr, [+f[6], +f[7]], ikept);
+                                setStatic(itr.property("ADBE Rotate Z"), +f[8], ikept, "rotation");
+                                setStatic(itr.property("ADBE Scale"), [+f[9], +f[10], 100], ikept, "scale");
+                                setStatic(itr.property("ADBE Opacity"), +f[11], ikept, "opacity");
+                                if (LAYER_BLEND_NAMES[f[12]] === 1) { layer.blendingMode = BlendingMode[f[12]]; }
+                                masksPending = true;
+                                keptWarning(layer, ikept);
+                                updated(layer);
+                                layerIsUpdate = true;
+                            } else {
+                                layer = curComp().layers.add(src);
+                                layer.name = dec(f[3]);
+                                if (iid !== null) { layer.comment = tagFor(iid); }
+                                var ntr = layer.property("ADBE Transform Group");
+                                ntr.property("ADBE Anchor Point").setValue([+f[4], +f[5]]);
+                                ntr.property("ADBE Position").setValue([+f[6], +f[7]]);
+                                if (+f[8] !== 0) { ntr.property("ADBE Rotate Z").setValue(+f[8]); }
+                                ntr.property("ADBE Scale").setValue([+f[9], +f[10], 100]);
+                                if (+f[11] !== 100) { ntr.property("ADBE Opacity").setValue(+f[11]); }
+                                setLayerBlend(layer, f[12]);
+                                newLayer(layer);
+                                layerIsUpdate = false;
+                            }
+                            res.images++;
                             break;
                         }
                         case "G": {
@@ -800,11 +882,11 @@ var PulleyApply = (function () {
     return { apply: apply };
 })();
 
-function pulleyApplyPlan(planPath, cancelPath, ffxPrefix) {
-    return PulleyApply.apply(planPath, cancelPath, null, ffxPrefix);
+function pulleyApplyPlan(planPath, cancelPath, ffxPrefix, mediaDir) {
+    return PulleyApply.apply(planPath, cancelPath, null, ffxPrefix, mediaDir);
 }
 
 /** Test hook: apply into a given comp instead of the active one. */
-function pulleyApplyPlanInto(planPath, comp, ffxPrefix) {
-    return PulleyApply.apply(planPath, planPath + ".cancel", comp, ffxPrefix);
+function pulleyApplyPlanInto(planPath, comp, ffxPrefix, mediaDir) {
+    return PulleyApply.apply(planPath, planPath + ".cancel", comp, ffxPrefix, mediaDir);
 }

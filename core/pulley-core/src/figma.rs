@@ -18,7 +18,8 @@ use crate::shapes;
 use crate::svgpath::path_data_to_paths;
 use crate::validate::{utf16_len, validate};
 use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::f64::consts::FRAC_PI_2;
 use std::f64::consts::PI;
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -36,6 +37,12 @@ struct Input {
     color_profile: String,
     bounds: FRect,
     nodes: Vec<Node>,
+    /// Image fill bytes by Figma image hash, base64 (the plugin sends those it could read).
+    #[serde(default)]
+    images: BTreeMap<String, String>,
+    /// Image hashes left out by the plugin because the selection's images were too large.
+    #[serde(default)]
+    images_skipped: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
@@ -193,6 +200,26 @@ struct FPaint {
     gradient_stops: Vec<FStop>,
     #[serde(default)]
     gradient_transform: Option<FTransform>,
+    #[serde(default)]
+    blend_mode: Option<String>,
+    // Image paints.
+    #[serde(default)]
+    image_hash: Option<String>,
+    /// FILL (default), FIT, CROP or TILE.
+    #[serde(default)]
+    scale_mode: Option<String>,
+    /// CROP: node box (0..1) to image (0..1).
+    #[serde(default)]
+    image_transform: Option<FTransform>,
+    /// TILE: tile size relative to the image's own size.
+    #[serde(default)]
+    scaling_factor: Option<f64>,
+    /// FILL, FIT, TILE: clockwise, in multiples of 90 degrees.
+    #[serde(default)]
+    rotation: Option<f64>,
+    /// Exposure, contrast and the other image adjustments (reported, not imported).
+    #[serde(default)]
+    filters: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -240,6 +267,12 @@ struct Ctx {
     warnings: Vec<Warning>,
     /// (code, item id) pairs already warned about: one warning of a kind per item.
     warned: HashSet<(String, String)>,
+    /// Figma image hash to its asset (index into `assets`), or why it can't be imported.
+    images: HashMap<String, std::result::Result<usize, String>>,
+    assets: Vec<ImageAsset>,
+    /// Asset indexes in the order items first use them: only these go into the scene.
+    used: Vec<usize>,
+    skipped: HashSet<String>,
 }
 
 impl Ctx {
@@ -314,7 +347,34 @@ pub fn nodes_to_scene(json: &str, _opts: &FigmaOptions) -> Result<Scene> {
     if ![b.x, b.y, b.width, b.height].iter().all(|v| v.is_finite()) {
         return Err(Error::data(ErrorCode::InvalidCapture, "The Figma selection has invalid bounds."));
     }
-    let mut ctx = Ctx { origin: Pt::new(b.x, b.y), warnings: Vec::new(), warned: HashSet::new() };
+    let mut ctx = Ctx {
+        origin: Pt::new(b.x, b.y),
+        warnings: Vec::new(),
+        warned: HashSet::new(),
+        images: HashMap::new(),
+        assets: Vec::new(),
+        used: Vec::new(),
+        skipped: input.images_skipped.iter().cloned().collect(),
+    };
+    for (hash, data) in &input.images {
+        let entry = match crate::image::decode(data) {
+            None => Err(format!("This image could not be read (larger than {} MB, or damaged).", crate::limits::MAX_IMAGE_BYTES / (1024 * 1024))),
+            Some(bytes) => match crate::image::asset(&bytes) {
+                None => Err(format!("This {} image can't be imported by After Effects.", crate::image::unsupported_kind(&bytes))),
+                Some(_) if ctx.assets.len() >= crate::limits::MAX_IMAGES => {
+                    Err(format!("Only {} different images can be sent at once.", crate::limits::MAX_IMAGES))
+                }
+                Some(a) => match ctx.assets.iter().position(|x| x.id == a.id) {
+                    Some(i) => Ok(i),
+                    None => {
+                        ctx.assets.push(a);
+                        Ok(ctx.assets.len() - 1)
+                    }
+                },
+            },
+        };
+        ctx.images.insert(hash.clone(), entry);
+    }
     let p3 = input.color_profile == "DISPLAY_P3";
     let mut items = Vec::new();
     for n in &input.nodes {
@@ -343,6 +403,7 @@ pub fn nodes_to_scene(json: &str, _opts: &FigmaOptions) -> Result<Scene> {
         ));
     }
     scene.items = items;
+    scene.images = ctx.used.iter().map(|&i| ctx.assets[i].clone()).collect();
     scene.warnings.extend(ctx.warnings);
     scene.warnings.truncate(MAX_WARNINGS);
     validate(&scene)?;
@@ -372,8 +433,10 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
             // Frames can have their own fills/strokes: a background shape at the bottom.
             if n.kind != "GROUP" && (n.fills.iter().any(|p| p.visible) || n.strokes.iter().any(|p| p.visible)) {
                 let paths = vec![shapes::rect(0.0, 0.0, n.width, n.height, radii(n), &xf)];
-                if let Some(bg) = shape_from(ctx, n, &format!("{id}/background"), &format!("{name} background"), paths, FillRule::Nonzero, &xf, true) {
-                    children.push(Item::Shape(bg));
+                if let Some(bg) =
+                    filled(ctx, n, &format!("{id}/background"), &format!("{name} background"), paths, FillRule::Nonzero, &xf, true, Vec::new(), false)
+                {
+                    children.push(bg);
                 }
             }
             let clip = (n.clips_content && n.kind != "GROUP").then(|| Clip {
@@ -384,8 +447,9 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
             });
             Ok(Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip, children, effects })))
         }
-        "RECTANGLE" => Ok(shape_from(ctx, n, &id, &name, vec![shapes::rect(0.0, 0.0, n.width, n.height, radii(n), &xf)], FillRule::Nonzero, &xf, true)
-            .map(|s| with_effects(s, effects))),
+        "RECTANGLE" => {
+            Ok(filled(ctx, n, &id, &name, vec![shapes::rect(0.0, 0.0, n.width, n.height, radii(n), &xf)], FillRule::Nonzero, &xf, true, effects, true))
+        }
         "ELLIPSE" => {
             let path = match &n.arc_data {
                 Some(a) if (a.ending_angle - a.starting_angle).abs() < 2.0 * PI - 1e-6 || a.inner_radius > 1e-6 => {
@@ -393,7 +457,7 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
                 }
                 _ => shapes::ellipse(n.width / 2.0, n.height / 2.0, n.width / 2.0, n.height / 2.0, &xf),
             };
-            Ok(shape_from(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, true).map(|s| with_effects(s, effects)))
+            Ok(filled(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, true, effects, true))
         }
         "POLYGON" | "STAR" => {
             if n.corner_radius.unwrap_or(0.0) > 0.0 {
@@ -405,11 +469,11 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
             } else {
                 shapes::polygon(n.width, n.height, count, &xf)
             };
-            Ok(shape_from(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, true).map(|s| with_effects(s, effects)))
+            Ok(filled(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, true, effects, true))
         }
         "LINE" => {
             let path = shapes::polyline(&[Pt::new(0.0, 0.0), Pt::new(n.width, 0.0)], false, &xf);
-            Ok(shape_from(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, false).map(|s| with_effects(s, effects)))
+            Ok(filled(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, false, effects, true))
         }
         "VECTOR" => {
             let mut paths = Vec::new();
@@ -423,11 +487,11 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
                 }
                 paths.extend(ps);
             }
-            Ok(shape_from(ctx, n, &id, &name, paths, fill_rule, &xf, closed_any).map(|s| with_effects(s, effects)))
+            Ok(filled(ctx, n, &id, &name, paths, fill_rule, &xf, closed_any, effects, true))
         }
         "BOOLEAN_OPERATION" => {
             let (paths, fill_rule) = geometry(&n.fill_geometry, &xf)?;
-            Ok(shape_from(ctx, n, &id, &name, paths, fill_rule, &xf, true).map(|s| with_effects(s, effects)))
+            Ok(filled(ctx, n, &id, &name, paths, fill_rule, &xf, true, effects, true))
         }
         "TEXT" => Ok(text_item(ctx, n, id, name, opacity, blend_mode, &xf, effects)?),
         other => {
@@ -589,12 +653,189 @@ fn paint(ctx: &mut Ctx, p: &FPaint, n: &Node, xf: &Affine, id: &str, name: &str)
     }
 }
 
+/// A node's fill area as an item: a shape, or, when it has image fills, its images (each cut to
+/// the shape) interleaved with shapes for the fills between them, the strokes on top.
+/// `own_look`: the node's opacity, blend mode and `effects` go on the result (false for a
+/// frame's background: they belong to the frame).
 #[allow(clippy::too_many_arguments)]
-fn shape_from(ctx: &mut Ctx, n: &Node, id: &str, name: &str, paths: Vec<Path>, fill_rule: FillRule, xf: &Affine, closed: bool) -> Option<Shape> {
+fn filled(
+    ctx: &mut Ctx,
+    n: &Node,
+    id: &str,
+    name: &str,
+    paths: Vec<Path>,
+    fill_rule: FillRule,
+    xf: &Affine,
+    closed: bool,
+    effects: Vec<Effect>,
+    own_look: bool,
+) -> Option<Item> {
     if paths.is_empty() {
         return None;
     }
-    let fills: Vec<Paint> = n.fills.iter().filter_map(|p| paint(ctx, p, n, xf, id, name)).collect();
+    if !n.fills.iter().any(|p| p.visible && p.kind == "IMAGE") {
+        let all: Vec<&FPaint> = n.fills.iter().collect();
+        return shape_of(ctx, n, id, name, paths, fill_rule, xf, closed, &all, own_look).map(|s| with_effects(s, effects));
+    }
+    let mut parts: Vec<Item> = Vec::new(); // bottom first
+    let mut run: Vec<&FPaint> = Vec::new();
+    let mut images = 0;
+    for p in &n.fills {
+        if !(p.visible && p.kind == "IMAGE") {
+            run.push(p);
+            continue;
+        }
+        let part_name = if images == 0 { format!("{name} image") } else { format!("{name} image {}", images + 1) };
+        let Some(im) = image_fill(ctx, p, n, &format!("{id}/image-{images}"), &part_name, &paths, fill_rule, xf, id, name) else {
+            continue;
+        };
+        if !run.is_empty() {
+            let fills_id = format!("{id}/fill-{images}");
+            if let Some(sh) = shape_of(ctx, n, &fills_id, &format!("{name} fill"), paths.clone(), fill_rule, xf, closed, &run, false) {
+                parts.push(Item::Shape(Shape { strokes: Vec::new(), ..sh }));
+            }
+            run.clear();
+        }
+        parts.push(Item::Image(im));
+        images += 1;
+    }
+    if images == 0 {
+        return shape_of(ctx, n, id, name, paths, fill_rule, xf, closed, &run, own_look).map(|s| with_effects(s, effects));
+    }
+    // Fills above the last image, and the strokes.
+    if let Some(top) = shape_of(ctx, n, &format!("{id}/top"), name, paths, fill_rule, xf, closed, &run, false)
+        && (!top.fills.is_empty() || !top.strokes.is_empty())
+    {
+        parts.push(Item::Shape(top));
+    }
+    let (opacity, blend_mode) = if own_look { (unit(n.opacity), blend(n.blend_mode.as_deref())) } else { (1.0, BlendMode::Normal) };
+    if parts.len() == 1 {
+        if let Some(Item::Image(im)) = parts.pop() {
+            // Only the image: it is the node.
+            let blend_mode = if matches!(blend_mode, BlendMode::Normal | BlendMode::PassThrough) { im.blend_mode } else { blend_mode };
+            return Some(Item::Image(Image { id: id.to_string(), name: name.to_string(), opacity: im.opacity * opacity, blend_mode, effects, ..im }));
+        }
+        return None;
+    }
+    parts.reverse();
+    Some(Item::Group(Group { id: id.to_string(), name: name.to_string(), visible: true, opacity, blend_mode, clip: None, children: parts, effects }))
+}
+
+/// An image fill as an image item placed like Figma draws it, cut to the node's shape.
+#[allow(clippy::too_many_arguments)]
+fn image_fill(
+    ctx: &mut Ctx,
+    p: &FPaint,
+    n: &Node,
+    part_id: &str,
+    part_name: &str,
+    paths: &[Path],
+    fill_rule: FillRule,
+    xf: &Affine,
+    id: &str,
+    name: &str,
+) -> Option<Image> {
+    let hash = p.image_hash.as_deref().unwrap_or("");
+    let index = match ctx.images.get(hash) {
+        Some(Ok(i)) => *i,
+        Some(Err(why)) => {
+            let why = why.clone();
+            ctx.warn("image_unsupported", id, name, why);
+            return None;
+        }
+        None if ctx.skipped.contains(hash) => {
+            ctx.warn(
+                "image_too_large",
+                id,
+                name,
+                "This image was left out: the selection's images together are too large to send at once. Send fewer images at a time.",
+            );
+            return None;
+        }
+        None => {
+            ctx.warn("image_missing", id, name, "Figma didn't provide this image's pixels, so it was skipped.");
+            return None;
+        }
+    };
+    let (w, h) = (f64::from(ctx.assets[index].width), f64::from(ctx.assets[index].height));
+    let (bw, bh) = (n.width.max(1e-6), n.height.max(1e-6));
+    let quarter = (fin(p.rotation.unwrap_or(0.0)) / 90.0).round().rem_euclid(4.0);
+    let turn = Affine::rotate(quarter * FRAC_PI_2);
+    // Image pixels to node-local space.
+    let local = match p.scale_mode.as_deref().unwrap_or("FILL") {
+        "CROP" => {
+            let t = p.image_transform.unwrap_or([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]);
+            let Some(inv) = Affine([t[0][0], t[1][0], t[0][1], t[1][1], t[0][2], t[1][2]]).inverse() else {
+                ctx.warn("image_transform_invalid", id, name, "A cropped image has an invalid crop, so it was skipped.");
+                return None;
+            };
+            Affine::scale(bw, bh).mul(&inv).mul(&Affine::scale(1.0 / w, 1.0 / h))
+        }
+        "TILE" => {
+            ctx.warn("image_tile_single", id, name, "A tiled image fill is imported as a single tile at the top left.");
+            let k = p.scaling_factor.filter(|k| k.is_finite() && *k > 0.0).unwrap_or(1.0);
+            let (tw, th) = if quarter == 1.0 || quarter == 3.0 { (h * k, w * k) } else { (w * k, h * k) };
+            Affine::translate(tw / 2.0, th / 2.0).mul(&turn).mul(&Affine::scale(k, k)).mul(&Affine::translate(-w / 2.0, -h / 2.0))
+        }
+        mode => {
+            // FILL covers the box, FIT fits inside it; both centered.
+            let (rw, rh) = if quarter == 1.0 || quarter == 3.0 { (h, w) } else { (w, h) };
+            let s = if mode == "FIT" { (bw / rw).min(bh / rh) } else { (bw / rw).max(bh / rh) };
+            Affine::translate(bw / 2.0, bh / 2.0).mul(&turn).mul(&Affine::scale(s, s)).mul(&Affine::translate(-w / 2.0, -h / 2.0))
+        }
+    };
+    let m = xf.mul(&local);
+    let [a, b, c, d, e, f] = m.0;
+    let fits = [a, b, c, d].iter().all(|v| v.abs() <= MAX_LENGTH) && [e, f].iter().all(|v| v.abs() <= crate::limits::MAX_COORD);
+    if !m.is_finite() || !fits || m.determinant().abs() < 1e-12 {
+        ctx.warn("image_transform_invalid", id, name, "An image is placed with an invalid size or position, so it was skipped.");
+        return None;
+    }
+    let adjusted = p.filters.as_ref().and_then(|f| f.as_object()).is_some_and(|f| f.values().any(|v| v.as_f64().is_some_and(|x| x.abs() > 1e-9)));
+    if adjusted {
+        ctx.warn(
+            "image_adjustments_dropped",
+            id,
+            name,
+            "Image adjustments (exposure, contrast, saturation, temperature, tint, highlights, shadows) are not imported.",
+        );
+    }
+    if !ctx.used.contains(&index) {
+        ctx.used.push(index);
+    }
+    Some(Image {
+        id: part_id.to_string(),
+        name: part_name.to_string(),
+        visible: true,
+        opacity: unit(p.opacity),
+        blend_mode: blend(p.blend_mode.as_deref()),
+        image: ctx.assets[index].id.clone(),
+        matrix: m.0,
+        clip: Some(Clip { source_id: None, name: None, paths: paths.to_vec(), fill_rule }),
+        effects: Vec::new(),
+    })
+}
+
+/// A shape with the given fills (image fills among them are reported and skipped) and,
+/// unless this is a fills-only part, the node's strokes. `own_look`: the node's opacity and
+/// blend mode, else neutral (an enclosing group carries them).
+#[allow(clippy::too_many_arguments)]
+fn shape_of(
+    ctx: &mut Ctx,
+    n: &Node,
+    id: &str,
+    name: &str,
+    paths: Vec<Path>,
+    fill_rule: FillRule,
+    xf: &Affine,
+    closed: bool,
+    fills: &[&FPaint],
+    own_look: bool,
+) -> Option<Shape> {
+    if paths.is_empty() {
+        return None;
+    }
+    let fills: Vec<Paint> = fills.iter().filter_map(|p| paint(ctx, p, n, xf, id, name)).collect();
     let mut strokes = Vec::new();
     let weight = n.stroke_weight.unwrap_or(0.0);
     if weight > 0.0 && weight.is_finite() {
@@ -642,18 +883,8 @@ fn shape_from(ctx: &mut Ctx, n: &Node, id: &str, name: &str, paths: Vec<Path>, f
             }
         }
     }
-    Some(Shape {
-        id: id.to_string(),
-        name: name.to_string(),
-        visible: true,
-        opacity: unit(n.opacity),
-        blend_mode: blend(n.blend_mode.as_deref()),
-        paths,
-        fill_rule,
-        fills,
-        strokes,
-        effects: Vec::new(),
-    })
+    let (opacity, blend_mode) = if own_look { (unit(n.opacity), blend(n.blend_mode.as_deref())) } else { (1.0, BlendMode::Normal) };
+    Some(Shape { id: id.to_string(), name: name.to_string(), visible: true, opacity, blend_mode, paths, fill_rule, fills, strokes, effects: Vec::new() })
 }
 
 fn with_effects(s: Shape, effects: Vec<Effect>) -> Item {
@@ -979,6 +1210,144 @@ mod tests {
         assert_eq!(tx.outlines.len(), 1);
     }
 
+    /// Input with one 2 x 1 PNG under the Figma hash "h1" (plus extra entries).
+    fn with_image(nodes: serde_json::Value, extra: serde_json::Value) -> String {
+        let mut v: serde_json::Value = serde_json::from_str(&input(nodes)).unwrap();
+        let mut images = serde_json::json!({ "h1": crate::image::encode(&crate::image::tests::tiny_png()) });
+        if let Some(o) = extra.as_object() {
+            for (k, val) in o {
+                images[k] = val.clone();
+            }
+        }
+        v["images"] = images;
+        v["imagesSkipped"] = serde_json::json!(["h-big"]);
+        v.to_string()
+    }
+
+    fn image_node(id: &str, w: f64, h: f64, fills: serde_json::Value) -> serde_json::Value {
+        serde_json::json!({"id": id, "name": "Pic", "type": "RECTANGLE", "transform": t(100.0, 50.0), "width": w, "height": h, "fills": fills})
+    }
+
+    fn only_image(s: &Scene) -> &Image {
+        match &s.items[0] {
+            Item::Image(im) => im,
+            other => panic!("image expected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn image_fills_are_placed_like_figma() {
+        let img = |paint: serde_json::Value, w: f64, h: f64| {
+            let s = nodes_to_scene(
+                &with_image(serde_json::json!([image_node("7:1", w, h, serde_json::json!([paint]))]), serde_json::json!({})),
+                &FigmaOptions::default(),
+            )
+            .unwrap();
+            assert_eq!(s.images.len(), 1);
+            only_image(&s).clone()
+        };
+        // FILL: the 2 x 1 image covers the 100 x 50 box exactly (scale 50).
+        let fill = img(serde_json::json!({"type":"IMAGE","imageHash":"h1","scaleMode":"FILL"}), 100.0, 50.0);
+        assert_eq!(fill.matrix, [50.0, 0.0, 0.0, 50.0, 0.0, 0.0]);
+        assert_eq!(fill.id, "figma:7:1", "an image-only node is the image item itself");
+        assert_eq!(fill.clip.as_ref().unwrap().paths.len(), 1, "cut to the node's shape");
+        // FIT into a 50 x 50 box: 50 x 25, centered vertically.
+        let fit = img(serde_json::json!({"type":"IMAGE","imageHash":"h1","scaleMode":"FIT"}), 50.0, 50.0);
+        assert_eq!(fit.matrix, [25.0, 0.0, 0.0, 25.0, 0.0, 12.5]);
+        // FILL rotated 90 degrees clockwise: the image's top-left corner goes to the top right.
+        let turned = img(serde_json::json!({"type":"IMAGE","imageHash":"h1","scaleMode":"FILL","rotation":90}), 100.0, 50.0);
+        let m: Vec<f64> = turned.matrix.iter().map(|v| (v * 1e9).round() / 1e9).collect();
+        assert_eq!(m, [0.0, 100.0, -100.0, 0.0, 100.0, -75.0]);
+        // CROP: imageTransform maps the box to the middle half of the image.
+        let crop = img(serde_json::json!({"type":"IMAGE","imageHash":"h1","scaleMode":"CROP","imageTransform":[[0.5,0,0.25],[0,1,0]]}), 100.0, 50.0);
+        assert_eq!(crop.matrix, [100.0, 0.0, 0.0, 50.0, -50.0, 0.0]);
+        // TILE: one tile at the top left, scaled by scalingFactor (reported).
+        let tile = img(serde_json::json!({"type":"IMAGE","imageHash":"h1","scaleMode":"TILE","scalingFactor":3}), 100.0, 50.0);
+        assert_eq!(tile.matrix, [3.0, 0.0, 0.0, 3.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn image_fills_layer_with_the_other_fills_and_strokes() {
+        let node = serde_json::json!([{
+            "id": "7:2", "name": "Card", "type": "RECTANGLE", "transform": t(100.0, 50.0), "width": 100, "height": 50, "opacity": 0.5,
+            "fills": [
+                {"type":"SOLID","color":{"r":1,"g":1,"b":1}},
+                {"type":"IMAGE","imageHash":"h1","opacity":0.8,"filters":{"exposure":0.2}},
+                {"type":"SOLID","color":{"r":0,"g":0,"b":0},"opacity":0.5}
+            ],
+            "strokes": [{"type":"SOLID","color":{"r":0,"g":0,"b":0}}], "strokeWeight": 2,
+            "effects": [{"type":"DROP_SHADOW","visible":true,"color":{"r":0,"g":0,"b":0,"a":0.3},"offset":{"x":0,"y":2},"radius":4}]
+        }]);
+        let s = nodes_to_scene(&with_image(node, serde_json::json!({})), &FigmaOptions::default()).unwrap();
+        let Item::Group(g) = &s.items[0] else { panic!("group expected") };
+        assert_eq!((g.id.as_str(), g.opacity, g.effects.len()), ("figma:7:2", 0.5, 1), "the node's look is on the group");
+        let kinds: Vec<(&str, &str)> = g
+            .children
+            .iter()
+            .map(|c| {
+                (
+                    c.id(),
+                    match c {
+                        Item::Shape(_) => "shape",
+                        Item::Image(_) => "image",
+                        _ => "other",
+                    },
+                )
+            })
+            .collect();
+        assert_eq!(kinds, [("figma:7:2/top", "shape"), ("figma:7:2/image-0", "image"), ("figma:7:2/fill-0", "shape")]);
+        let Item::Shape(top) = &g.children[0] else { unreachable!() };
+        assert_eq!((top.fills.len(), top.strokes.len(), top.opacity), (1, 1, 1.0), "fills above the image and the strokes, neutral look");
+        let Item::Shape(below) = &g.children[2] else { unreachable!() };
+        assert!(below.strokes.is_empty());
+        let Item::Image(im) = &g.children[1] else { unreachable!() };
+        assert_eq!(im.opacity, 0.8);
+        let codes: Vec<&str> = s.warnings.iter().map(|w| w.code.as_str()).collect();
+        assert!(codes.contains(&"image_adjustments_dropped"), "{codes:?}");
+    }
+
+    #[test]
+    fn frame_backgrounds_leave_the_frame_look_to_the_frame() {
+        // A frame at 50% with an image background: the image must not be at 50% too.
+        let node = serde_json::json!([{
+            "id": "7:3", "name": "Frame", "type": "FRAME", "transform": t(100.0, 50.0), "width": 100, "height": 50, "opacity": 0.5,
+            "fills": [{"type":"IMAGE","imageHash":"h1"}],
+            "children": [{"id":"7:4","name":"Dot","type":"ELLIPSE","transform":t(110.0,60.0),"width":10,"height":10,"fills":[{"type":"SOLID","color":{"r":0,"g":0,"b":1}}]}]
+        }]);
+        let s = nodes_to_scene(&with_image(node, serde_json::json!({})), &FigmaOptions::default()).unwrap();
+        let Item::Group(frame) = &s.items[0] else { panic!("group expected") };
+        assert_eq!(frame.opacity, 0.5);
+        let Some(Item::Image(bg)) = frame.children.last() else { panic!("image background expected: {:?}", frame.children) };
+        assert_eq!((bg.id.as_str(), bg.opacity), ("figma:7:3/background", 1.0));
+        // Solid backgrounds too.
+        let node = serde_json::json!([{
+            "id": "7:5", "name": "Frame", "type": "FRAME", "transform": t(100.0, 50.0), "width": 100, "height": 50, "opacity": 0.5,
+            "fills": [{"type":"SOLID","color":{"r":1,"g":0,"b":0}}], "children": []
+        }]);
+        let s = nodes_to_scene(&input(node), &FigmaOptions::default()).unwrap();
+        let Item::Group(frame) = &s.items[0] else { panic!("group expected") };
+        let Some(Item::Shape(bg)) = frame.children.last() else { panic!("shape background expected") };
+        assert_eq!(bg.opacity, 1.0);
+    }
+
+    #[test]
+    fn images_that_cant_be_imported_are_reported() {
+        let webp = crate::image::encode(b"RIFF\x1a\x00\x00\x00WEBPVP8 ");
+        let nodes = serde_json::json!([
+            image_node("8:1", 10.0, 10.0, serde_json::json!([{"type":"IMAGE","imageHash":"h-webp"}])),
+            image_node("8:2", 10.0, 10.0, serde_json::json!([{"type":"IMAGE","imageHash":"h-big"}])),
+            image_node("8:3", 10.0, 10.0, serde_json::json!([{"type":"IMAGE","imageHash":"h-none"}, {"type":"SOLID","color":{"r":1,"g":0,"b":0}}])),
+        ]);
+        let s = nodes_to_scene(&with_image(nodes, serde_json::json!({ "h-webp": webp })), &FigmaOptions::default()).unwrap();
+        let by: std::collections::HashMap<&str, &str> = s.warnings.iter().map(|w| (w.code.as_str(), w.message.as_str())).collect();
+        assert!(by["image_unsupported"].contains("WebP"), "{by:?}");
+        assert!(by.contains_key("image_too_large") && by.contains_key("image_missing"), "{by:?}");
+        assert!(s.images.is_empty(), "no image made it, so none is carried");
+        // A node with a solid fill besides its missing image is still a shape with that fill.
+        let solid = s.items.iter().find(|i| i.id() == "figma:8:3").unwrap();
+        assert!(matches!(solid, Item::Shape(sh) if sh.fills.len() == 1), "{solid:?}");
+    }
+
     #[test]
     fn shadows_and_blurs_become_effects() {
         let s = nodes_to_scene(
@@ -1033,7 +1402,8 @@ mod tests {
         )
         .unwrap();
         let codes: Vec<&str> = s.warnings.iter().map(|w| w.code.as_str()).collect();
-        for c in ["unsupported_paint_image", "unsupported_paint_angular", "unsupported_effect", "unsupported_node"] {
+        // An image fill whose pixels didn't come with the selection is reported as missing.
+        for c in ["image_missing", "unsupported_paint_angular", "unsupported_effect", "unsupported_node"] {
             assert!(codes.contains(&c), "{codes:?}");
         }
         assert_eq!(s.items.len(), 1);

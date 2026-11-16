@@ -4,7 +4,7 @@
  * `outDir`. Also records the empty-selection error and repeated-capture timings.
  * Requires PulleyJSON and PulleyAI to be loaded first.
  */
-function pulleyCaptureFixtures(fixturesDir, outDir) {
+function pulleyCaptureFixtures(fixturesDir, outDir, only) {
     var results = [];
     function write(path, text) {
         var f = new File(path);
@@ -16,6 +16,8 @@ function pulleyCaptureFixtures(fixturesDir, outDir) {
     var files = new Folder(fixturesDir).getFiles("*.ai");
     for (var i = 0; i < files.length; i++) {
         var name = decodeURI(files[i].name).replace(/\.ai$/, "");
+        // `only`: comma-separated fixture names to capture; all when empty.
+        if (only && ("," + only + ",").indexOf("," + name + ",") < 0) { continue; }
         var entry = { name: name };
         try {
             var doc = app.open(files[i]);
@@ -32,6 +34,10 @@ function pulleyCaptureFixtures(fixturesDir, outDir) {
             entry.ms = new Date().getTime() - t0;
             entry.sourceSavedAfter = doc.saved;
             entry.selectedAfter = doc.selection.length;
+            // Linked image paths are machine-specific: store them relative to the fixtures folder.
+            var base = new Folder(fixturesDir).fsName;
+            var esc = base.split("\\").join("\\\\");
+            while (out.indexOf(esc) >= 0) { out = out.replace(esc, "<fixtures>"); }
             write(outDir + "/" + name + ".capture.json", out);
             entry.ok = out.indexOf('"ok":true') === 0 || out.indexOf('{"ok":true') === 0;
             if (name === "perf-500x20") {

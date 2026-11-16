@@ -16,6 +16,7 @@ use crate::scene::*;
 use crate::svg::{GradientGeom, ShapeGeom, SvgDoc, SvgPaint};
 use crate::validate::validate;
 use serde::Deserialize;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Options chosen in the Illustrator panel.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
@@ -115,6 +116,46 @@ struct CapItem {
     unsupported: Option<String>,
     #[serde(default)]
     deferred_error: Option<String>,
+    /// Placed (linked) or raster (embedded) image.
+    #[serde(default)]
+    image: Option<CapImage>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CapImage {
+    /// "placed" (PlacedItem) or "raster" (RasterItem).
+    kind: String,
+    #[serde(default)]
+    embedded: bool,
+    /// The linked file.
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    missing: bool,
+    /// The item's own box `[left, top, right, bottom]`; pixel rows run from `bottom` to `top`.
+    #[serde(default, rename = "box")]
+    bbox: Option<[f64; 4]>,
+    /// Illustrator's `matrix` as `[a, b, c, d, tx, ty]`.
+    #[serde(default)]
+    matrix: Option<[f64; 6]>,
+    /// `geometricBounds` `[left, top, right, bottom]` (document space, y up).
+    #[serde(default)]
+    bounds: Option<[f64; 4]>,
+}
+
+/// Linked image files, read by the Illustrator panel: base64 by the path the capture gives.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AiImages {
+    #[serde(default)]
+    pub images: BTreeMap<String, String>,
+    /// Paths left out because the files were too large to send.
+    #[serde(default)]
+    pub skipped: Vec<String>,
+    /// Paths that couldn't be read.
+    #[serde(default)]
+    pub unreadable: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -229,6 +270,11 @@ struct Ctx<'s, 'a> {
     left: f64,
     top: f64,
     warnings: Vec<Warning>,
+    /// Linked file path to its asset (index into `assets`), or why it can't be imported.
+    images: HashMap<String, std::result::Result<usize, String>>,
+    assets: Vec<ImageAsset>,
+    used: Vec<usize>,
+    skipped: HashSet<String>,
 }
 
 impl Ctx<'_, '_> {
@@ -314,6 +360,11 @@ fn unit(v: f64) -> f64 {
 
 /// Convert a capture plus its SVG into a validated scene.
 pub fn capture_to_scene(capture_json: &str, svg_text: &str, opts: &AiOptions) -> Result<Scene> {
+    capture_to_scene_with_images(capture_json, svg_text, opts, &AiImages::default())
+}
+
+/// `capture_to_scene` with the bytes of the linked images the capture refers to.
+pub fn capture_to_scene_with_images(capture_json: &str, svg_text: &str, opts: &AiOptions, files: &AiImages) -> Result<Scene> {
     if capture_json.len() > MAX_MESSAGE_BYTES {
         return Err(Error::data(ErrorCode::LimitExceeded, "The Illustrator capture is too large."));
     }
@@ -355,7 +406,39 @@ pub fn capture_to_scene(capture_json: &str, svg_text: &str, opts: &AiOptions) ->
     }
     let [l, t, r, b] = cap.artboard;
     let bounds = Rect { x: 0.0, y: 0.0, width: ((r - l) * scale).abs(), height: ((t - b) * scale).abs() };
-    let mut ctx = Ctx { svg: svg_doc.as_ref(), scale, left: l, top: t, warnings: Vec::new() };
+    let mut ctx = Ctx {
+        svg: svg_doc.as_ref(),
+        scale,
+        left: l,
+        top: t,
+        warnings: Vec::new(),
+        images: HashMap::new(),
+        assets: Vec::new(),
+        used: Vec::new(),
+        skipped: files.skipped.iter().cloned().collect(),
+    };
+    for path in &files.unreadable {
+        ctx.images.insert(path.clone(), Err("The linked image file couldn't be read.".into()));
+    }
+    for (path, data) in &files.images {
+        let entry = match crate::image::decode(data) {
+            None => Err(format!("This linked image is larger than {} MB.", crate::limits::MAX_IMAGE_BYTES / (1024 * 1024))),
+            Some(bytes) => match crate::image::asset(&bytes) {
+                None => Err(format!("This linked {} file can't be imported by After Effects.", crate::image::unsupported_kind(&bytes))),
+                Some(_) if ctx.assets.len() >= crate::limits::MAX_IMAGES => {
+                    Err(format!("Only {} different images can be sent at once.", crate::limits::MAX_IMAGES))
+                }
+                Some(a) => match ctx.assets.iter().position(|x| x.id == a.id) {
+                    Some(i) => Ok(i),
+                    None => {
+                        ctx.assets.push(a);
+                        Ok(ctx.assets.len() - 1)
+                    }
+                },
+            },
+        };
+        ctx.images.insert(path.clone(), entry);
+    }
     let mut items = Vec::new();
     for it in &cap.items {
         if let Some(item) = convert(&mut ctx, it, 1)? {
@@ -375,9 +458,110 @@ pub fn capture_to_scene(capture_json: &str, svg_text: &str, opts: &AiOptions) ->
         bounds,
     );
     scene.items = items;
+    scene.images = ctx.used.iter().map(|&i| ctx.assets[i].clone()).collect();
     scene.warnings = ctx.warnings;
     validate(&scene)?;
     Ok(scene)
+}
+
+/// A linked image, placed so its pixels land where Illustrator draws them.
+///
+/// Pixel (px, py) maps into the item's own box (`[l, t, r, b]`, rows from `b` toward `t`), then
+/// through the item's matrix to the document. Measured in Illustrator 29.5 (placed PNGs moved,
+/// scaled, rotated and mirrored): the matrix maps that box to the document only with its two
+/// off-diagonal terms negated, and an embedded raster's box is mirrored vertically. Rather than
+/// trust one convention, the candidates are tried in turn and the one that reproduces
+/// Illustrator's own bounds for the item is used.
+fn image_item(ctx: &mut Ctx, img: &CapImage, id: &str, name: &str, opacity: f64, blend_mode: BlendMode) -> Option<Image> {
+    if img.embedded {
+        ctx.warn(
+            "image_embedded",
+            id,
+            name,
+            "Embedded images can't be read by Pulley. Link the image instead (Links panel menu > Unembed, or File > Place with Link on), then push again.",
+        );
+        return None;
+    }
+    let path = match img.path.as_deref() {
+        Some(p) if !img.missing => p,
+        _ => {
+            ctx.warn("image_missing", id, name, "The linked image file is missing. Relink it in Illustrator (Links panel), then push again.");
+            return None;
+        }
+    };
+    let index = match ctx.images.get(path) {
+        Some(Ok(i)) => *i,
+        Some(Err(why)) => {
+            let why = why.clone();
+            ctx.warn("image_unsupported", id, name, why);
+            return None;
+        }
+        None if ctx.skipped.contains(path) => {
+            ctx.warn(
+                "image_too_large",
+                id,
+                name,
+                "This linked image was left out: it is too large to send (with the rest of the selection). Send fewer images at a time.",
+            );
+            return None;
+        }
+        None => {
+            ctx.warn("image_missing", id, name, "The linked image file couldn't be read.");
+            return None;
+        }
+    };
+    let (Some([l, t, r, b]), Some(m), Some(gb)) = (img.bbox, img.matrix, img.bounds) else {
+        ctx.warn("image_transform_invalid", id, name, "This image's placement couldn't be read, so it was skipped.");
+        return None;
+    };
+    let (w, h) = (f64::from(ctx.assets[index].width), f64::from(ctx.assets[index].height));
+    let to_box = Affine([(r - l) / w, 0.0, 0.0, (t - b) / h, l, b]);
+    let order: [(bool, bool); 4] = if img.kind == "raster" {
+        [(true, true), (false, true), (true, false), (false, false)]
+    } else {
+        [(true, false), (false, false), (true, true), (false, true)]
+    };
+    let size = (gb[2] - gb[0]).abs().max((gb[1] - gb[3]).abs());
+    let tol = 0.5 + 1e-3 * size;
+    for (negate, mirror) in order {
+        let [a, mb, mc, d, tx, ty] = m;
+        let (bb, cc) = if negate { (-mb, -mc) } else { (mb, mc) };
+        let flip = if mirror { Affine::scale(1.0, -1.0) } else { Affine::IDENTITY };
+        let px_to_doc = Affine([a, bb, cc, d, tx, ty]).mul(&flip).mul(&to_box);
+        let corners = [(0.0, 0.0), (w, 0.0), (0.0, h), (w, h)].map(|(x, y)| px_to_doc.apply(Pt::new(x, y)));
+        let (x0, x1) = corners.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| (lo.min(p.x), hi.max(p.x)));
+        let (y0, y1) = corners.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| (lo.min(p.y), hi.max(p.y)));
+        let fits = (x0 - gb[0]).abs() <= tol && (y1 - gb[1]).abs() <= tol && (x1 - gb[2]).abs() <= tol && (y0 - gb[3]).abs() <= tol;
+        if !fits {
+            continue;
+        }
+        // Document (y up) to scene (y down, artboard origin, px).
+        let to_scene = Affine([ctx.scale, 0.0, 0.0, -ctx.scale, -ctx.left * ctx.scale, ctx.top * ctx.scale]);
+        let matrix = to_scene.mul(&px_to_doc);
+        let [ma, mb2, mc2, md, me, mf] = matrix.0;
+        let in_range = [ma, mb2, mc2, md].iter().all(|v| v.abs() <= crate::limits::MAX_LENGTH)
+            && [me, mf].iter().all(|v| v.abs() <= crate::limits::MAX_COORD)
+            && matrix.determinant().abs() > 1e-12;
+        if !matrix.is_finite() || !in_range {
+            break;
+        }
+        if !ctx.used.contains(&index) {
+            ctx.used.push(index);
+        }
+        return Some(Image {
+            id: id.to_string(),
+            name: name.to_string(),
+            visible: true,
+            opacity,
+            blend_mode,
+            image: ctx.assets[index].id.clone(),
+            matrix: matrix.0,
+            clip: None,
+            effects: Vec::new(),
+        });
+    }
+    ctx.warn("image_transform_invalid", id, name, "This image's placement couldn't be read, so it was skipped.");
+    None
 }
 
 fn default_name(it: &CapItem) -> String {
@@ -419,6 +603,9 @@ fn convert(ctx: &mut Ctx, it: &CapItem, depth: usize) -> Result<Option<Item>> {
     }
     let opacity = unit(it.opacity.unwrap_or(100.0) / 100.0);
     let blend_mode = blend(it.blend.as_deref());
+    if let Some(img) = &it.image {
+        return Ok(image_item(ctx, img, &id, &name, opacity, blend_mode).map(Item::Image));
+    }
     if let Some(code) = &it.unsupported {
         let msg = match code.as_str() {
             "unsupported_raster" => "Images (placed or embedded) are not imported. The item was skipped.",

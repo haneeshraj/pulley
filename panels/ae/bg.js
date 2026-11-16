@@ -10,6 +10,7 @@
   var env = C.hostEnv();
   var instance = C.randomId(6);
   var tmpDir = C.pulleyDir('tmp');
+  var mediaDir = C.pulleyDir('media');
   C.fs.mkdir(C.pulleyDir());
   C.fs.mkdir(tmpDir);
 
@@ -125,9 +126,19 @@
           ffxFiles.push(f);
         }
       }
+      // Images: After Effects links to the files, so they stay in Pulley's media folder, named
+      // by the hash of their bytes (an image already there is the same image).
+      var media = plan.media || [];
+      if (media.length) { C.fs.mkdir(C.pulleyDir()); C.fs.mkdir(mediaDir); }
+      for (var mi = 0; mi < media.length; mi++) {
+        var mp = mediaDir + '/' + media[mi].name;
+        if (!C.fs.exists(mp) && !C.fs.writeBase64(mp, media[mi].data)) {
+          throw { message: 'Pulley could not save an image for After Effects.', hint: 'Check that ' + mediaDir + ' is writable.' };
+        }
+      }
       state.progress = { done: 0, total: 1, stage: 'Building layers' };
       emit();
-      var res = JSON.parse(await C.call('pulleyApplyPlan', [planPath, busy.cancelPath, ffxPrefix], 30 * 60 * 1000));
+      var res = JSON.parse(await C.call('pulleyApplyPlan', [planPath, busy.cancelPath, ffxPrefix, mediaDir], 30 * 60 * 1000));
       var warnings = [];
       (plan.sceneWarnings || []).forEach(function (w) { warnings.push((w.itemName ? w.itemName + ': ' : '') + w.message); });
       (plan.warnings || []).forEach(function (w) { warnings.push((w.itemName ? w.itemName + ': ' : '') + w.message); });

@@ -169,6 +169,28 @@ the import's single undo group.
 - Dashes: up to 3 dash/gap pairs plus offset; miter limit only when the join is miter (AE hides
   it otherwise).
 
+### Images
+
+- **Figma:** the plugin reads each visible image fill's settings and, for the selection's distinct
+  images, the original file bytes (`getImageByHash(...).getBytesAsync()`, 40 MB per send). The
+  core identifies each by SHA-256, checks its format and size, and turns each image fill into an
+  `image` item cut to the node's shape: FILL and FIT scale about the box center (with the fill's
+  quarter-turn rotation), CROP inverts Figma's `imageTransform` over the node box, TILE places one
+  tile. Fills below and above an image fill, and the strokes, become shapes below and above it in
+  a group carrying the node's opacity, blend mode and effects.
+- **Illustrator:** the capture records each linked image's path, file size, box and matrix; the
+  panel reads the files (`cep.fs`, base64) and passes them to the core. Pixels map into the item's
+  box and through its matrix; Illustrator's matrix needs its off-diagonal terms negated for this,
+  and an embedded raster's box is mirrored, so the core tries those conventions and keeps the one
+  that reproduces the item's own `geometricBounds` (verified with placed PNGs moved, scaled,
+  rotated and mirrored in Illustrator 29.5, then read back from After Effects' render).
+- **After Effects:** the panel writes each image to `<config>/media/<sha256>.<ext>` (skipped when
+  already there) and the plan's `IMG` line imports it (once per project: footage already in the
+  project for that file is reused) into a "Pulley images" folder, adds a footage layer with its
+  anchor at the image center, and the image's clip becomes masks in the layer's own pixel space.
+  Effects on an image are converted into that space too. On re-push the layer's source is
+  replaced if the image changed.
+
 ### Shadows and blurs
 
 - Figma drop shadows and layer blurs travel in the scene as `effects` with blur sizes as a

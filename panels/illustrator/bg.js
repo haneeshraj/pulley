@@ -51,6 +51,33 @@
     return false;
   }
 
+  // Linked image files travel inside the scene (base64), so their total is capped like the Figma
+  // plugin's; pulley-core's own limit per image is 48 MB.
+  var MAX_IMAGE_BYTES = 48 * 1024 * 1024;
+  var MAX_IMAGE_BYTES_TOTAL = 40 * 1024 * 1024;
+
+  /** Read the files of the linked images in a capture: { images: {path: base64}, skipped, unreadable }. */
+  function linkedImages(items) {
+    var files = { images: {}, skipped: [], unreadable: [] }, seen = {}, used = 0;
+    (function walk(list) {
+      for (var i = 0; i < list.length; i++) {
+        var im = list[i].image;
+        if (im && !im.embedded && !im.missing && im.path && !seen[im.path]) {
+          seen[im.path] = true;
+          var size = im.size || 0;
+          if (size > MAX_IMAGE_BYTES || used + size > MAX_IMAGE_BYTES_TOTAL) {
+            files.skipped.push(im.path);
+          } else {
+            var data = C.fs.readBase64(im.path);
+            if (data === null) { files.unreadable.push(im.path); } else { files.images[im.path] = data; used += size; }
+          }
+        }
+        if (list[i].children) { walk(list[i].children); }
+      }
+    })(items);
+    return files;
+  }
+
   /** Read the selection and build a scene. Returns scene JSON text or throws {code,message,hint}. */
   async function captureScene() {
     var o = readOptions();
@@ -63,9 +90,10 @@
     var svg = '';
     if (parsed.capture.svg) { svg = C.fs.read(svgPath) || ''; }
     C.fs.remove(svgPath);
+    var files = linkedImages(parsed.capture.items || []);
     var t1 = performance.now();
     var core = await window.PulleyWasm.load();
-    var scene = core.illustratorToScene(out, svg, JSON.stringify({ pxPerPt: o.pxPerPt }));
+    var scene = core.illustratorToScene(out, svg, JSON.stringify({ pxPerPt: o.pxPerPt }), JSON.stringify(files));
     return { scene: scene, timings: { capture: Math.round(t1 - t0), convert: Math.round(performance.now() - t1) } };
   }
 

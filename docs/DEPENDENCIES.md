@@ -12,6 +12,9 @@ Versions below are the locked ones as of 0.1.0.
 | `serde` | 1.0.229 | Typed (de)serialization of scenes, captures and protocol messages, with `deny_unknown_fields`. The standard. |
 | `serde_json` | 1.0.154 | JSON. Features: `float_roundtrip` (numbers survive a round trip exactly) and `raw_value` (the bridge forwards scenes without re-serializing). Rejects `NaN`/`Infinity` and overflowing numbers on input. |
 | `roxmltree` | 0.20.0 | Read-only XML parser for the SVG Pulley exports from a temporary Illustrator document (text outlines, symbols, very long paths). Small, no unsafe, no network or entity expansion. |
+| `sha2` | 0.11.1 | SHA-256 of image files: an image's id, and the name of the file After Effects imports (so the same image is stored and imported once). RustCrypto; default features off. |
+| `base64` | 0.23.1 | Decoding and encoding image files carried in scenes. |
+| `imagesize` | 0.15.0 | Reads an image file's pixel size from its header (PNG, JPEG, GIF, BMP, TIFF, PSD) without decoding pixels. No dependencies. |
 
 Written in-house instead of adding crates: the SVG path parser and arc-to-cubic conversion,
 shape builders, the RIFX/`.ffx` writer, base64. Each is small, covered by unit tests and fuzzed,

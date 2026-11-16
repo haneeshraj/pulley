@@ -8,7 +8,7 @@
 
 use pulley_core::Error;
 use pulley_core::aeplan::{AeOptions, build_plan};
-use pulley_core::illustrator::{AiOptions, capture_to_scene};
+use pulley_core::illustrator::{AiImages, AiOptions, capture_to_scene_with_images};
 use pulley_core::validate::{Component, parse_scene, serialize_scene, validate};
 use wasm_bindgen::prelude::*;
 
@@ -40,10 +40,13 @@ pub fn version() -> String {
 }
 
 /// Illustrator capture JSON (+ SVG text, empty if none) to scene JSON.
+/// `images`: JSON `{ images: { <path>: <base64> }, skipped: [paths], unreadable: [paths] }`, the
+/// linked image files the capture refers to, as the Illustrator panel read them ("" for none).
 #[wasm_bindgen(js_name = illustratorToScene)]
-pub fn illustrator_to_scene(capture: &str, svg: &str, options: &str) -> Result<String, JsValue> {
+pub fn illustrator_to_scene(capture: &str, svg: &str, options: &str, images: &str) -> Result<String, JsValue> {
     let o: AiOptions = opts(options)?;
-    let scene = capture_to_scene(capture, svg, &o).map_err(err)?;
+    let files: AiImages = opts(images)?;
+    let scene = capture_to_scene_with_images(capture, svg, &o, &files).map_err(err)?;
     serialize_scene(&scene).map_err(err)
 }
 
@@ -61,25 +64,30 @@ pub fn check_scene(scene: &str, reader: &str) -> Result<String, JsValue> {
     let s = parse_scene(scene, component(reader)).map_err(err)?;
     let st = validate(&s).map_err(err)?;
     Ok(serde_json::json!({
-        "items": st.items, "shapes": st.shapes, "texts": st.texts, "groups": st.groups,
+        "items": st.items, "shapes": st.shapes, "texts": st.texts, "groups": st.groups, "images": st.images,
         "paths": st.paths, "vertices": st.vertices, "warnings": s.warnings.len(),
         "source": s.source.app, "documentName": s.source.document_name,
     })
     .to_string())
 }
 
-/// Scene JSON + AE options JSON to the apply plan: `{ text, gradients, ffx, summary, warnings }`.
-/// `ffx` holds one base64 `.ffx` preset per gradient, for the Gradient Colors workaround.
+/// Scene JSON + AE options JSON to the apply plan: `{ text, gradients, ffx, media, summary,
+/// warnings }`. `ffx` holds one base64 `.ffx` preset per gradient, for the Gradient Colors
+/// workaround; `media` the image files the plan imports (`{ name, data }`, base64), each checked
+/// against its id.
 #[wasm_bindgen(js_name = sceneToPlan)]
 pub fn scene_to_plan(scene: &str, options: &str) -> Result<String, JsValue> {
     let s = parse_scene(scene, Component::AePanel).map_err(err)?;
     let o: AeOptions = opts(options)?;
     let plan = build_plan(&s, &o).map_err(err)?;
     let ffx: Vec<String> = plan.gradients.iter().map(|g| pulley_core::ffx::gradient_preset_base64(&g.stops)).collect();
+    let media: Vec<serde_json::Value> =
+        pulley_core::image::media_files(&s).map_err(err)?.into_iter().map(|m| serde_json::json!({ "name": m.name, "data": m.data })).collect();
     Ok(serde_json::json!({
         "text": plan.text,
         "gradients": plan.gradients,
         "ffx": ffx,
+        "media": media,
         "summary": plan.summary,
         "warnings": plan.warnings,
         "sceneWarnings": s.warnings,

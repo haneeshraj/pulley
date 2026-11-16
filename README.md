@@ -181,6 +181,14 @@ belong to; a group or frame with a shadow becomes a precomp with the shadow on i
 falls from the whole group. Pushing again updates these effects (animated ones are kept) and
 removes the ones you removed in Figma; effects you added yourself are never touched.
 
+**Images** become image layers: Figma image fills (fill, fit, crop) and images placed *linked* in
+Illustrator. Each image layer is placed, scaled and rotated like the original and cut to its
+shape with a mask; fills and strokes around an image fill become shape layers above and below it.
+The image files are saved in Pulley's **media folder** (`%APPDATA%\Pulley\media` on Windows,
+`~/Library/Application Support/Pulley/media` on macOS), named by their content, and imported into
+a "Pulley images" folder in the project; After Effects links to them there, so keep that folder
+(or use *File > Dependencies > Collect Files* when you move a project). Pulley never deletes them.
+
 Each import is **one undo step** ("Pulley Import"). The panel shows what was imported, how long
 it took, missing fonts, and a warning for everything that was approximated or skipped.
 
@@ -223,7 +231,8 @@ On Windows 11 (i9-13900H, 16 GB), After Effects 25.5, Illustrator 29.5; details 
 - After Effects suite: every example scene and Illustrator fixture imported, checked property by
   property, including gradient colors, track mattes and masks, text runs and fonts, strokes and
   dashes, the three layer modes, a single undo step, re-push, shadows and blurs (values, placement,
-  re-push), and 500 × 20-point performance cases.
+  re-push), images (read back from the rendered comp: orientation, rotation, mirroring, masks,
+  opacity), and 500 × 20-point performance cases.
 - End to end through the real bridge and the installed extensions: Illustrator push and pull, a
   scene push into a running After Effects (gradient colors included).
 - Illustrator capture of 13 fixture documents: correct scenes (golden tests), the document never
@@ -258,8 +267,16 @@ machine; CI.
 - Gradient-filled text uses the gradient's first color. Text can't be skewed in After Effects.
   Text on a path is imported as outlines. Rotated or scaled area text from Illustrator is
   imported unrotated.
-- Not imported: images and video fills, placed and embedded images, graphs, blends and envelopes
-  (expand them first), legacy text. Symbols become plain artwork.
+- Not imported: video fills, graphs, blends and envelopes (expand them first), legacy text.
+  Symbols become plain artwork.
+- **Images:** embedded images in Illustrator can't be read by scripts (link them instead: Links
+  panel menu > *Unembed*); linked PDF, AI, EPS and SVG files, and WebP/HEIC images, aren't
+  imported (After Effects-friendly formats are PNG, JPEG, GIF, BMP, TIFF and PSD; a PSD comes in
+  merged). Figma *tile* fills become a single tile, image adjustments (exposure, contrast, …) are
+  dropped, and a Figma image fill's rotation is assumed clockwise (not yet checked in Figma).
+  Images sent at once are capped at 40 MB in total (each at most 48 MB); the rest are listed.
+  After Effects layers can't be skewed, so a skewed image loses its skew. Image strokes and image
+  fills on text aren't imported.
   Rounded polygon/star corners (Figma) become sharp. Decorative stroke caps (arrows) become plain
   caps. The clipping path's own fill and stroke are dropped.
 - Groups containing text, clipping masks or effects are split into several layers; nested

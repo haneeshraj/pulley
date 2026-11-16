@@ -128,8 +128,10 @@ Any page can try to open `ws://127.0.0.1:47290`.
 
 ### 6. Your documents stay untouched
 
-- **Illustrator:** the capture only reads the document. Text outlines, symbols and very large
-  paths are read from a copy in a temporary document that is closed without saving. *Tested* on
+- **Illustrator:** the capture only reads the document. Text outlines, symbols, very large
+  paths, effects (expanded) and embedded images (saved as PNGs in Pulley's temp folder, deleted
+  once read) come from copies in a temporary document that is closed without saving; the
+  document's selection is never changed (deselecting marks a document as changed: checked). *Tested* on
   13 fixture documents: the document is never marked as changed and the selection is kept.
 - **Figma:** the plugin only reads node properties and image bytes; it never creates, changes or
   flattens nodes, so the file and its undo history are untouched.

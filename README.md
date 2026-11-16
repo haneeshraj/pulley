@@ -146,7 +146,17 @@ The plugin is a development plugin. Publishing notes: [docs/PACKAGING.md](docs/P
 
 **Illustrator:** select artwork, then **Push to After Effects** in the Pulley panel. Settings:
 *Include text outlines* (an outline copy of each text item is sent too, used in After Effects
-only if the font is missing) and *Pixels per point*.
+only if the font is missing), *Effects as pictures* (on by default, see below) and *Pixels per
+point*.
+
+**Illustrator effects** (Effect menu: drop shadows, glows, blurs, and other appearance such as
+art brushes) can't be read by scripts, so Pulley expands a *copy* of each item that has them in
+a temporary document (Object > Expand Appearance; your document is never changed). The shapes
+and live text stay editable layers; what the effect draws (a shadow, a glow) comes in as a
+picture layer under them, named "<item> effect", at the effect's own resolution (Document Raster
+Effects Settings, 300 ppi by default). A blurred item becomes one picture. Brushes and other
+appearance become plain shapes. Each item with effects adds about a second to the push. Turn
+*Effects as pictures* off to bring only the basic fill and stroke.
 
 **Figma:** select layers, then **Send to After Effects**, or **Save .pulley file**.
 
@@ -181,8 +191,9 @@ belong to; a group or frame with a shadow becomes a precomp with the shadow on i
 falls from the whole group. Pushing again updates these effects (animated ones are kept) and
 removes the ones you removed in Figma; effects you added yourself are never touched.
 
-**Images** become image layers: Figma image fills (fill, fit, crop) and images placed *linked* in
-Illustrator. Each image layer is placed, scaled and rotated like the original and cut to its
+**Images** become image layers: Figma image fills (fill, fit, crop) and Illustrator images,
+linked or embedded (an embedded image is saved as a picture from a copy, since scripts can't read
+its pixels directly). Each image layer is placed, scaled and rotated like the original and cut to its
 shape with a mask; fills and strokes around an image fill become shape layers above and below it.
 The image files are saved in Pulley's **media folder** (`%APPDATA%\Pulley\media` on Windows,
 `~/Library/Application Support/Pulley/media` on macOS), named by their content, and imported into
@@ -269,9 +280,9 @@ machine; CI.
   imported unrotated.
 - Not imported: video fills, graphs, blends and envelopes (expand them first), legacy text.
   Symbols become plain artwork.
-- **Images:** embedded images in Illustrator can't be read by scripts (link them instead: Links
-  panel menu > *Unembed*); linked PDF, AI, EPS and SVG files, and WebP/HEIC images, aren't
-  imported (After Effects-friendly formats are PNG, JPEG, GIF, BMP, TIFF and PSD; a PSD comes in
+- **Images:** Illustrator's embedded images arrive as pictures saved at their own resolution
+  (exact for unrotated images; a rotated one is saved as it looks, turned, with see-through
+  corners); linked PDF, AI, EPS and SVG files, and WebP/HEIC images, aren't imported (After Effects-friendly formats are PNG, JPEG, GIF, BMP, TIFF and PSD; a PSD comes in
   merged). Figma *tile* fills become a single tile, image adjustments (exposure, contrast, …) are
   dropped, and a Figma image fill's rotation is assumed clockwise (not yet checked in Figma).
   Images sent at once are capped at 40 MB in total (each at most 48 MB); the rest are listed.
@@ -281,9 +292,16 @@ machine; CI.
   caps. The clipping path's own fill and stroke are dropped.
 - Groups containing text, images, clipping masks or effects are split into several layers; nested
   clipping masks become a track matte on a precomp.
-- **Effects** (Figma only): drop shadows and layer blurs are imported. Inner shadows, background
-  blurs, noise, texture and glass effects are not (each is reported). Illustrator effects (Effect
-  menu, appearance) can't be read by scripts and are never imported. After Effects shadows have
+- **Effects from Figma:** drop shadows and layer blurs become After Effects effects. Inner shadows,
+  background blurs, noise, texture and glass effects are not imported (each is reported).
+- **Effects from Illustrator** come in as pictures, not as adjustable After Effects effects, since
+  scripts can't read their settings. They are found by what they draw outside an item, so effects
+  that stay inside its outline (an inner glow, some textures) are not detected and left out, and
+  an effect on a clipping group itself is missed when the hidden contents reach farther than the
+  effect. A picture is
+  as sharp as the document's raster effects resolution. Opacity masks inside an expanded effect
+  aren't imported.
+- **Figma shadows in After Effects:** After Effects shadows have
   no spread and no blend mode, so both are dropped, and a shadow is always drawn behind
   see-through parts of its item (Figma's *Show behind transparent areas* off is not reproduced).
   With several shadows on one item, each one in After Effects also falls on the shadows before

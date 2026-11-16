@@ -292,6 +292,25 @@ function pulleyMakeFixtures(outDir, only) {
         save(d, "images");
     });
 
+    // 10c. Live effects, applied with applyEffect (drop shadow and Gaussian blur): Pulley expands a
+    // copy, so shapes and text stay, effects come as pictures. Plain items must not be flagged.
+    step("effects", function () {
+        var d = newDoc(DocumentColorSpace.RGB, 600, 400);
+        var DS = '<LiveEffect name="Adobe Drop Shadow"><Dict data="R horz 7 R vert 7 R radi 5 R opac 0.75 I blnd 1 R dark 0 I csrc 0 B usePSLBlur 1 B pdim 0"/></LiveEffect>';
+        var GB = '<LiveEffect name="Adobe PSL Gaussian Blur"><Dict data="R blur 6"/></LiveEffect>';
+        var r1 = fillOnly(rect(d, 40, 40, 100, 60), rgb(220, 40, 30)); r1.name = "Shadow rect"; r1.applyEffect(DS);
+        var r2 = fillOnly(rect(d, 200, 40, 100, 60), rgb(220, 40, 30)); r2.name = "Half shadow rect"; r2.opacity = 50; r2.applyEffect(DS);
+        var e = fillOnly(ell(d, 360, 40, 80, 80), rgb(30, 90, 220)); e.name = "Blur ellipse"; e.applyEffect(GB);
+        var a = fillOnly(rect(d, 40, 200, 40, 40), rgb(0, 160, 60));
+        var b = fillOnly(rect(d, 100, 200, 40, 40), rgb(250, 200, 0));
+        var g = group(d, "Shadow group", [a, b]); g.applyEffect(DS);
+        var t = d.textFrames.add(); t.contents = "Shadow"; t.textRange.characterAttributes.size = 36; t.position = [X(d, 220), Y(d, 200)]; t.name = "Shadow text"; t.applyEffect(DS);
+        fillOnly(rect(d, 420, 220, 60, 60), rgb(120, 120, 120)).name = "Plain rect";
+        var pt = d.textFrames.add(); pt.contents = "Plain"; pt.textRange.characterAttributes.size = 24; pt.position = [X(d, 420), Y(d, 320)]; pt.name = "Plain text";
+        var pg = group(d, "Plain group", [fillOnly(rect(d, 40, 320, 30, 30), rgb(0, 0, 0)), fillOnly(rect(d, 80, 320, 30, 30), rgb(90, 90, 90))]);
+        save(d, "effects");
+    });
+
     // 11. CMYK document, spot and global colors, gray
     step("colors-cmyk", function () {
         var d = newDoc(DocumentColorSpace.CMYK, 600, 300);

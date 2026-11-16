@@ -12,11 +12,16 @@ fn linked_images(cap: &str) -> AiImages {
     let Some(i) = std::env::args().position(|a| a == "--image-root") else { return files };
     let root = std::path::PathBuf::from(std::env::args().nth(i + 1).expect("dir"));
     fn walk(v: &serde_json::Value, out: &mut Vec<String>) {
-        if let Some(p) = v.pointer("/image/path").and_then(|p| p.as_str()) {
-            out.push(p.to_string());
+        for key in ["/image/path", "/image/capture"] {
+            if let Some(p) = v.pointer(key).and_then(|p| p.as_str()) {
+                out.push(p.to_string());
+            }
         }
         for c in v.get("children").and_then(|c| c.as_array()).into_iter().flatten() {
             walk(c, out);
+        }
+        if let Some(e) = v.get("expanded") {
+            walk(e, out);
         }
     }
     let v: serde_json::Value = serde_json::from_str(cap).expect("capture json");
@@ -25,8 +30,8 @@ fn linked_images(cap: &str) -> AiImages {
         walk(it, &mut paths);
     }
     for p in paths {
-        let rel = p.trim_start_matches("<fixtures>").trim_start_matches(['\\', '/']);
-        if let Ok(bytes) = std::fs::read(root.join(rel)) {
+        let rel = p.trim_start_matches("<fixtures>").replace('\\', "/");
+        if let Ok(bytes) = std::fs::read(root.join(rel.trim_start_matches('/'))) {
             files.images.insert(p, pulley_core::image::encode(&bytes));
         }
     }

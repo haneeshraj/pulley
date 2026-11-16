@@ -13,13 +13,15 @@
   var o = {};
   try { o = JSON.parse(C.fs.read(optsPath) || '{}'); } catch (e) { o = {}; }
   $('outlines').checked = o.outlines !== false;
+  $('effects').checked = o.effects !== false;
   $('pxPerPt').value = o.pxPerPt || 1;
   function save() {
     var px = parseFloat($('pxPerPt').value);
     C.fs.mkdir(C.pulleyDir());
-    C.fs.write(optsPath, JSON.stringify({ outlines: $('outlines').checked, pxPerPt: px > 0 && px <= 100 ? px : 1 }));
+    C.fs.write(optsPath, JSON.stringify({ outlines: $('outlines').checked, effects: $('effects').checked, pxPerPt: px > 0 && px <= 100 ? px : 1 }));
   }
   $('outlines').addEventListener('change', save);
+  $('effects').addEventListener('change', save);
   $('pxPerPt').addEventListener('change', save);
 
   function render(s) {

@@ -17,7 +17,7 @@ fn dir() -> PathBuf {
 fn load(name: &str) -> Scene {
     let cap = std::fs::read_to_string(dir().join(format!("{name}.capture.json"))).expect("capture");
     let svg = std::fs::read_to_string(dir().join(format!("{name}.svg"))).unwrap_or_default();
-    let scene = capture_to_scene(&cap, &svg, &AiOptions::default()).expect("convert");
+    let scene = capture_to_scene_with_images(&cap, &svg, &AiOptions::default(), &files_of(&cap)).expect("convert");
     // Every converted scene must survive serialization and strict re-parsing.
     let json = serialize_scene(&scene).unwrap();
     assert_eq!(parse_scene(&json, Component::AePanel).unwrap(), scene);
@@ -30,9 +30,7 @@ fn linked_images_land_where_illustrator_draws_them() {
     // scaled 2x and rotated 30 degrees, mirrored, inside a clip group (3x), and once embedded.
     let cap = std::fs::read_to_string(dir().join("images.capture.json")).unwrap();
     let png = std::fs::read(dir().join("../marker.png")).unwrap();
-    let mut files = AiImages::default();
-    files.images.insert("<fixtures>\\marker.png".into(), pulley_core::image::encode(&png));
-    let s = capture_to_scene_with_images(&cap, "", &AiOptions::default(), &files).unwrap();
+    let s = capture_to_scene_with_images(&cap, "", &AiOptions::default(), &files_of(&cap)).unwrap();
     let image = |name: &str| match find(&s.items, name) {
         Item::Image(im) => im.clone(),
         other => panic!("{name}: image expected, got {other:?}"),
@@ -52,16 +50,100 @@ fn linked_images_land_where_illustrator_draws_them() {
     let Item::Group(g) = find(&s.items, "Image clip group") else { panic!("group expected") };
     assert!(g.clip.is_some());
     assert!(close(image("Clipped image").matrix, [3.0, 0.0, 0.0, 3.0, 186.0, 218.0]));
-    // One file, used four times, carried once.
-    assert_eq!(s.images.len(), 1);
-    assert_eq!(s.images[0].id, pulley_core::image::content_id(&png));
-    // Embedded pixels can't be read: reported, not imported.
-    assert!(try_find(&s.items, "Embedded").is_none());
-    let codes: Vec<&str> = s.warnings.iter().map(|w| w.code.as_str()).collect();
-    assert!(codes.contains(&"image_embedded"), "{codes:?}");
+    // The linked file, used four times, is carried once.
+    assert!(s.images.iter().any(|a| a.id == pulley_core::image::content_id(&png)));
+    // The embedded copy comes as the picture the capture saved, over the item's bounds
+    // (Illustrator: 50,150 to 114,118, y up; scene y = 400 - y).
+    let embedded = image("Embedded");
+    assert!(close(embedded.matrix, [1.0, 0.0, 0.0, 1.0, 50.0, 250.0]), "{:?}", embedded.matrix);
+    assert_eq!(s.images.len(), 2);
+    assert!(!s.warnings.iter().any(|w| w.code.starts_with("image_")), "{:?}", s.warnings);
     // Without the files (as with an older panel), the images are reported as missing.
     let bare = capture_to_scene(&cap, "", &AiOptions::default()).unwrap();
     assert!(bare.images.is_empty() && bare.warnings.iter().any(|w| w.code == "image_missing"));
+}
+
+/// The image files a capture refers to (linked files and saved pictures), as the Illustrator
+/// panel would read them: `<fixtures>` is the fixtures folder.
+fn files_of(cap: &str) -> AiImages {
+    fn walk(v: &serde_json::Value, out: &mut Vec<String>) {
+        for key in ["/image/path", "/image/capture"] {
+            if let Some(p) = v.pointer(key).and_then(|p| p.as_str()) {
+                out.push(p.to_string());
+            }
+        }
+        for c in v.get("children").and_then(|c| c.as_array()).into_iter().flatten() {
+            walk(c, out);
+        }
+        if let Some(e) = v.get("expanded") {
+            walk(e, out);
+        }
+    }
+    let v: serde_json::Value = serde_json::from_str(cap).unwrap();
+    let mut paths = Vec::new();
+    for it in v.pointer("/capture/items").and_then(|i| i.as_array()).into_iter().flatten() {
+        walk(it, &mut paths);
+    }
+    let mut files = AiImages::default();
+    for p in paths {
+        let rel = p.trim_start_matches("<fixtures>").replace('\\', "/");
+        let full = dir().join("..").join(rel.trim_start_matches('/'));
+        let bytes = std::fs::read(&full).unwrap_or_else(|e| panic!("{}: {e}", full.display()));
+        files.images.insert(p, pulley_core::image::encode(&bytes));
+    }
+    files
+}
+
+#[test]
+fn effects_come_as_pictures_under_editable_shapes() {
+    // effects.ai: drop shadows (on a shape, a 50% shape, a group and text) and a Gaussian blur,
+    // applied with applyEffect, plus plain items. The capture expanded a copy of each.
+    let cap = std::fs::read_to_string(dir().join("effects.capture.json")).unwrap();
+    let svg = std::fs::read_to_string(dir().join("effects.svg")).unwrap_or_default();
+    let s = capture_to_scene_with_images(&cap, &svg, &AiOptions::default(), &files_of(&cap)).unwrap();
+    let group = |name: &str| match find(&s.items, name) {
+        Item::Group(g) => g.clone(),
+        other => panic!("{name}: group expected, got {other:?}"),
+    };
+    // A shape with a shadow: its shape on top, the shadow picture (at the shadow's 75%) under it.
+    let sr = group("Shadow rect");
+    assert!(sr.id.starts_with("ai:"), "keeps the item's id: {}", sr.id);
+    assert_eq!(sr.children.len(), 2);
+    let Item::Group(shape) = &sr.children[0] else { panic!("shape group first: {:?}", sr.children[0]) };
+    assert!(matches!(&shape.children[0], Item::Shape(sh) if sh.fills.len() == 1));
+    let Item::Image(shadow) = &sr.children[1] else { panic!("picture second") };
+    assert_eq!((shadow.name.as_str(), shadow.opacity), ("Shadow rect effect", 0.75));
+    assert_eq!(shadow.id, format!("{}x1", sr.id), "derived from the item's id, stable across pushes");
+    // The picture covers the shadow: offset 7 pt right and down from the 100 x 60 rectangle at
+    // (40, 40), widened by the blur.
+    let [a, _, _, d, e, f] = shadow.matrix;
+    let asset = s.images.iter().find(|x| x.id == shadow.image).unwrap();
+    let (x1, y1) = (e + a * f64::from(asset.width), f + d * f64::from(asset.height));
+    assert!(e < 40.0 && f < 40.0 && x1 > 147.0 && y1 > 107.0, "{:?} over {}x{}", shadow.matrix, asset.width, asset.height);
+    // 300 ppi pictures (the document's raster effects resolution): about 4 px per pt.
+    assert!((a - 0.24).abs() < 0.01, "{a}");
+    // The item's 50% stays on the group, not doubled on the picture.
+    assert_eq!(group("Half shadow rect").opacity, 0.5);
+    // A blur turns the whole item into a picture.
+    assert!(matches!(find(&s.items, "Blur ellipse"), Item::Image(_)));
+    // Text stays live text, its shadow a picture.
+    let st = group("Shadow text");
+    let Item::Group(inner) = &st.children[0] else { panic!("text group first") };
+    assert!(matches!(&inner.children[0], Item::Text(t) if t.content == "Shadow"));
+    assert!(matches!(&st.children[1], Item::Image(_)));
+    // A group's own shadow: both shapes, then the picture.
+    let sg = group("Shadow group");
+    let Item::Group(shapes) = &sg.children[0] else { panic!("shapes first") };
+    assert_eq!(shapes.children.len(), 2);
+    // Plain items are untouched.
+    assert!(matches!(find(&s.items, "Plain rect"), Item::Shape(_)));
+    assert!(matches!(find(&s.items, "Plain text"), Item::Text(_)));
+    assert!(matches!(find(&s.items, "Plain group"), Item::Group(g) if g.children.iter().all(|c| matches!(c, Item::Shape(_)))));
+    // Five pictures, four files: the two rectangles cast identical shadows, stored once.
+    assert_eq!(s.images.len(), 4);
+    let codes: Vec<&str> = s.warnings.iter().map(|w| w.code.as_str()).collect();
+    assert_eq!(codes.iter().filter(|c| **c == "effects_as_pictures").count(), 5, "{codes:?}");
+    assert!(!codes.contains(&"appearance_not_imported"), "{codes:?}");
 }
 
 fn find<'a>(items: &'a [Item], name: &str) -> &'a Item {
@@ -261,12 +343,13 @@ fn transforms_are_baked_into_geometry() {
 fn unsupported_items_warn_and_never_fail() {
     let s = load("unsupported");
     let codes: Vec<&str> = s.warnings.iter().map(|w| w.code.as_str()).collect();
-    assert!(codes.contains(&"unsupported_raster"), "{codes:?}");
     assert!(codes.contains(&"symbol_expanded"));
     assert!(codes.contains(&"unsupported_pattern"));
     let Item::Group(sym) = find(&s.items, "Symbol instance") else { panic!() };
     assert_eq!(sym.children.len(), 1);
-    assert!(try_find(&s.items, "Raster").is_none());
+    // A rasterized (embedded) item now comes as the picture the capture saved of it.
+    assert!(matches!(find(&s.items, "Raster"), Item::Image(_)));
+    assert!(!codes.iter().any(|c| c.starts_with("image_") || *c == "unsupported_raster"), "{codes:?}");
 }
 
 #[test]

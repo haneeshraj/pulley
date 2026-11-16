@@ -15,8 +15,12 @@ with After Effects 25.5 and Illustrator 29.5; see the README for what is and isn
 - **Shadows and blurs from Figma** become After Effects Drop Shadow and Gaussian Blur effects,
   sized to match (measured in After Effects); re-push updates and removes them. pulley-scene v2
   adds `effects` (v1 scenes still read).
-- **Images:** Figma image fills and Illustrator linked images become image layers, placed like
-  the original and cut to their shape; image files are kept in Pulley's media folder.
+- **Images:** Figma image fills and Illustrator images (linked, or embedded: saved as a picture
+  from a copy) become image layers, placed like the original and cut to their shape; image files
+  are kept in Pulley's media folder.
+- **Illustrator effects:** drop shadows, glows, blurs, brushes and other appearance come through:
+  a copy is expanded, shapes and live text stay editable, effects arrive as picture layers
+  (option *Effects as pictures*, on by default).
 - Precomps leave room for strokes and estimated point-text extents, so their edges no longer cut
   off outer strokes or text without outlines.
 - A Figma frame's opacity and blend mode were applied twice to its background; fixed.

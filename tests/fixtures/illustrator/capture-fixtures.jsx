@@ -34,10 +34,14 @@ function pulleyCaptureFixtures(fixturesDir, outDir, only) {
             entry.ms = new Date().getTime() - t0;
             entry.sourceSavedAfter = doc.saved;
             entry.selectedAfter = doc.selection.length;
-            // Linked image paths are machine-specific: store them relative to the fixtures folder.
+            // Image paths are machine-specific: store them relative to the fixtures folder. Linked
+            // files come as Windows paths (escaped backslashes in the JSON), saved pictures with
+            // forward slashes, as their paths were given.
             var base = new Folder(fixturesDir).fsName;
-            var esc = base.split("\\").join("\\\\");
-            while (out.indexOf(esc) >= 0) { out = out.replace(esc, "<fixtures>"); }
+            var forms = [base.split("\\").join("\\\\"), base.split("\\").join("/"), fixturesDir];
+            for (var fi = 0; fi < forms.length; fi++) {
+                while (forms[fi] && out.indexOf(forms[fi]) >= 0) { out = out.replace(forms[fi], "<fixtures>"); }
+            }
             write(outDir + "/" + name + ".capture.json", out);
             entry.ok = out.indexOf('"ok":true') === 0 || out.indexOf('{"ok":true') === 0;
             if (name === "perf-500x20") {

@@ -272,6 +272,33 @@ Fuzzing after adding effects and images: 60,000 mutated inputs each for the scen
 parsers, seeded with the effects and images examples and a Figma selection with image fills and
 effects: no crash; slowest inputs 0.8 s (1.8 MB) and 0.9 s (4.2 MB).
 
+### Illustrator effects and embedded images
+
+Probed in Illustrator 29.5: live effects applied by script (`applyEffect` with the Drop Shadow
+and Gaussian Blur LiveEffect XML) expand (Object > Expand Appearance) into the original shapes or
+live text plus an embedded picture of the effect at the document's raster effects resolution
+(300 ppi: matrix scale 0.24), the picture at the shadow's opacity; a blur expands into one
+picture. An embedded image's `boundingBox` is its pixel size whatever its scale.
+`Document.imageCapture` writes transparent RGBA PNGs, identical in preview and Outline view.
+
+Fixture `effects.ai` (made by `make-fixtures.jsx`): drop shadows on a shape, a 50% shape, a group
+and text, a Gaussian blur, and plain items. Results:
+
+- Capture: the five items with effects expanded, five pictures saved (four distinct files: two
+  shadows are identical), the plain items untouched, the document not marked as changed.
+  Re-capturing every other fixture with the new capture code gave identical captures, except the
+  rasterized item in `unsupported.ai`, which now comes as a picture.
+- Golden test `effects_come_as_pictures_under_editable_shapes`: shapes and text stay shapes and
+  live text with the shadow picture under them, picture ids derived from the item's, the 50%
+  opacity on the group only (not doubled), the blur as one picture.
+- After Effects suite case `ai-effects`, read back from the rendered comp: the red shape on top,
+  its shadow dark and soft to the right, nothing beyond it, the 50% item at 50%, the blur solid
+  in the middle and soft at the edge, the plain shape unchanged, the text a live text layer with
+  a picture layer for its shadow. `ai-images`: the embedded image the right way up.
+- Through the installed Illustrator extension and the release bridge (stand-in After Effects
+  pulling): `effects.ai` answered in 7.2 s with the expected layers; the temporary PNGs were gone
+  afterwards.
+
 ### Import speed
 
 [`tests/ae/layer-bench.jsx`](../tests/ae/layer-bench.jsx) (After Effects 25.5, 200 shape layers,

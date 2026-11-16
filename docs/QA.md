@@ -79,7 +79,18 @@ text, a layout with clipping masks, a CMYK document, a Large Canvas document, a 
 
 - [ ] Place a PNG and a JPEG linked (File > Place, Link on), scale, rotate and mirror one, put one
       in a clipping mask, then push: image layers where Illustrator shows them.
-- [ ] An embedded image: reported, the rest imports. A missing link: reported.
+- [ ] An embedded image (placed with Link off, or pasted): an image layer where Illustrator shows
+      it. A missing link: reported.
+
+## Illustrator effects
+
+- [ ] Drop shadows (Effect > Stylize > Drop Shadow) on a shape, on a group and on text, an outer
+      glow, a Gaussian blur, a shape with an art brush: push. Shapes and text stay editable; the
+      shadow or glow is a picture layer under them; the blurred item is a picture; the brush is
+      plain shapes. Compare with Illustrator at 100%.
+- [ ] Turn *Effects as pictures* off and push again: only the basic fills and strokes, with a
+      warning for each item.
+- [ ] The Illustrator document shows no changes and its undo history is untouched.
 
 ## Re-push
 

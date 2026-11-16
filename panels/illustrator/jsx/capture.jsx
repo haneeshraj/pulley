@@ -18,6 +18,13 @@
  * temporary document, each on its own layer named after the item's token, and that document
  * is exported once as SVG to a path chosen by Pulley; pulley-core reads the geometry from it.
  *
+ * Effects (shadows, glows, blurs, brushes and other appearance the DOM can't describe) and
+ * embedded images are handled in the same temporary document: an item whose appearance reaches
+ * beyond its geometry is duplicated there and expanded (Object > Expand Appearance), which
+ * turns it into plain shapes, live text and embedded pictures; each picture, and each embedded
+ * image of the selection, is saved as a transparent PNG next to the SVG (Document.imageCapture,
+ * at the picture's own resolution). The core places the PNGs, and the panel deletes them.
+ *
  * Requires PulleyJSON (json.jsx).
  */
 var PulleyAI = (function () {
@@ -242,6 +249,89 @@ var PulleyAI = (function () {
         return r;
     }
 
+    /**
+     * Does a group draw beyond all of its children, so the group itself has an effect? (The same
+     * rule for clipping groups: Illustrator reports their visible bounds as their contents'.)
+     */
+    function groupHasEffect(g) {
+        try {
+            var v = g.visibleBounds, items = g.pageItems, n = items.length, u = null, i, b;
+            if (n === 0) { return false; }
+            for (i = 0; i < n; i++) {
+                if (items[i].hidden) { continue; }
+                b = items[i].visibleBounds;
+                u = u ? [Math.min(u[0], b[0]), Math.max(u[1], b[1]), Math.max(u[2], b[2]), Math.min(u[3], b[3])] : [b[0], b[1], b[2], b[3]];
+            }
+            if (!u) { return false; }
+            var slack = 0.5;
+            return (u[0] - v[0] > slack) || (v[2] - u[2] > slack) || (v[1] - u[1] > slack) || (u[3] - v[3] > slack);
+        } catch (e) { return false; }
+    }
+
+    /** Does a text frame draw beyond its text (an effect)? Character strokes are allowed for. */
+    function textHasEffect(tf) {
+        try {
+            var g = tf.geometricBounds, v = tf.visibleBounds, slack = 1;
+            try { var ca = tf.textRange.characterAttributes; if (ca.strokeColor && ca.strokeColor.typename !== "NoColor") { slack += ca.strokeWeight; } } catch (eS) {}
+            return (g[0] - v[0] > slack) || (v[2] - g[2] > slack) || (v[1] - g[1] > slack) || (g[3] - v[3] > slack);
+        } catch (e) { return false; }
+    }
+
+    /**
+     * Copy `it` to the end of `layer` at the same numeric position (the temporary artboard
+     * matches the source's). Copies have always landed in place (measured: setting the position
+     * anyway costs ~125 ms per copy), so it is set only if it differs.
+     */
+    function copyInPlace(it, layer) {
+        var c = it.duplicate(layer, ElementPlacement.PLACEATEND);
+        try {
+            var a = it.position, b = c.position;
+            if (Math.abs(a[0] - b[0]) > 1e-6 || Math.abs(a[1] - b[1]) > 1e-6) { c.position = a; }
+        } catch (eP) {}
+        return c;
+    }
+
+    // Pictures are saved at the resolution they carry (72 / their matrix scale), within limits.
+    var PICTURE_MIN_PPI = 72, PICTURE_MAX_PPI = 600, PICTURE_MAX_PIXELS = 36000000;
+
+    /**
+     * Save `it` (a raster item) as a transparent PNG at `path`: alone on a new layer of `doc`
+     * (the temporary document), every other layer hidden while capturing. An item of the user's
+     * document is copied there; an item already in `doc` (from an expanded copy, discarded
+     * afterwards) is moved there, which is cheaper.
+     */
+    function capturePicture(doc, it, meta, path, own) {
+        var iso = doc.layers.add(), hidden = [], i;
+        try {
+            var c;
+            if (own) { it.move(iso, ElementPlacement.PLACEATEND); c = it; } else { c = copyInPlace(it, iso); }
+            // The item's own opacity and blend mode travel separately (After Effects layer
+            // properties); the picture holds the pixels alone.
+            try { c.opacity = 100; c.blendingMode = BlendModes.NORMAL; } catch (eO) {}
+            for (i = 0; i < doc.layers.length; i++) {
+                var L = doc.layers[i];
+                if (L !== iso && L.visible) { L.visible = false; hidden.push(L); }
+            }
+            var b = c.visibleBounds, ppi = PICTURE_MIN_PPI;
+            try { var m = c.matrix; var sc = Math.sqrt(m.mValueA * m.mValueA + m.mValueB * m.mValueB); if (sc > 0) { ppi = 72 / sc; } } catch (eM) {}
+            ppi = Math.max(PICTURE_MIN_PPI, Math.min(PICTURE_MAX_PPI, ppi));
+            var px = (b[2] - b[0]) * (b[1] - b[3]) * (ppi / 72) * (ppi / 72);
+            if (px > PICTURE_MAX_PIXELS) { ppi = ppi * Math.sqrt(PICTURE_MAX_PIXELS / px); }
+            var o = new ImageCaptureOptions();
+            o.resolution = ppi;
+            o.antiAliasing = true;
+            o.transparency = true;
+            doc.imageCapture(new File(path), b, o);
+            meta.image.capture = path;
+            meta.image.captureBounds = arr(b);
+        } catch (e) {
+            meta.image.captureError = String(e);
+        } finally {
+            for (i = 0; i < hidden.length; i++) { try { hidden[i].visible = true; } catch (eV) {} }
+            try { iso.remove(); } catch (eR) {}
+        }
+    }
+
     var BIG_PATH = 1000;
 
     function walk(it, state, deferred) {
@@ -254,8 +344,14 @@ var PulleyAI = (function () {
         if (t === "GroupItem") {
             m.clipped = it.clipped;
             m.children = [];
-            var items = it.pageItems;
+            var items = it.pageItems, before = deferred.length;
             for (var k = 0; k < items.length; k++) { m.children.push(walk(items[k], state, deferred)); }
+            if (state.effects && groupHasEffect(it)) {
+                // The group's expanded copy replaces everything inside it: drop their own copies.
+                deferred.length = before;
+                m.appearance = true;
+                deferred.push({ kind: "expand", item: it, meta: m });
+            }
             return m;
         }
         if (t === "CompoundPathItem") {
@@ -271,6 +367,7 @@ var PulleyAI = (function () {
                 m.clipping = ps[0].clipping;
                 m.paint = paintOf(ps[0]);
                 m.appearance = boundsCheck(ps[0]);
+                if (state.effects && m.appearance && !m.clipping) { deferred.push({ kind: "expand", item: it, meta: m }); }
             }
             return m;
         }
@@ -284,11 +381,18 @@ var PulleyAI = (function () {
                 m.paths = [pathOf(it)];
             }
             m.appearance = boundsCheck(it);
+            if (state.effects && m.appearance && !m.clipping) { deferred.push({ kind: "expand", item: it, meta: m }); }
             return m;
         }
         if (t === "TextFrame") {
             m.text = textOf(it);
-            if (state.outlines) { deferred.push({ kind: "outline", item: it, meta: m }); }
+            if (state.effects && textHasEffect(it)) {
+                // Expanded instead (the copy keeps live text); no outline copy needed.
+                m.appearance = true;
+                deferred.push({ kind: "expand", item: it, meta: m });
+            } else if (state.outlines) {
+                deferred.push({ kind: "outline", item: it, meta: m });
+            }
             return m;
         }
         if (t === "SymbolItem") {
@@ -298,6 +402,8 @@ var PulleyAI = (function () {
         }
         if (t === "PlacedItem" || t === "RasterItem") {
             m.image = imageOf(it, t);
+            // Embedded pixels can't be read by script: save a picture of them from a copy.
+            if (m.image.embedded) { deferred.push({ kind: "picture", item: it, meta: m }); }
             return m;
         }
         m.unsupported = unsupportedKind(t);
@@ -321,7 +427,78 @@ var PulleyAI = (function () {
     // Text outlines, symbol contents and very large paths: copies in one temporary document,
     // each on its own layer named after the item's token (layers export as <g id="token">).
     // The document stays active while it is modified (background documents are ~100x slower).
-    function processDeferred(src, deferred, svgPath) {
+    /**
+     * Expand a copy of `d.item` (Object > Expand Appearance) in `tmp` and read the result as the
+     * item's `expanded` capture; its embedded pictures are saved as PNGs.
+     */
+    function tick(state, key, t0) {
+        var t = state.timing || (state.timing = {});
+        t[key] = (t[key] || 0) + (new Date().getTime() - t0);
+        return new Date().getTime();
+    }
+
+    function expandCopy(tmp, d, state, svgPath) {
+        if (!state.fxLayer) { state.fxLayer = tmp.layers.add(); state.fxLayer.name = "pulley_fx"; }
+        var lay = state.fxLayer;
+        var t0 = new Date().getTime();
+        var dup = null;
+        try {
+            dup = copyInPlace(d.item, lay);
+            t0 = tick(state, "duplicate", t0);
+            tmp.selection = null;
+            dup.selected = true;
+            app.executeMenuCommand("expandStyle");
+            var res = tmp.selection;
+            t0 = tick(state, "expand", t0);
+            // Nothing selected afterwards: nothing was expanded.
+            if (!res || res.length === 0) { return false; }
+            // The expanded artwork is read like a selection, without text outlines or copies.
+            var sub = { n: state.n, outlines: false, effects: false };
+            var pictures = [];
+            var em;
+            if (res.length === 1) {
+                em = walk(res[0], sub, pictures);
+            } else {
+                // Several objects (topmost first, as selected): read them as one group.
+                em = { token: "p" + (++sub.n), type: "GroupItem", name: d.meta.name, opacity: 100, blend: "normal", clipped: false, children: [] };
+                for (var k = 0; k < res.length; k++) { em.children.push(walk(res[k], sub, pictures)); }
+            }
+            state.n = sub.n;
+            t0 = tick(state, "read", t0);
+            // Nothing gained (a false alarm: no picture, and text or a group expanded into itself,
+            // like area text whose letters reach past its frame): keep the plain capture.
+            var gotPicture = false;
+            for (var g = 0; g < pictures.length; g++) { if (pictures[g].kind === "picture") { gotPicture = true; } }
+            var same = em.type === "TextFrame" || (em.type === "GroupItem" && d.meta.type === "GroupItem" && (em.children || []).length === (d.meta.children || []).length);
+            if (!gotPicture && same) { return false; }
+            for (var i = 0; i < pictures.length; i++) {
+                var p = pictures[i];
+                if (p.kind === "picture") {
+                    capturePicture(tmp, p.item, p.meta, svgPath + "-" + p.meta.token + ".png", true);
+                } else if (p.kind === "geometry") {
+                    // Very long paths are read directly here (no SVG copy for expanded artwork).
+                    if (p.item.typename === "CompoundPathItem") {
+                        p.meta.paths = [];
+                        for (var q = 0; q < p.item.pathItems.length; q++) { p.meta.paths.push(pathOf(p.item.pathItems[q])); }
+                    } else {
+                        p.meta.paths = [pathOf(p.item)];
+                    }
+                } else {
+                    p.meta.deferredError = "not readable inside an expanded effect";
+                }
+            }
+            t0 = tick(state, "pictures", t0);
+            d.meta.expanded = em;
+            return true;
+        } catch (e) {
+            d.meta.expandError = String(e);
+        } finally {
+            // Clear the shared layer for the next item.
+            try { while (lay.pageItems.length > 0) { lay.pageItems[0].remove(); } } catch (eR) {}
+        }
+    }
+
+    function processDeferred(src, deferred, svgPath, state) {
         if (deferred.length === 0) { return false; }
         var ab = src.artboards[src.artboards.getActiveArtboardIndex()].artboardRect;
         var tmp = app.documents.add(src.documentColorSpace, Math.max(1, ab[2] - ab[0]), Math.max(1, ab[1] - ab[3]));
@@ -335,15 +512,30 @@ var PulleyAI = (function () {
             ref.name = "pulley_ref_rect";
             ref.filled = true;
             ref.stroked = false;
+            // Pictures and expanded effects first; their layers are gone before the SVG export.
+            var svgJobs = [];
+            for (var j = 0; j < deferred.length; j++) {
+                var dj = deferred[j];
+                if (dj.kind === "picture") { var tp = new Date().getTime(); capturePicture(tmp, dj.item, dj.meta, svgPath + "-" + dj.meta.token + ".png", false); tick(state, "pictures", tp); }
+                else if (dj.kind === "expand") {
+                    var used = expandCopy(tmp, dj, state, svgPath);
+                    // Text that turned out to have no effect still gets its outline copy.
+                    if (!used && !dj.meta.expandError && dj.item.typename === "TextFrame" && state.outlines) { svgJobs.push({ kind: "outline", item: dj.item, meta: dj.meta }); }
+                    if (!used && !dj.meta.expandError) { dj.meta.appearance = false; }
+                }
+                else { svgJobs.push(dj); }
+            }
+            if (state.fxLayer) { try { state.fxLayer.remove(); } catch (eL) {} state.fxLayer = null; }
+            if (svgJobs.length === 0) { return false; }
+            deferred = svgJobs;
             for (var i = 0; i < deferred.length; i++) {
                 var d = deferred[i];
                 try {
                     var lay = tmp.layers.add();
                     lay.name = d.meta.token + (d.kind === "outline" ? "_outline" : "_svg");
-                    var dup = d.item.duplicate(lay, ElementPlacement.PLACEATEND);
                     // Same numeric position as the source, so it sits where the source sits
                     // relative to the reference square.
-                    dup.position = d.item.position;
+                    var dup = copyInPlace(d.item, lay);
                     if (d.kind === "outline") { dup.createOutline(); }
                     else if (d.kind === "symbol") { dup.breakLink(); }
                     if (d.kind === "outline") { d.meta.outline = lay.name; } else { d.meta.svg = lay.name; }
@@ -364,6 +556,15 @@ var PulleyAI = (function () {
             try { o.sVGTextOnPath = false; } catch (e12) {}
             try { o.saveMultipleArtboards = false; } catch (e13) {}
             tmp.exportFile(new File(svgPath), ExportType.SVG, o);
+            // The SVG exporter writes rasterized effects of outlined copies as <name>-<n>.png
+            // files next to the SVG; Pulley reads only the geometry, so remove them.
+            try {
+                var svgFile = new File(svgPath), stem = decodeURI(svgFile.name).replace(/\.svg$/i, "");
+                var extra = svgFile.parent.getFiles(stem + "-*.png");
+                for (var x = 0; x < extra.length; x++) {
+                    if (/-\d+\.png$/i.test(decodeURI(extra[x].name))) { extra[x].remove(); }
+                }
+            } catch (eX) {}
         } finally {
             tmp.close(SaveOptions.DONOTSAVECHANGES);
             app.activeDocument = src;
@@ -377,7 +578,7 @@ var PulleyAI = (function () {
      * folder, used only if copies were needed (then `capture.svg` is true). Returns JSON text:
      * { ok: true, capture: {...} } or { ok: false, error: {...} }.
      */
-    function capture(withOutlines, svgPath) {
+    function capture(withOutlines, svgPath, withEffects) {
         if (app.documents.length === 0) {
             return fail("no_document", "No document is open in Illustrator.", "Open a document, select some artwork and push again.");
         }
@@ -403,14 +604,15 @@ var PulleyAI = (function () {
         };
         try { cap.scaleFactor = src.scaleFactor || 1; } catch (eSF) {}
         var savedBefore = src.saved;
-        var state = { n: 0, outlines: withOutlines !== "0" };
+        var state = { n: 0, outlines: withOutlines !== "0", effects: withEffects !== "0" };
         var deferred = [];
         try {
             for (var i = 0; i < tops.length; i++) { cap.items.push(walk(tops[i], state, deferred)); }
             cap.timing.read = new Date().getTime() - t0;
             var t1 = new Date().getTime();
-            cap.svg = processDeferred(src, deferred, svgPath);
+            cap.svg = processDeferred(src, deferred, svgPath, state);
             cap.timing.copies = new Date().getTime() - t1;
+            if (state.timing) { cap.timing.effects = state.timing; }
         } catch (e) {
             try { app.activeDocument = src; } catch (eA) {}
             return fail("capture_failed", "Reading the selection failed: " + e.toString() + (e.line ? " (line " + e.line + ")" : ""), "Try a smaller selection. If it keeps failing, save the log (Open log) and report it.");
@@ -422,6 +624,6 @@ var PulleyAI = (function () {
     return { capture: capture };
 })();
 
-function pulleyAiCapture(withOutlines, svgPath) {
-    return PulleyAI.capture(withOutlines, svgPath);
+function pulleyAiCapture(withOutlines, svgPath, withEffects) {
+    return PulleyAI.capture(withOutlines, svgPath, withEffects);
 }

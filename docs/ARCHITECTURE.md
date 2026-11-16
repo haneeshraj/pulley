@@ -264,12 +264,31 @@ colors resolved; CMYK and gray converted with `app.convertSampleColor`), gradien
 geometry, path points with handles, and text (characters, runs merged from per-character
 attributes, frame type, matrix).
 
-Copies are needed only for three things the DOM can't give directly: **text outlines** (when
-*Include text outlines* is on), **symbol** artwork, and **paths over 1,000 points** (reading
-those point by point is slow). These items are duplicated into a temporary document sized to the
-artboard, with a reference square for alignment, exported to SVG in Pulley's temp folder, and the
-temporary document is closed without saving. pulley-core parses that SVG and matches its
-elements to the captured items by id.
+Copies are needed only for things the DOM can't give directly: **text outlines** (when *Include
+text outlines* is on), **symbol** artwork, **paths over 1,000 points** (reading those point by
+point is slow), **effects** and **embedded images**. These items are duplicated into one
+temporary document sized to the artboard, with a reference square for alignment; it is closed
+without saving.
+
+- Effects and embedded images first. An item whose appearance reaches beyond its geometry (a
+  path drawing outside its stroke, a group outside all its children, a text frame outside its
+  text) is expanded there (Object > Expand Appearance) and the result read like a selection: its
+  shapes and live text as usual, and each embedded picture saved as a transparent PNG
+  (`Document.imageCapture`, alone on a layer with everything else hidden, at 72 / the picture's
+  scale ppi, at full opacity: the item's opacity travels as a layer property). Expanded items
+  get ids derived from the original's uuid (`<uuid>x<index>`), so re-push finds their layers.
+  An expansion that adds nothing (no picture, and text or a group expanded into itself, as when
+  area text's letters reach past its frame) is dropped. Embedded images of the selection are
+  saved the same way. The panel reads the PNGs and deletes them.
+- Then the outline, symbol and long-path copies are exported to SVG in Pulley's temp folder;
+  pulley-core parses it and matches its elements to the captured items by id. (The SVG exporter
+  writes rasterized effects of outlined text as extra PNGs; the capture deletes them.)
+
+Measured (Illustrator 29.5): copying an item with effects into the temporary document takes about
+0.45 s, Expand Appearance about 0.1 s, saving a picture about 0.2 s; moving the temporary view
+away or switching it to Outline mode doesn't change the copy time (and doesn't change the
+pictures). Setting a copy's position, which always came out unchanged, cost 0.125 s, so it is
+set only when it differs.
 
 Why DOM first: in milestone 1, reading every point of 500 script-created paths took 78.6 s, which
 suggested SVG export. Measured on documents opened from disk (like real ones), reading 100 paths ×

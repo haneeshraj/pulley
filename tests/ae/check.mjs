@@ -316,12 +316,27 @@ const tests = {
   'ai-images'(r) {
     const px = r.samples;
     const is = (i, rgb) => nearArr(px[i], [...rgb, 1], 0.02);
-    check(this.n, r.res.images === 4, `4 image layers from Illustrator (got ${r.res.images})`);
+    check(this.n, r.res.images === 5, `5 image layers from Illustrator, the embedded one included (got ${r.res.images})`);
     check(this.n, r.footage.filter((f) => f.file === 'b1b830aa189aea84d1f8c148a3f670e94a0925a1ebadfcf808cae21f72bd22c9.png').length === 1, 'the linked file is imported once');
     check(this.n, is(0, [0, 1, 0]) && is(1, [1, 0, 0]) && is(2, [0, 0, 1]), `"Plain" is the right way up (got ${JSON.stringify(px.slice(0, 3))})`);
     check(this.n, is(3, [0, 1, 0]) && is(4, [1, 0, 0]) && is(5, [0, 0, 1]), `"Mirrored" is mirrored left to right (got ${JSON.stringify(px.slice(3, 6))})`);
-    check(this.n, is(6, [0, 0, 1]) && near(px[7][3], 0, 0.02), `the clipped image shows only inside its clip (got ${JSON.stringify(px.slice(6))})`);
+    check(this.n, is(6, [0, 0, 1]) && near(px[7][3], 0, 0.02), `the clipped image shows only inside its clip (got ${JSON.stringify(px.slice(6, 8))})`);
+    check(this.n, is(8, [0, 1, 0]) && is(9, [1, 0, 0]) && is(10, [0, 0, 1]), `the embedded image comes in the right way up (got ${JSON.stringify(px.slice(8, 11))})`);
     check(this.n, r.res.warnings.length === 0, 'no apply warnings');
+  },
+  'ai-effects'(r) {
+    const px = r.samples;
+    const d = r.dump;
+    const red = [220 / 255, 40 / 255, 30 / 255];
+    check(this.n, nearArr(px[0], [...red, 1], 0.02), `"Shadow rect": its red shape is on top (got ${JSON.stringify(px[0])})`);
+    check(this.n, px[1][3] > 0.15 && px[1][3] < 0.95 && px[1][0] < 0.1 && px[1][1] < 0.1 && px[1][2] < 0.1, `its shadow shows to the right, dark and soft (got ${JSON.stringify(px[1])})`);
+    check(this.n, px[2][3] < 0.05, `nothing beyond the shadow (got ${JSON.stringify(px[2])})`);
+    check(this.n, near(px[3][3], 0.5, 0.06) && px[3][0] > px[3][1] && px[3][0] > px[3][2], `"Half shadow rect": shape and shadow together at 50% (got ${JSON.stringify(px[3])})`);
+    check(this.n, nearArr(px[4], [30 / 255, 90 / 255, 220 / 255, 1], 0.03) && px[5][3] > 0.2 && px[5][3] < 0.8, `"Blur ellipse": solid in the middle, soft at the edge (got ${JSON.stringify(px.slice(4, 6))})`);
+    check(this.n, nearArr(px[6], [120 / 255, 120 / 255, 120 / 255, 1], 0.02), `"Plain rect" is a plain shape (got ${JSON.stringify(px[6])})`);
+    const names = d.layers.map((l) => l.name);
+    check(this.n, names.includes('Shadow text effect') && d.layers.some((l) => l.kind === 'text' && l.text === 'Shadow'), `text stays live text, its shadow a picture layer (got ${names.join(', ')})`);
+    check(this.n, r.res.images === 5, `5 picture layers (got ${r.res.images})`);
   },
   'undo-images'(r) {
     check(this.n, r.undo.layersAfter === 0 && r.undo.itemsAfter === 1, `one Undo removes the layers, the footage and its folder (layers ${r.undo.layersBefore} -> ${r.undo.layersAfter}, items ${r.undo.itemsBefore} -> ${r.undo.itemsAfter})`);

@@ -72,7 +72,7 @@ struct Capture {
     items: Vec<CapItem>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CapItem {
     token: String,
@@ -119,9 +119,15 @@ struct CapItem {
     /// Placed (linked) or raster (embedded) image.
     #[serde(default)]
     image: Option<CapImage>,
+    /// The item's appearance (effects, brushes...) expanded in a copy: shapes, live text and
+    /// pictures. Converted instead of the item.
+    #[serde(default)]
+    expanded: Option<Box<CapItem>>,
+    #[serde(default)]
+    expand_error: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CapImage {
     /// "placed" (PlacedItem) or "raster" (RasterItem).
@@ -142,6 +148,14 @@ struct CapImage {
     /// `geometricBounds` `[left, top, right, bottom]` (document space, y up).
     #[serde(default)]
     bounds: Option<[f64; 4]>,
+    /// A picture the capture saved (embedded images, pictures from expanded effects): a PNG
+    /// covering `capture_bounds` (document space, y up), not rotated.
+    #[serde(default)]
+    capture: Option<String>,
+    #[serde(default)]
+    capture_bounds: Option<[f64; 4]>,
+    #[serde(default)]
+    capture_error: Option<String>,
 }
 
 /// Linked image files, read by the Illustrator panel: base64 by the path the capture gives.
@@ -158,14 +172,14 @@ pub struct AiImages {
     pub unreadable: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct CapPath {
     #[serde(default)]
     closed: bool,
     pts: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CapPaint {
     #[serde(default)]
@@ -192,7 +206,7 @@ struct CapPaint {
     dash_offset: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CapColor {
     #[serde(default)]
@@ -217,7 +231,7 @@ struct CapColor {
     matrix: Option<[f64; 6]>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct CapStop {
     at: f64,
     mid: f64,
@@ -225,7 +239,7 @@ struct CapStop {
     rgb: Vec<f64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CapText {
     text_kind: String,
@@ -241,7 +255,7 @@ struct CapText {
     runs: Vec<CapRun>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CapRun {
     start: u32,
@@ -465,6 +479,73 @@ pub fn capture_to_scene_with_images(capture_json: &str, svg_text: &str, opts: &A
     Ok(scene)
 }
 
+/// A picture saved by the capture (`doc_rect`: `[left, top, right, bottom]`, y up), placed over
+/// that rectangle.
+fn picture_item(ctx: &mut Ctx, path: &str, doc_rect: [f64; 4], id: &str, name: &str, opacity: f64, blend_mode: BlendMode) -> Option<Image> {
+    let index = match ctx.images.get(path) {
+        Some(Ok(i)) => *i,
+        Some(Err(why)) => {
+            let why = why.clone();
+            ctx.warn("image_unsupported", id, name, why);
+            return None;
+        }
+        None if ctx.skipped.contains(path) => {
+            ctx.warn(
+                "image_too_large",
+                id,
+                name,
+                "This picture was left out: the selection's images together are too large to send at once. Send fewer at a time.",
+            );
+            return None;
+        }
+        None => {
+            ctx.warn("image_missing", id, name, "The picture Pulley saved for this item couldn't be read.");
+            return None;
+        }
+    };
+    let (w, h) = (f64::from(ctx.assets[index].width), f64::from(ctx.assets[index].height));
+    let [l, t, r, b] = doc_rect;
+    if ![l, t, r, b].iter().all(|v| v.is_finite()) || r <= l || t <= b {
+        ctx.warn("image_transform_invalid", id, name, "This picture's placement couldn't be read, so it was skipped.");
+        return None;
+    }
+    let px_to_doc = Affine([(r - l) / w, 0.0, 0.0, -(t - b) / h, l, t]);
+    let to_scene = Affine([ctx.scale, 0.0, 0.0, -ctx.scale, -ctx.left * ctx.scale, ctx.top * ctx.scale]);
+    let matrix = to_scene.mul(&px_to_doc);
+    if !ctx.used.contains(&index) {
+        ctx.used.push(index);
+    }
+    Some(Image {
+        id: id.to_string(),
+        name: name.to_string(),
+        visible: true,
+        opacity,
+        blend_mode,
+        image: ctx.assets[index].id.clone(),
+        matrix: matrix.0,
+        clip: None,
+        effects: Vec::new(),
+    })
+}
+
+/// Ids for an expanded copy: the top keeps the original item's uuid and token (so a later push
+/// finds the same layers), descendants get `<uuid>x<index>` paths. Unnamed pictures are called
+/// "<name> effect".
+fn relabel(it: &mut CapItem, uuid: Option<&str>, token: &str, top_name: &str) {
+    it.uuid = uuid.map(str::to_string);
+    it.token = token.to_string();
+    for (i, c) in it.children.iter_mut().enumerate() {
+        if c.name.is_empty() && c.kind == "RasterItem" {
+            c.name = format!("{top_name} effect");
+        }
+        relabel(c, uuid.map(|u| format!("{u}x{i}")).as_deref(), &format!("{token}x{i}"), top_name);
+    }
+}
+
+fn has_picture(it: &CapItem) -> bool {
+    it.image.is_some() || it.children.iter().any(has_picture)
+}
+
 /// A linked image, placed so its pixels land where Illustrator draws them.
 ///
 /// Pixel (px, py) maps into the item's own box (`[l, t, r, b]`, rows from `b` toward `t`), then
@@ -474,13 +555,12 @@ pub fn capture_to_scene_with_images(capture_json: &str, svg_text: &str, opts: &A
 /// trust one convention, the candidates are tried in turn and the one that reproduces
 /// Illustrator's own bounds for the item is used.
 fn image_item(ctx: &mut Ctx, img: &CapImage, id: &str, name: &str, opacity: f64, blend_mode: BlendMode) -> Option<Image> {
+    if let (Some(path), Some(bounds)) = (img.capture.as_deref(), img.capture_bounds) {
+        return picture_item(ctx, path, bounds, id, name, opacity, blend_mode);
+    }
     if img.embedded {
-        ctx.warn(
-            "image_embedded",
-            id,
-            name,
-            "Embedded images can't be read by Pulley. Link the image instead (Links panel menu > Unembed, or File > Place with Link on), then push again.",
-        );
+        let why = img.capture_error.as_deref().map(|e| format!(" ({})", e.chars().take(120).collect::<String>())).unwrap_or_default();
+        ctx.warn("image_embedded", id, name, format!("This embedded image could not be saved as a picture{why}, so it was skipped."));
         return None;
     }
     let path = match img.path.as_deref() {
@@ -604,6 +684,24 @@ fn convert(ctx: &mut Ctx, it: &CapItem, depth: usize) -> Result<Option<Item>> {
     }
     let opacity = unit(it.opacity.unwrap_or(100.0) / 100.0);
     let blend_mode = blend(it.blend.as_deref());
+    if let Some(ex) = &it.expanded {
+        // Effects, brushes and other appearance, expanded in a copy: shapes and live text stay
+        // editable, effects become pictures.
+        let mut ex = (**ex).clone();
+        if ex.name.is_empty() {
+            ex.name = it.name.clone();
+        }
+        relabel(&mut ex, it.uuid.as_deref(), &it.token, &name);
+        if has_picture(&ex) {
+            ctx.warn(
+                "effects_as_pictures",
+                &id,
+                &name,
+                "Its effects (shadow, glow, blur...) come in as a picture layer: Illustrator doesn't let scripts read effect settings.",
+            );
+        }
+        return convert(ctx, &ex, depth);
+    }
     if let Some(img) = &it.image {
         return Ok(image_item(ctx, img, &id, &name, opacity, blend_mode).map(Item::Image));
     }
@@ -622,12 +720,15 @@ fn convert(ctx: &mut Ctx, it: &CapItem, depth: usize) -> Result<Option<Item>> {
         ctx.warn(code, &id, &name, msg);
         return Ok(None);
     }
-    if it.appearance {
+    if let Some(e) = &it.expand_error {
+        let shown: String = e.chars().take(120).collect();
+        ctx.warn("effects_not_expanded", &id, &name, format!("Its effects could not be read ({shown}); only the basic fill and stroke are imported."));
+    } else if it.appearance {
         ctx.warn(
             "appearance_not_imported",
             &id,
             &name,
-            "This item looks larger than its path (an art brush, live effect or extra stroke?). Only the basic fill and stroke are imported.",
+            "This item looks larger than its path (an art brush, live effect or extra stroke?). Only the basic fill and stroke are imported. Turn on \"Effects as pictures\" in the Pulley panel's options to bring the effect in.",
         );
     }
     if let Some(e) = &it.deferred_error {

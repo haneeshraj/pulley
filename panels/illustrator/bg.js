@@ -19,10 +19,11 @@
   function emit() { C.dispatch('dev.pulley.ai.state', state); }
 
   function readOptions() {
-    var d = { outlines: true, pxPerPt: 1 };
+    var d = { outlines: true, effects: true, pxPerPt: 1 };
     try {
       var o = JSON.parse(C.fs.read(C.pulleyDir('ai-options.json')) || '{}');
       if (typeof o.outlines === 'boolean') { d.outlines = o.outlines; }
+      if (typeof o.effects === 'boolean') { d.effects = o.effects; }
       if (typeof o.pxPerPt === 'number' && o.pxPerPt > 0 && o.pxPerPt <= 100) { d.pxPerPt = o.pxPerPt; }
     } catch (e) { /* defaults */ }
     return d;
@@ -56,23 +57,35 @@
   var MAX_IMAGE_BYTES = 48 * 1024 * 1024;
   var MAX_IMAGE_BYTES_TOTAL = 40 * 1024 * 1024;
 
-  /** Read the files of the linked images in a capture: { images: {path: base64}, skipped, unreadable }. */
+  /**
+   * Read the image files a capture refers to: linked images (by their path) and the pictures the
+   * capture saved in Pulley's temp folder (embedded images, effects), which are deleted once
+   * read. Returns { images: {path: base64}, skipped, unreadable }.
+   */
   function linkedImages(items) {
     var files = { images: {}, skipped: [], unreadable: [] }, seen = {}, used = 0;
+    function take(path, size) {
+      if (seen[path]) { return; }
+      seen[path] = true;
+      if (size > MAX_IMAGE_BYTES || used + size > MAX_IMAGE_BYTES_TOTAL) { files.skipped.push(path); return; }
+      var data = C.fs.readBase64(path);
+      if (data === null) { files.unreadable.push(path); return; }
+      var bytes = Math.floor(data.replace(/\s/g, '').length * 3 / 4);
+      if (used + bytes > MAX_IMAGE_BYTES_TOTAL) { files.skipped.push(path); return; }
+      files.images[path] = data;
+      used += bytes;
+    }
     (function walk(list) {
       for (var i = 0; i < list.length; i++) {
         var im = list[i].image;
-        if (im && !im.embedded && !im.missing && im.path && !seen[im.path]) {
-          seen[im.path] = true;
-          var size = im.size || 0;
-          if (size > MAX_IMAGE_BYTES || used + size > MAX_IMAGE_BYTES_TOTAL) {
-            files.skipped.push(im.path);
-          } else {
-            var data = C.fs.readBase64(im.path);
-            if (data === null) { files.unreadable.push(im.path); } else { files.images[im.path] = data; used += size; }
-          }
+        if (im && im.capture) {
+          take(im.capture, 0);
+          C.fs.remove(im.capture);
+        } else if (im && !im.embedded && !im.missing && im.path) {
+          take(im.path, im.size || 0);
         }
         if (list[i].children) { walk(list[i].children); }
+        if (list[i].expanded) { walk([list[i].expanded]); }
       }
     })(items);
     return files;
@@ -82,8 +95,10 @@
   async function captureScene() {
     var o = readOptions();
     var svgPath = tmpDir + '/capture-' + C.randomId(6) + '.svg';
+    // Pictures left behind by an interrupted capture (normally deleted as soon as they are read).
+    C.fs.list(tmpDir).forEach(function (f) { if (/^capture-.*\.png$/.test(f)) { C.fs.remove(tmpDir + '/' + f); } });
     var t0 = performance.now();
-    var out = await C.call('pulleyAiCapture', [o.outlines ? '1' : '0', svgPath], 10 * 60 * 1000);
+    var out = await C.call('pulleyAiCapture', [o.outlines ? '1' : '0', svgPath, o.effects ? '1' : '0'], 10 * 60 * 1000);
     var parsed;
     try { parsed = JSON.parse(out); } catch (e) { throw { code: 'capture_failed', message: 'Illustrator returned an unreadable answer.', hint: 'Try again; if it repeats, save the log and report it.' }; }
     if (!parsed.ok) { C.fs.remove(svgPath); throw parsed.error; }

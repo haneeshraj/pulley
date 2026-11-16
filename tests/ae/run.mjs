@@ -61,7 +61,17 @@ const cases = [
     // "Plain" at (50,50): green corner, red, blue. "Mirrored" at (450,50): green at the top right.
     '54,54;66,66;98,66;510,54;498,66;466,66;' +
     // "Clipped image" (3x at 186,218) inside its clip (260..360, 260..320), and outside the clip.
-    '300,280;200,250'],
+    '300,280;200,250;' +
+    // "Embedded" (saved as a picture by the capture) at (50,250): green corner, red, blue.
+    '54,254;66,266;98,266'],
+  // Illustrator live effects (expanded copies: shapes stay shapes, effects come as pictures).
+  ['ai-effects', [`${F}/effects.capture.json`, `${F}/effects.svg`], { ...comp, placement: 'original' }, true, 'pulleyTestApplySample',
+    // "Shadow rect" (40,40..140,100, shadow 7 pt right and down): inside, in the shadow band, far outside.
+    '90,70;143.5,80;175,70;' +
+    // "Half shadow rect" (50%): inside. "Blur ellipse" (center 400,80, radius 40): center, edge.
+    '250,70;400,80;440,80;' +
+    // "Plain rect" (420,220..480,280).
+    '450,250'],
   ['undo-images', 'schema/examples/images.json', { ...comp, placement: 'original' }, true, 'pulleyTestApplyUndo'],
   ['twice-images', 'schema/examples/images.json', { ...comp, placement: 'original' }, true, 'pulleyTestPushTwice'],
 ].filter(([name]) => (only.length ? only.includes(name) : true))

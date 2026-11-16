@@ -290,12 +290,24 @@ Full After Effects suite afterwards: 123 checks passed, 0 failed; 500 × 20 path
 
 ## Latest runs (2026-11-15)
 
-**After Effects suite** (`node tests/ae/run.mjs`, full run): **60 checks passed, 0 failed**
-across 16 cases (selection-kept was added afterwards: 2 of 2 passed in its own run). 500 × 20
-timings in this run: merge 5.5 s, one layer per item 11.2 s (a long fuzzing run was using one
-CPU core at the same time). The previous full run: merge 3.9 s, per item 15.7 s.
+Final runs after re-push, the pairing-code clipboard, shadows and blurs, images and the faster
+layer building:
 
-**Fuzzing:** see [Fuzzing](#fuzzing) above.
+- **After Effects suite** (`node tests/ae/run.mjs`, full run): **123 checks passed, 0 failed**
+  across 31 cases. 500 × 20 timings: one layer per item 3.2 s, merged 5.7 s.
+- **Rust:** every workspace test passes (core 95 unit tests, 15 Illustrator golden tests, 13
+  bridge tests, the fuzz harness, and the rest); `cargo clippy` and `cargo fmt --check` clean;
+  `cargo deny check` passes. `cargo audit` reports only the two known warnings from Linux-only
+  tray dependencies (`glib`, `proc-macro-error`), not used on Windows or macOS.
+- **Figma plugin:** `npm test`, 7 of 7 (including image fills read and converted by the real
+  WebAssembly core, and the UI driven in Edge against a real bridge).
+- **End to end:** the release bridge (headless) and the installed After Effects extension; the
+  effects and images examples pushed through the bridge were forwarded in 2.6 and 1.8 ms and
+  imported in 2.4 and 0.9 s, with the effects and footage in place.
+- **Fuzzing:** 60,000 inputs each for the scene and Figma parsers with the new seeds; earlier
+  runs: see [Fuzzing](#fuzzing) above.
+
+Earlier full run (before these features): 60 checks passed; 500 × 20 as layers 11.2–15.7 s.
 
 # Part 2: milestone 1 research
 

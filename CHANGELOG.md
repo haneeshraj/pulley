@@ -20,6 +20,9 @@ with After Effects 25.5 and Illustrator 29.5; see the README for what is and isn
 - Precomps leave room for strokes and estimated point-text extents, so their edges no longer cut
   off outer strokes or text without outlines.
 - A Figma frame's opacity and blend mode were applied twice to its background; fixed.
+- **Faster imports:** new shape layers are copies of one empty template layer, and the comp is
+  hidden while building any import of 8 or more layers: 500 layers in 3.2 s instead of 9–16 s;
+  20 layers in about a third of a second instead of 1.3 s.
 
 - **pulley-core** (Rust, also compiled to WebAssembly): pulley-scene format (v2) with JSON Schema,
   strict validation and hard limits; Illustrator capture and Figma node conversion; SVG path and

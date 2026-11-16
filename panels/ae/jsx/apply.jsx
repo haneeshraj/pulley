@@ -33,6 +33,8 @@ var PulleyApply = (function () {
     // Image files Pulley saved in its media folder: <sha-256 hex>.<one of these>.
     var IMAGE_EXT = { png: 1, jpg: 1, gif: 1, bmp: 1, tif: 1, psd: 1 };
     var IMAGE_FOLDER = "Pulley images";
+    // Plan lines that add a layer (see the viewer swap in apply()).
+    var LAYER_OPS = ["\nLS ", "\nLT ", "\nIMG ", "\nPRE "];
     var DASH_NAMES = ["ADBE Vector Stroke Dash 1", "ADBE Vector Stroke Gap 1", "ADBE Vector Stroke Dash 2",
         "ADBE Vector Stroke Gap 2", "ADBE Vector Stroke Dash 3", "ADBE Vector Stroke Gap 3"];
 
@@ -225,6 +227,10 @@ var PulleyApply = (function () {
         // effects Pulley added then are updated in place, and the ones no longer in the source
         // removed (unless animated).
         var fxSession = null, layerIsUpdate = false;
+        // New shape layers are copies of one empty shape layer per comp: duplicate() is 4-5x
+        // faster than layers.addShape() (8 against 37 ms per layer, measured in AE 25.5 with
+        // tests/ae/layer-bench.jsx). The templates are removed at the end.
+        var templates = {}, templateList = [];
         // Images: footage items by file path (found in the project or imported now).
         var footage = null, createdItems = [], imagesFolder = null;
         res.updated = 0;
@@ -235,7 +241,15 @@ var PulleyApply = (function () {
             layerLists.push([]);
             try { var sl = comp.selectedLayers; for (var si = 0; si < sl.length; si++) { userSelection.push(sl[si]); } } catch (eSel) {}
         }
-        var big = total > 200;
+        // AE redraws the comp and its timeline after every change while the comp is on screen:
+        // measured 63-175 ms per new layer then, against 8-17 ms with a placeholder comp shown
+        // instead (tests/ae/layer-bench.jsx). Swapping costs a few hundred ms, so it pays from a handful
+        // of layers on.
+        var layerOps = 0;
+        for (var lk = 0; lk < LAYER_OPS.length; lk++) {
+            for (idx = text.indexOf(LAYER_OPS[lk]); idx >= 0; idx = text.indexOf(LAYER_OPS[lk], idx + 1)) { layerOps++; }
+        }
+        var big = total > 200 || layerOps >= 8;
         function hideViewer() {
             if (!big || viewSwap) { return; }
             try {
@@ -265,6 +279,24 @@ var PulleyApply = (function () {
             return list[0];
         }
         function updated(L) { curList().push(L); res.updated++; }
+
+        /** A new, empty shape layer at the top of `c`. */
+        function newShapeLayer(c) {
+            var tpl = templates[c.id];
+            if (!tpl) {
+                tpl = c.layers.addShape();
+                templates[c.id] = tpl;
+                templateList.push(tpl);
+            }
+            var L = tpl.duplicate();
+            L.moveToBeginning();
+            return L;
+        }
+        function removeTemplates() {
+            for (var t = templateList.length - 1; t >= 0; t--) { try { templateList[t].remove(); } catch (eT) {} }
+            templateList = [];
+            templates = {};
+        }
 
         /** The footage item for an image file Pulley saved: reused if the project has it. */
         function footageFor(id, ext) {
@@ -613,7 +645,7 @@ var PulleyApply = (function () {
                                 break;
                             }
                             layerIsUpdate = false;
-                            layer = curComp().layers.addShape();
+                            layer = newShapeLayer(curComp());
                             layer.name = dec(f[1]);
                             if (lid !== null) { layer.comment = tagFor(lid); }
                             var tr = layer.property("ADBE Transform Group");
@@ -826,6 +858,7 @@ var PulleyApply = (function () {
                 res.error = { code: "no_comp", message: "No composition is active in After Effects." };
             }
         }
+        removeTemplates();
         try { endFx(); } catch (eFx) { warn("Effects: " + String(eFx), true); }
         // Layers from an earlier push of this document whose item isn't in this push are kept.
         if (res.ok && updateOn) {
@@ -867,7 +900,10 @@ var PulleyApply = (function () {
             if (failed) { warn(failed + " gradient(s) kept After Effects' default colors.", true); }
         }
         res.gradients = gradRefs.length;
-        try { for (var ui = 0; ui < userSelection.length; ui++) { userSelection[ui].selected = true; } } catch (eU2) {}
+        try {
+            if (comp) { var nowSel = comp.selectedLayers; for (var ds = 0; ds < nowSel.length; ds++) { nowSel[ds].selected = false; } }
+            for (var ui = 0; ui < userSelection.length; ui++) { userSelection[ui].selected = true; }
+        } catch (eU2) {}
         try {
             if (openAtEnd && !res.cancelled) { openAtEnd.openInViewer(); }
             else if (viewSwap && comp) { comp.openInViewer(); }

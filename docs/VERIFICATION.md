@@ -272,6 +272,22 @@ Fuzzing after adding effects and images: 60,000 mutated inputs each for the scen
 parsers, seeded with the effects and images examples and a Figma selection with image fills and
 effects: no crash; slowest inputs 0.8 s (1.8 MB) and 0.9 s (4.2 MB).
 
+### Import speed
+
+[`tests/ae/layer-bench.jsx`](../tests/ae/layer-bench.jsx) (After Effects 25.5, 200 shape layers,
+each with a group, a path and a position, into a comp open on screen with 5 layers already in it):
+
+| How each layer is made | Per layer | 200 layers |
+|---|---|---|
+| `layers.addShape()`, placeholder comp on screen | 37 ms | 7.4 s |
+| duplicate an empty template layer + move to top, placeholder on screen | 8.3 ms | 1.7 s |
+| build in a never-opened temporary comp, then `copyToComp` | 29 ms | 5.7 s |
+| 20 layers, comp on screen, `addShape` (small imports before this change) | 63 ms | 1.26 s for 20 |
+| 20 layers, placeholder + template | 17 ms | 0.34 s for 20 (swap included) |
+
+Full After Effects suite afterwards: 123 checks passed, 0 failed; 500 × 20 paths as 500 layers
+3.2 s (before: 9.0–15.7 s), merged into one layer 5.7 s.
+
 ## Latest runs (2026-11-15)
 
 **After Effects suite** (`node tests/ae/run.mjs`, full run): **60 checks passed, 0 failed**

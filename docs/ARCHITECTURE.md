@@ -214,13 +214,18 @@ the import's single undo group.
 
 | Mode | Time |
 |---|---|
-| Merge (one shape layer, 500 groups) | 3.9–5.5 s |
-| One layer per item (500 layers) | 9.0–15.7 s |
+| One layer per item (500 layers) | 3.2 s (9.0–15.7 s before templates) |
+| Merge (one shape layer, 500 groups) | 3.9–5.7 s |
 
-Timings vary between runs on the same machine (two full suite runs and one run through the bridge).
-The time is spent in AE's scripting DOM: about 11 ms per new layer, 3 ms per group, 1–2 ms per
-path or paint (milestone 1 measurements). Hiding the comp viewer during large builds is the
-biggest saving found. The 3-second target is met only for smaller selections or by merging.
+The time is spent in AE's scripting DOM. Measured with
+[`tests/ae/layer-bench.jsx`](../tests/ae/layer-bench.jsx), 200 shape layers into a comp that is
+open on screen: `layers.addShape()` 37 ms per layer with the viewer swapped out (63–175 ms with the
+comp on screen); duplicating one empty template shape layer and moving the copy to the top, 8 ms.
+So the interpreter keeps one empty template shape layer per comp it builds in, makes every new
+shape layer from it, and removes the templates at the end (all inside the import's undo group);
+and it shows a 4 × 4 placeholder comp while it builds any plan that adds 8 or more layers (or has
+more than 200 lines), reopening your comp afterwards. Building in a never-opened temporary comp
+and copying the layers in (`copyToComp`) was slower (29 ms per layer).
 
 ## Bridge
 

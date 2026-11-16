@@ -320,13 +320,16 @@ deleted after use.
 |---|---|
 | Illustrator capture | 1.9 s first, then about 0.5 s |
 | Bridge: receive, validate and forward a scene | 1.4–1.6 ms for the gradients example (target: under 50 ms); idle: about 13 MB, no CPU |
-| Merged into one shape layer | 3.9–5.5 s (two full test-suite runs) |
-| 500 separate layers (default mode) | 9.0–15.7 s (two test-suite runs and one run through the bridge) |
+| 500 separate layers (default mode) | 3.2 s (was 9.0–15.7 s before layers were built from a template) |
+| Merged into one shape layer | 3.9–5.7 s |
 
-The 3-second target for 500 × 20 is **not met**: the cost is in After Effects' own scripting calls
-(about 11 ms per new layer, 3 ms per group). Pulley hides the comp viewer while it builds large
-imports, which helps a lot, but per-item layers remain slow. Use *Merge* for very large
-selections.
+The 3-second target for 500 × 20 is **nearly met** in the default mode. The time is spent in
+After Effects' own scripting calls. Two things make the difference, both measured: Pulley puts a
+small placeholder comp on screen while it builds any import of 8 or more layers (a comp on screen
+costs 63–175 ms per new layer, about 8–17 ms when it isn't), and it makes new shape layers by
+duplicating one empty layer instead of adding each one (8 against 37 ms per layer). *Merge* is now
+slower than separate layers for big selections, because one layer with hundreds of groups gets
+slower to add to.
 
 **Figma:**
 

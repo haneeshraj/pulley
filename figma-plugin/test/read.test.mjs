@@ -16,7 +16,11 @@ test('reads a frame with every supported node type', () => {
   assert.equal(f.clipsContent, true);
   assert.equal(f.strokeWeight, 3, 'mixed per-side stroke weights become the largest one');
   assert.deepEqual(f.rectangleCornerRadii, [16, 16, 0, 0]);
-  assert.deepEqual(f.effects, [{ type: 'DROP_SHADOW', visible: true }], 'only type and visibility of effects are sent');
+  assert.deepEqual(f.effects, [
+    { type: 'DROP_SHADOW', visible: true, color: { r: 0, g: 0, b: 0, a: 0.25 }, offset: { x: 0, y: 4 }, radius: 4, spread: 0, blendMode: 'NORMAL' },
+    { type: 'LAYER_BLUR', visible: true, radius: 8, blurType: 'PROGRESSIVE', startRadius: 2 },
+    { type: 'INNER_SHADOW', visible: true },
+  ], 'drop shadows and layer blurs are sent with their values, other effects by type only');
   const kids = Object.fromEntries(f.children.map((c) => [c.name, c]));
   assert.deepEqual(kids.Button.dashPattern, [4, 2]);
   assert.deepEqual(kids.Avatar.arcData, { startingAngle: 0, endingAngle: 2 * Math.PI, innerRadius: 0 });
@@ -48,8 +52,14 @@ test('the core turns the reader output into a valid scene', async () => {
   assert.equal(title.runs.length, 2);
   assert.equal(title.runs[0].font.family, 'Inter');
   assert.equal(title.runs[1].leading, 20);
+  // Figma blur sizes are 1.136364 x a CSS blur radius (twice the standard deviation).
+  assert.deepEqual(group.effects, [
+    { type: 'dropShadow', color: [0, 0, 0], opacity: 0.25, offset: [0, 4], stdDeviation: 4 * 0.44 },
+    { type: 'layerBlur', stdDeviation: 5 * 0.44 },
+  ], 'the frame keeps its shadow and blur (progressive: the average of its start and end)');
   const codes = scene.warnings.map((w) => w.code);
-  assert.ok(codes.includes('unsupported_effect'), 'the drop shadow is reported');
+  assert.ok(codes.includes('unsupported_effect'), 'the inner shadow is reported');
+  assert.ok(codes.includes('progressive_blur_even'), 'the progressive blur is reported');
   assert.ok(codes.includes('unsupported_node'), 'the slice is reported');
 });
 

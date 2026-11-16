@@ -1,0 +1,651 @@
+{
+  "schema": "pulley-scene",
+  "version": 2,
+  "source": {
+    "app": "figma",
+    "appVersion": "figma",
+    "pulleyVersion": "0.1.0",
+    "documentName": "Effects test"
+  },
+  "units": {
+    "source": "px",
+    "pxPerSourceUnit": 1
+  },
+  "colorSpace": "srgb",
+  "bounds": {
+    "x": 0,
+    "y": 0,
+    "width": 1600,
+    "height": 1000
+  },
+  "items": [
+    {
+      "type": "text",
+      "id": "figma:1:5",
+      "name": "Rotated label",
+      "kind": "point",
+      "content": "Rotated",
+      "matrix": [
+        0,
+        1,
+        -1,
+        0,
+        1450,
+        250
+      ],
+      "justification": "left",
+      "runs": [
+        {
+          "start": 0,
+          "end": 7,
+          "font": {
+            "postScriptName": "ArialMT",
+            "family": "Arial",
+            "style": "Regular"
+          },
+          "size": 48,
+          "fill": {
+            "type": "solid",
+            "color": [
+              0.1,
+              0.1,
+              0.1
+            ]
+          }
+        }
+      ],
+      "outlines": [],
+      "effects": [
+        {
+          "type": "dropShadow",
+          "color": [
+            0,
+            0,
+            0
+          ],
+          "opacity": 0.5,
+          "offset": [
+            0,
+            10
+          ],
+          "stdDeviation": 2
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "id": "figma:1:4",
+      "name": "Icons",
+      "children": [
+        {
+          "type": "shape",
+          "id": "figma:1:41",
+          "name": "Blurred dot",
+          "paths": [
+            {
+              "closed": true,
+              "vertices": [
+                [
+                  1100,
+                  600
+                ],
+                [
+                  1200,
+                  600
+                ],
+                [
+                  1200,
+                  700
+                ],
+                [
+                  1100,
+                  700
+                ]
+              ],
+              "inTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ],
+              "outTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            }
+          ],
+          "fillRule": "nonzero",
+          "fills": [
+            {
+              "type": "solid",
+              "color": [
+                0.9,
+                0.4,
+                0.1
+              ]
+            }
+          ],
+          "effects": [
+            {
+              "type": "layerBlur",
+              "stdDeviation": 5
+            }
+          ]
+        },
+        {
+          "type": "shape",
+          "id": "figma:1:42",
+          "name": "Plain dot",
+          "paths": [
+            {
+              "closed": true,
+              "vertices": [
+                [
+                  1250,
+                  600
+                ],
+                [
+                  1350,
+                  600
+                ],
+                [
+                  1350,
+                  700
+                ],
+                [
+                  1250,
+                  700
+                ]
+              ],
+              "inTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ],
+              "outTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            }
+          ],
+          "fillRule": "nonzero",
+          "fills": [
+            {
+              "type": "solid",
+              "color": [
+                0.1,
+                0.5,
+                0.9
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "id": "figma:1:3",
+      "name": "Clipped frame",
+      "clip": {
+        "sourceId": "figma:1:3",
+        "name": "Clipped frame clip",
+        "paths": [
+          {
+            "closed": true,
+            "vertices": [
+              [
+                800,
+                100
+              ],
+              [
+                1100,
+                100
+              ],
+              [
+                1100,
+                400
+              ],
+              [
+                800,
+                400
+              ]
+            ],
+            "inTangents": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ]
+            ],
+            "outTangents": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ]
+            ]
+          }
+        ],
+        "fillRule": "nonzero"
+      },
+      "children": [
+        {
+          "type": "shape",
+          "id": "figma:1:31",
+          "name": "Big fill",
+          "paths": [
+            {
+              "closed": true,
+              "vertices": [
+                [
+                  700,
+                  0
+                ],
+                [
+                  1200,
+                  0
+                ],
+                [
+                  1200,
+                  500
+                ],
+                [
+                  700,
+                  500
+                ]
+              ],
+              "inTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ],
+              "outTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            }
+          ],
+          "fillRule": "nonzero",
+          "fills": [
+            {
+              "type": "solid",
+              "color": [
+                0.3,
+                0.7,
+                0.4
+              ]
+            }
+          ]
+        }
+      ],
+      "effects": [
+        {
+          "type": "dropShadow",
+          "color": [
+            0.1,
+            0,
+            0.3
+          ],
+          "opacity": 0.6,
+          "offset": [
+            12,
+            12
+          ],
+          "stdDeviation": 6
+        }
+      ]
+    },
+    {
+      "type": "shape",
+      "id": "figma:1:2",
+      "name": "Badge",
+      "paths": [
+        {
+          "closed": true,
+          "vertices": [
+            [
+              100,
+              100
+            ],
+            [
+              300,
+              100
+            ],
+            [
+              300,
+              300
+            ],
+            [
+              100,
+              300
+            ]
+          ],
+          "inTangents": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "outTangents": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ]
+        }
+      ],
+      "fillRule": "nonzero",
+      "fills": [
+        {
+          "type": "solid",
+          "color": [
+            0.95,
+            0.75,
+            0.1
+          ]
+        }
+      ],
+      "effects": [
+        {
+          "type": "dropShadow",
+          "color": [
+            0,
+            0,
+            0
+          ],
+          "opacity": 0.3,
+          "offset": [
+            0,
+            4
+          ],
+          "stdDeviation": 1.76
+        },
+        {
+          "type": "dropShadow",
+          "color": [
+            0.2,
+            0,
+            0
+          ],
+          "opacity": 0.2,
+          "offset": [
+            -6,
+            0
+          ],
+          "stdDeviation": 8.8,
+          "spread": 4
+        },
+        {
+          "type": "layerBlur",
+          "stdDeviation": 3
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "id": "figma:1:1",
+      "name": "Card",
+      "effects": [
+        {
+          "type": "dropShadow",
+          "color": [
+            0,
+            0,
+            0
+          ],
+          "opacity": 0.25,
+          "offset": [
+            0,
+            8
+          ],
+          "stdDeviation": 8.8
+        }
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "figma:1:12",
+          "name": "Card title",
+          "kind": "area",
+          "content": "Card title",
+          "matrix": [
+            1,
+            0,
+            0,
+            1,
+            220,
+            620
+          ],
+          "box": {
+            "width": 300,
+            "height": 50
+          },
+          "justification": "left",
+          "runs": [
+            {
+              "start": 0,
+              "end": 10,
+              "font": {
+                "postScriptName": "ArialMT",
+                "family": "Arial",
+                "style": "Regular"
+              },
+              "size": 32,
+              "fill": {
+                "type": "solid",
+                "color": [
+                  0.05,
+                  0.05,
+                  0.1
+                ]
+              }
+            }
+          ],
+          "outlines": []
+        },
+        {
+          "type": "shape",
+          "id": "figma:1:11",
+          "name": "Card background",
+          "paths": [
+            {
+              "closed": true,
+              "vertices": [
+                [
+                  200,
+                  600
+                ],
+                [
+                  600,
+                  600
+                ],
+                [
+                  600,
+                  900
+                ],
+                [
+                  200,
+                  900
+                ]
+              ],
+              "inTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ],
+              "outTangents": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            }
+          ],
+          "fillRule": "nonzero",
+          "fills": [
+            {
+              "type": "solid",
+              "color": [
+                1,
+                1,
+                1
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

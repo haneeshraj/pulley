@@ -45,7 +45,7 @@ internet access. The pieces talk through a small local app, the **Pulley bridge*
 
 All parsing, geometry, color and validation code is one Rust library, `pulley-core`, compiled
 natively into the bridge and to WebAssembly for the panels and the plugin. The only format that
-travels between components is **pulley-scene** ([schema](schema/pulley-scene-v1.schema.json),
+travels between components is **pulley-scene** ([schema](schema/pulley-scene-v2.schema.json),
 [description](schema/SCENE.md)). Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Part | Where |
@@ -174,6 +174,13 @@ instead of adding copies:
   or editing that comment makes the next push add a new layer instead.
 - Turn the option off to always add new layers.
 
+**Shadows and blurs** from Figma become After Effects effects: a drop shadow becomes a *Drop
+Shadow* effect and a layer blur a *Gaussian Blur* effect, named "Pulley Drop Shadow" and "Pulley
+Blur", with sizes converted so they look like Figma's. They go on the layer of the item they
+belong to; a group or frame with a shadow becomes a precomp with the shadow on it, so the shadow
+falls from the whole group. Pushing again updates these effects (animated ones are kept) and
+removes the ones you removed in Figma; effects you added yourself are never touched.
+
 Each import is **one undo step** ("Pulley Import"). The panel shows what was imported, how long
 it took, missing fonts, and a warning for everything that was approximated or skipped.
 
@@ -215,7 +222,8 @@ On Windows 11 (i9-13900H, 16 GB), After Effects 25.5, Illustrator 29.5; details 
 
 - After Effects suite: every example scene and Illustrator fixture imported, checked property by
   property, including gradient colors, track mattes and masks, text runs and fonts, strokes and
-  dashes, the three layer modes, a single undo step, and 500 × 20-point performance cases.
+  dashes, the three layer modes, a single undo step, re-push, shadows and blurs (values, placement,
+  re-push), and 500 × 20-point performance cases.
 - End to end through the real bridge and the installed extensions: Illustrator push and pull, a
   scene push into a running After Effects (gradient colors included).
 - Illustrator capture of 13 fixture documents: correct scenes (golden tests), the document never
@@ -250,12 +258,24 @@ machine; CI.
 - Gradient-filled text uses the gradient's first color. Text can't be skewed in After Effects.
   Text on a path is imported as outlines. Rotated or scaled area text from Illustrator is
   imported unrotated.
-- Not imported: images and video fills, placed and embedded images, effects (shadows, blurs),
-  graphs, blends and envelopes (expand them first), legacy text. Symbols become plain artwork.
+- Not imported: images and video fills, placed and embedded images, graphs, blends and envelopes
+  (expand them first), legacy text. Symbols become plain artwork.
   Rounded polygon/star corners (Figma) become sharp. Decorative stroke caps (arrows) become plain
   caps. The clipping path's own fill and stroke are dropped.
-- Groups containing text or clipping masks are split into several layers; nested clipping
-  masks become a track matte on a precomp.
+- Groups containing text, clipping masks or effects are split into several layers; nested
+  clipping masks become a track matte on a precomp.
+- **Effects** (Figma only): drop shadows and layer blurs are imported. Inner shadows, background
+  blurs, noise, texture and glass effects are not (each is reported). Illustrator effects (Effect
+  menu, appearance) can't be read by scripts and are never imported. After Effects shadows have
+  no spread and no blend mode, so both are dropped, and a shadow is always drawn behind
+  see-through parts of its item (Figma's *Show behind transparent areas* off is not reproduced).
+  With several shadows on one item, each one in After Effects also falls on the shadows before
+  it, so together they look a little stronger. A progressive blur becomes an even blur of its
+  average strength. Shadow softness and blur sizes were matched by measurement
+  ([details](docs/VERIFICATION.md#effects-calibration)) using a published comparison of Figma's
+  blur scale; they have not been compared side by side with Figma.
+- A group or frame with effects is built as a precomp (with track mattes, a clipped frame with a
+  shadow is precomposed too, because a matte would cut the shadow off).
 - Fonts: Figma only provides family and style names; After Effects looks those up. A missing
   font falls back to outlines when outlines were sent (Figma always sends them; Illustrator only
   with *Include text outlines*), otherwise After Effects substitutes a font and the panel lists
@@ -318,7 +338,7 @@ selections.
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): components, data flow, the After Effects apply
   path, the bridge, the Figma plugin, the Illustrator capture.
-- [schema/SCENE.md](schema/SCENE.md) and [schema/pulley-scene-v1.schema.json](schema/pulley-scene-v1.schema.json):
+- [schema/SCENE.md](schema/SCENE.md) and [schema/pulley-scene-v2.schema.json](schema/pulley-scene-v2.schema.json):
   the scene format and its limits.
 - [SECURITY.md](SECURITY.md): threat model.
 - [docs/VERIFICATION.md](docs/VERIFICATION.md): what was checked, how, and the results.

@@ -12,12 +12,13 @@
 
 use crate::error::{Error, ErrorCode, Result};
 use crate::geom::{Affine, Pt};
-use crate::limits::{MAX_DEPTH, MAX_MESSAGE_BYTES, MAX_WARNINGS};
+use crate::limits::{MAX_DEPTH, MAX_EFFECTS, MAX_LENGTH, MAX_MESSAGE_BYTES, MAX_WARNINGS};
 use crate::scene::*;
 use crate::shapes;
 use crate::svgpath::path_data_to_paths;
 use crate::validate::{utf16_len, validate};
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::f64::consts::PI;
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -132,11 +133,34 @@ struct FPath {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FEffect {
     #[serde(rename = "type")]
     kind: String,
     #[serde(default = "yes")]
     visible: bool,
+    #[serde(default)]
+    color: Option<FColor>,
+    #[serde(default)]
+    offset: Option<FVector>,
+    #[serde(default)]
+    radius: f64,
+    #[serde(default)]
+    spread: f64,
+    #[serde(default)]
+    blend_mode: Option<String>,
+    /// "NORMAL" or "PROGRESSIVE" (layer blur).
+    #[serde(default)]
+    blur_type: Option<String>,
+    /// Progressive blur: the radius at its start (`radius` is the one at its end).
+    #[serde(default)]
+    start_radius: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, Default)]
+struct FVector {
+    x: f64,
+    y: f64,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
@@ -214,11 +238,13 @@ struct FUnitValue {
 struct Ctx {
     origin: Pt,
     warnings: Vec<Warning>,
+    /// (code, item id) pairs already warned about: one warning of a kind per item.
+    warned: HashSet<(String, String)>,
 }
 
 impl Ctx {
     fn warn(&mut self, code: &str, id: &str, name: &str, msg: impl Into<String>) {
-        if self.warnings.len() < MAX_WARNINGS && !self.warnings.iter().any(|w| w.code == code && w.item_id.as_deref() == Some(id)) {
+        if self.warnings.len() < MAX_WARNINGS && self.warned.insert((code.to_string(), id.to_string())) {
             self.warnings.push(Warning::new(code, Some(id), Some(name), msg));
         }
     }
@@ -288,7 +314,7 @@ pub fn nodes_to_scene(json: &str, _opts: &FigmaOptions) -> Result<Scene> {
     if ![b.x, b.y, b.width, b.height].iter().all(|v| v.is_finite()) {
         return Err(Error::data(ErrorCode::InvalidCapture, "The Figma selection has invalid bounds."));
     }
-    let mut ctx = Ctx { origin: Pt::new(b.x, b.y), warnings: Vec::new() };
+    let mut ctx = Ctx { origin: Pt::new(b.x, b.y), warnings: Vec::new(), warned: HashSet::new() };
     let p3 = input.color_profile == "DISPLAY_P3";
     let mut items = Vec::new();
     for n in &input.nodes {
@@ -333,11 +359,7 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
         ctx.warn("too_deep", &id, &name, format!("Skipped: nested more than {MAX_DEPTH} levels deep."));
         return Ok(None);
     }
-    for e in &n.effects {
-        if e.visible {
-            ctx.warn("unsupported_effect", &id, &name, format!("The {} effect is not imported.", e.kind.to_lowercase().replace('_', " ")));
-        }
-    }
+    let effects = effects_of(ctx, n, &id, &name);
     let opacity = unit(n.opacity);
     let blend_mode = blend(n.blend_mode.as_deref());
     let xf = ctx.xf(&n.transform);
@@ -360,11 +382,10 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
                 paths: vec![shapes::rect(0.0, 0.0, n.width, n.height, radii(n), &xf)],
                 fill_rule: FillRule::Nonzero,
             });
-            Ok(Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip, children })))
+            Ok(Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip, children, effects })))
         }
-        "RECTANGLE" => {
-            Ok(shape_from(ctx, n, &id, &name, vec![shapes::rect(0.0, 0.0, n.width, n.height, radii(n), &xf)], FillRule::Nonzero, &xf, true).map(Item::Shape))
-        }
+        "RECTANGLE" => Ok(shape_from(ctx, n, &id, &name, vec![shapes::rect(0.0, 0.0, n.width, n.height, radii(n), &xf)], FillRule::Nonzero, &xf, true)
+            .map(|s| with_effects(s, effects))),
         "ELLIPSE" => {
             let path = match &n.arc_data {
                 Some(a) if (a.ending_angle - a.starting_angle).abs() < 2.0 * PI - 1e-6 || a.inner_radius > 1e-6 => {
@@ -372,7 +393,7 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
                 }
                 _ => shapes::ellipse(n.width / 2.0, n.height / 2.0, n.width / 2.0, n.height / 2.0, &xf),
             };
-            Ok(shape_from(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, true).map(Item::Shape))
+            Ok(shape_from(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, true).map(|s| with_effects(s, effects)))
         }
         "POLYGON" | "STAR" => {
             if n.corner_radius.unwrap_or(0.0) > 0.0 {
@@ -384,11 +405,11 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
             } else {
                 shapes::polygon(n.width, n.height, count, &xf)
             };
-            Ok(shape_from(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, true).map(Item::Shape))
+            Ok(shape_from(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, true).map(|s| with_effects(s, effects)))
         }
         "LINE" => {
             let path = shapes::polyline(&[Pt::new(0.0, 0.0), Pt::new(n.width, 0.0)], false, &xf);
-            Ok(shape_from(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, false).map(Item::Shape))
+            Ok(shape_from(ctx, n, &id, &name, vec![path], FillRule::Nonzero, &xf, false).map(|s| with_effects(s, effects)))
         }
         "VECTOR" => {
             let mut paths = Vec::new();
@@ -402,13 +423,13 @@ fn convert(ctx: &mut Ctx, n: &Node, depth: usize) -> Result<Option<Item>> {
                 }
                 paths.extend(ps);
             }
-            Ok(shape_from(ctx, n, &id, &name, paths, fill_rule, &xf, closed_any).map(Item::Shape))
+            Ok(shape_from(ctx, n, &id, &name, paths, fill_rule, &xf, closed_any).map(|s| with_effects(s, effects)))
         }
         "BOOLEAN_OPERATION" => {
             let (paths, fill_rule) = geometry(&n.fill_geometry, &xf)?;
-            Ok(shape_from(ctx, n, &id, &name, paths, fill_rule, &xf, true).map(Item::Shape))
+            Ok(shape_from(ctx, n, &id, &name, paths, fill_rule, &xf, true).map(|s| with_effects(s, effects)))
         }
-        "TEXT" => Ok(text_item(ctx, n, id, name, opacity, blend_mode, &xf)?),
+        "TEXT" => Ok(text_item(ctx, n, id, name, opacity, blend_mode, &xf, effects)?),
         other => {
             ctx.warn("unsupported_node", &id, &name, format!("{} layers are not imported.", other.to_lowercase().replace('_', " ")));
             Ok(None)
@@ -447,6 +468,7 @@ fn convert_children(ctx: &mut Ctx, kids: &[Node], depth: usize) -> Result<Vec<It
                     blend_mode: BlendMode::Normal,
                     clip: Some(Clip { source_id: None, name: Some(name), paths: mask_paths, fill_rule: FillRule::Nonzero }),
                     children: masked,
+                    effects: Vec::new(),
                 }));
             }
             break;
@@ -630,10 +652,85 @@ fn shape_from(ctx: &mut Ctx, n: &Node, id: &str, name: &str, paths: Vec<Path>, f
         fill_rule,
         fills,
         strokes,
+        effects: Vec::new(),
     })
 }
 
-fn text_item(ctx: &mut Ctx, n: &Node, id: String, name: String, opacity: f64, blend_mode: BlendMode, xf: &Affine) -> Result<Option<Item>> {
+fn with_effects(s: Shape, effects: Vec<Effect>) -> Item {
+    Item::Shape(Shape { effects, ..s })
+}
+
+/// Figma's blurs (drop shadow, layer blur) look like a CSS box-shadow blur 1/1.136364 as large
+/// (Bjango, "Blur radius comparison", 2024), and a CSS box-shadow blur radius is twice the
+/// Gaussian standard deviation, so stdDeviation = radius / (2 * 1.136364).
+const FIGMA_BLUR_TO_STD_DEVIATION: f64 = 0.44;
+
+fn fin(v: f64) -> f64 {
+    if v.is_finite() { v } else { 0.0 }
+}
+
+/// Drop shadows and layer blurs; other effects are reported and skipped.
+fn effects_of(ctx: &mut Ctx, n: &Node, id: &str, name: &str) -> Vec<Effect> {
+    let mut out = Vec::new();
+    let mut skipped: Vec<String> = Vec::new();
+    let sd = |r: f64| (fin(r).max(0.0) * FIGMA_BLUR_TO_STD_DEVIATION).min(MAX_LENGTH);
+    for e in n.effects.iter().filter(|e| e.visible) {
+        match e.kind.as_str() {
+            "DROP_SHADOW" => {
+                let c = e.color.unwrap_or(FColor { r: 0.0, g: 0.0, b: 0.0, a: 0.25 });
+                let off = e.offset.unwrap_or_default();
+                if !matches!(e.blend_mode.as_deref(), None | Some("NORMAL" | "PASS_THROUGH")) {
+                    ctx.warn("shadow_blend_dropped", id, name, "After Effects drop shadows have no blend mode; the shadow blends normally.");
+                }
+                out.push(Effect::DropShadow {
+                    color: [unit(c.r), unit(c.g), unit(c.b)],
+                    opacity: unit(c.a),
+                    offset: [fin(off.x).clamp(-MAX_LENGTH, MAX_LENGTH), fin(off.y).clamp(-MAX_LENGTH, MAX_LENGTH)],
+                    std_deviation: sd(e.radius),
+                    spread: fin(e.spread).clamp(-MAX_LENGTH, MAX_LENGTH),
+                });
+            }
+            "LAYER_BLUR" => {
+                let radius = if e.blur_type.as_deref() == Some("PROGRESSIVE") {
+                    ctx.warn("progressive_blur_even", id, name, "A progressive blur is imported as an even blur of its average strength.");
+                    (fin(e.start_radius.unwrap_or(0.0)).max(0.0) + fin(e.radius).max(0.0)) / 2.0
+                } else {
+                    e.radius
+                };
+                out.push(Effect::LayerBlur { std_deviation: sd(radius) });
+            }
+            other => {
+                let kind = other.chars().take(40).collect::<String>().to_lowercase().replace('_', " ");
+                if !skipped.contains(&kind) {
+                    skipped.push(kind);
+                }
+            }
+        }
+    }
+    if !skipped.is_empty() {
+        let n = skipped.len();
+        let (list, plural) =
+            if n == 1 { (skipped[0].clone(), "effect is") } else { (format!("{} and {}", skipped[..n - 1].join(", "), skipped[n - 1]), "effects are") };
+        ctx.warn("unsupported_effect", id, name, format!("The {list} {plural} not imported."));
+    }
+    if out.len() > MAX_EFFECTS {
+        out.truncate(MAX_EFFECTS);
+        ctx.warn("too_many_effects", id, name, format!("Only the first {MAX_EFFECTS} effects are imported."));
+    }
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
+fn text_item(
+    ctx: &mut Ctx,
+    n: &Node,
+    id: String,
+    name: String,
+    opacity: f64,
+    blend_mode: BlendMode,
+    xf: &Affine,
+    effects: Vec<Effect>,
+) -> Result<Option<Item>> {
     let Some(t) = &n.text else { return Ok(None) };
     // Figma uses \n between paragraphs and U+2028 for soft line breaks.
     let content: String =
@@ -719,6 +816,7 @@ fn text_item(ctx: &mut Ctx, n: &Node, id: String, name: String, opacity: f64, bl
                 fill_rule,
                 fills: vec![runs[0].fill.clone()],
                 strokes: Vec::new(),
+                effects: Vec::new(),
             }));
         }
     }
@@ -735,6 +833,7 @@ fn text_item(ctx: &mut Ctx, n: &Node, id: String, name: String, opacity: f64, bl
         justification,
         runs,
         outlines,
+        effects,
     })))
 }
 
@@ -881,11 +980,53 @@ mod tests {
     }
 
     #[test]
+    fn shadows_and_blurs_become_effects() {
+        let s = nodes_to_scene(
+            &input(serde_json::json!([
+                {"id":"6:1","name":"Badge","type":"RECTANGLE","transform":t(100.0,50.0),"width":100,"height":50,
+                 "fills":[{"type":"SOLID","color":{"r":1,"g":1,"b":1}}],
+                 "effects":[
+                    {"type":"DROP_SHADOW","visible":true,"color":{"r":0.1,"g":0.2,"b":0.3,"a":0.25},"offset":{"x":-2,"y":4},"radius":4,"spread":2,"blendMode":"MULTIPLY"},
+                    {"type":"LAYER_BLUR","visible":true,"radius":10},
+                    {"type":"LAYER_BLUR","visible":true,"radius":8,"blurType":"PROGRESSIVE","startRadius":0},
+                    {"type":"INNER_SHADOW","visible":true,"color":{"r":0,"g":0,"b":0,"a":1},"offset":{"x":0,"y":1},"radius":1},
+                    {"type":"BACKGROUND_BLUR","visible":true,"radius":20},
+                    {"type":"DROP_SHADOW","visible":false,"color":{"r":1,"g":0,"b":0,"a":1},"offset":{"x":0,"y":1},"radius":1}
+                 ]},
+                {"id":"6:2","name":"Frame","type":"FRAME","transform":t(300.0,50.0),"width":100,"height":100,
+                 "effects":[{"type":"DROP_SHADOW","visible":true,"color":{"r":0,"g":0,"b":0,"a":0.5},"offset":{"x":0,"y":8},"radius":20}],
+                 "children":[{"id":"6:3","name":"Dot","type":"ELLIPSE","transform":t(310.0,60.0),"width":20,"height":20,
+                              "fills":[{"type":"SOLID","color":{"r":0,"g":0,"b":1}}]}]}
+            ])),
+            &FigmaOptions::default(),
+        )
+        .unwrap();
+        let Item::Shape(badge) = &s.items[0] else { panic!("shape expected: {:?}", s.items[0]) };
+        assert_eq!(
+            badge.effects,
+            vec![
+                Effect::DropShadow { color: [0.1, 0.2, 0.3], opacity: 0.25, offset: [-2.0, 4.0], std_deviation: 4.0 * 0.44, spread: 2.0 },
+                Effect::LayerBlur { std_deviation: 10.0 * 0.44 },
+                Effect::LayerBlur { std_deviation: 4.0 * 0.44 },
+            ]
+        );
+        let Item::Group(frame) = &s.items[1] else { panic!("group expected") };
+        assert_eq!(frame.effects.len(), 1, "a frame's shadow belongs to the frame as a whole");
+        assert!(frame.children.iter().all(|c| c.effects().is_empty()));
+        let codes: Vec<&str> = s.warnings.iter().map(|w| w.code.as_str()).collect();
+        for c in ["shadow_blend_dropped", "progressive_blur_even"] {
+            assert!(codes.contains(&c), "{codes:?}");
+        }
+        let skipped: Vec<&str> = s.warnings.iter().filter(|w| w.code == "unsupported_effect").map(|w| w.message.as_str()).collect();
+        assert_eq!(skipped, ["The inner shadow and background blur effects are not imported."]);
+    }
+
+    #[test]
     fn unsupported_things_warn_never_fail() {
         let s = nodes_to_scene(
             &input(serde_json::json!([
                 {"id":"5:1","name":"Photo","type":"RECTANGLE","transform":t(100.0,50.0),"width":10,"height":10,
-                 "fills":[{"type":"IMAGE"},{"type":"GRADIENT_ANGULAR","gradientStops":[]}],"effects":[{"type":"DROP_SHADOW","visible":true}]},
+                 "fills":[{"type":"IMAGE"},{"type":"GRADIENT_ANGULAR","gradientStops":[]}],"effects":[{"type":"INNER_SHADOW","visible":true}]},
                 {"id":"5:2","name":"Slice","type":"SLICE","transform":t(100.0,50.0),"width":10,"height":10}
             ])),
             &FigmaOptions::default(),

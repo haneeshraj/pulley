@@ -58,7 +58,20 @@ function pulleyDumpComp(comp) {
         try { d.trackMatte = L.trackMatteLayer ? L.trackMatteLayer.name : null; } catch (eT) {}
         try { d.masks = L.property("ADBE Mask Parade").numProperties; } catch (eM) {}
         d.comment = L.comment;
-        try { d.effects = L.property("ADBE Effect Parade").numProperties; } catch (eE) {}
+        try {
+            var parade = L.property("ADBE Effect Parade");
+            d.effects = parade.numProperties;
+            d.fx = [];
+            for (var ei = 1; ei <= parade.numProperties; ei++) {
+                var ef = parade.property(ei), ev = { name: ef.name, matchName: ef.matchName, params: {}, keys: 0 };
+                for (var pi = 1; pi <= ef.numProperties; pi++) {
+                    var pp = ef.property(pi);
+                    if (pp.propertyType !== PropertyType.PROPERTY) { continue; }
+                    try { ev.params[pp.matchName] = pp.value; ev.keys += pp.numKeys; } catch (eV) {}
+                }
+                d.fx.push(ev);
+            }
+        } catch (eE) {}
         try { d.posKeys = tr.property("ADBE Position").numKeys; } catch (eK) {}
         if (d.kind === "shape") { d.contents = pulleyDumpProp(L.property("ADBE Root Vectors Group"), 0).children; }
         if (d.kind === "text") {
@@ -210,6 +223,37 @@ function pulleyTestRepush(planA, planB, outPath, ffxA, ffxB) {
         pos.setValueAtTime(1, [300, 300]);
     }
     var resB = pulleyApplyPlan(planB, planB + ".cancel", ffxB || null);
+    var dumpB = pulleyDumpComp(comp);
+    app.executeCommand(16); // Edit > Undo: the second push only
+    var dumpUndo = pulleyDumpComp(comp);
+    var text = PulleyJSON.stringify({ result: resB, resultA: resA, edits: edits, dump: dumpB, dumpUndo: dumpUndo });
+    var f = new File(outPath);
+    f.encoding = "UTF-8";
+    f.open("w");
+    f.write(text);
+    f.close();
+    return resB;
+}
+
+/**
+ * Re-push with effects: apply plan A (schema/examples/effects.json), add an effect of the user's
+ * own to "Badge" and animate the softness of the shadow Pulley gave "Card", apply plan B into the
+ * same comp, dump it, then Undo once and dump again.
+ */
+function pulleyTestRepushEffects(planA, planB, outPath) {
+    pulleyTestNewProject("1");
+    var comp = app.project.activeItem;
+    var resA = pulleyApplyPlan(planA, planA + ".cancel", null);
+    var badge = pulleyTestLayerByItem(comp, "figma%3A1%3A2");
+    var card = pulleyTestLayerByItem(comp, "figma%3A1%3A1");
+    var edits = { found: !!badge && !!card };
+    if (badge) { badge.property("ADBE Effect Parade").addProperty("ADBE Gaussian Blur 2"); }
+    if (card) {
+        var soft = card.property("ADBE Effect Parade").property("Pulley Drop Shadow").property("ADBE Drop Shadow-0005");
+        soft.setValueAtTime(0, 10);
+        soft.setValueAtTime(1, 40);
+    }
+    var resB = pulleyApplyPlan(planB, planB + ".cancel", null);
     var dumpB = pulleyDumpComp(comp);
     app.executeCommand(16); // Edit > Undo: the second push only
     var dumpUndo = pulleyDumpComp(comp);

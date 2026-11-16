@@ -468,7 +468,7 @@ fn convert(ctx: &mut Ctx, it: &CapItem, depth: usize) -> Result<Option<Item>> {
                     children.push(ch);
                 }
             }
-            Ok(Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip, children })))
+            Ok(Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip, children, effects: Vec::new() })))
         }
         "PathItem" | "CompoundPathItem" => shape_item(ctx, it, id, name, opacity, blend_mode),
         "TextFrame" => Ok(text_item(ctx, it, id, name, opacity, blend_mode)),
@@ -476,7 +476,7 @@ fn convert(ctx: &mut Ctx, it: &CapItem, depth: usize) -> Result<Option<Item>> {
             let Some(token) = &it.svg else { return Ok(None) };
             ctx.warn("symbol_expanded", &id, &name, "Symbol instance imported as plain artwork (the link to the symbol is not kept).");
             let children = svg_shapes_to_items(ctx, token, &id);
-            Ok(Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip: None, children })))
+            Ok(Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip: None, children, effects: Vec::new() })))
         }
         _ => {
             ctx.warn("unsupported_item", &id, &name, "This kind of object is not supported. The item was skipped.");
@@ -627,7 +627,7 @@ fn shape_item(ctx: &mut Ctx, it: &CapItem, id: String, name: String, opacity: f6
             });
         }
     }
-    Ok(Some(Item::Shape(Shape { id, name, visible: true, opacity, blend_mode, paths, fill_rule, fills, strokes })))
+    Ok(Some(Item::Shape(Shape { id, name, visible: true, opacity, blend_mode, paths, fill_rule, fills, strokes, effects: Vec::new() })))
 }
 
 /// Shapes found inside an SVG layer/group, painted with the SVG's own colors.
@@ -698,6 +698,7 @@ fn svg_shape(svg: &SvgDoc, scale: f64, g: &ShapeGeom, id: String, name: String) 
         blend_mode: BlendMode::Normal,
         paths: g.paths.clone(),
         fill_rule: g.fill_rule,
+        effects: Vec::new(),
         fills,
         strokes,
     })
@@ -723,7 +724,7 @@ fn text_item(ctx: &mut Ctx, it: &CapItem, id: String, name: String, opacity: f64
     };
     if t.text_kind == "path" {
         ctx.warn("text_on_path_outlined", &id, &name, "Text on a path is imported as outlines.");
-        return Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip: None, children: outlines }));
+        return Some(Item::Group(Group { id, name, visible: true, opacity, blend_mode, clip: None, children: outlines, effects: Vec::new() }));
     }
     let content: String = t.contents.chars().take(crate::limits::MAX_TEXT_LEN).map(|c| if c == '\n' || c == '\u{3}' { '\r' } else { c }).collect();
     let len = crate::validate::utf16_len(&content) as u32;
@@ -799,5 +800,6 @@ fn text_item(ctx: &mut Ctx, it: &CapItem, id: String, name: String, opacity: f64
         justification: justification(&t.justification),
         runs,
         outlines,
+        effects: Vec::new(),
     }))
 }

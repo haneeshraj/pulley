@@ -34,10 +34,17 @@
 //! MATTE                                         previous layer uses the layer just built as alpha matte
 //! MASK <mode> <closed> <n> <x,y,ix,iy,ox,oy,...>   add a mask to the current layer
 //! LEND                                          finish the current layer
+//! FX SHADOW <r> <g> <b> <op> <direction> <distance> <softness>   Drop Shadow effect
+//! FX BLUR <blurriness>                          Gaussian Blur effect
 //! END
 //! ```
 //! Opacity is 0..100, blend is an AE `BlendingMode` name, rule is 1 (non-zero) or 2
 //! (even-odd), type is 1 (linear) or 2 (radial), cap/join are AE's 1..3 values.
+//!
+//! `FX` lines belong to the layer finished just before them (after `LEND` or `PREEND`). A text
+//! layer is only built at `TEND`, so its `FX` lines come before `TEND`; its outline fallback
+//! (`FB`) carries its own after the outline layer's `LEND`. Values are in the layer's own
+//! space: After Effects draws effects before the layer's rotation and scale.
 //!
 //! Re-push (milestone 11): every top-level layer is tagged (layer comment) with the document
 //! key and its source item id. Items with ids that aren't stable across pushes (Illustrator
@@ -134,6 +141,7 @@ pub struct PlanSummary {
     pub vertices: usize,
     pub texts: usize,
     pub comps: usize,
+    pub effects: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -284,10 +292,25 @@ fn item_bounds(it: &Item, b: &mut Bounds) {
             }
         }
         Item::Text(t) => {
-            let o = Pt::new(t.matrix[4], t.matrix[5]);
-            b.add(o);
+            let [a, bb, c, d, e, f] = t.matrix;
+            let local = |x: f64, y: f64| Pt::new(e + x * a + y * c, f + x * bb + y * d);
+            b.add(local(0.0, 0.0));
             if let Some(bx) = &t.box_size {
-                b.add(Pt::new(o.x + bx.width * t.matrix[0] + bx.height * t.matrix[2], o.y + bx.width * t.matrix[1] + bx.height * t.matrix[3]));
+                b.add(local(bx.width, 0.0));
+                b.add(local(0.0, bx.height));
+                b.add(local(bx.width, bx.height));
+            } else if t.outlines.is_empty() {
+                // Point text without outline geometry: estimate its extent from the font sizes,
+                // so a precomp sized to these bounds doesn't cut the text off.
+                let (w, above, below) = point_text_extent(t);
+                let (x0, x1) = match t.justification {
+                    Justification::Center | Justification::JustifyCenter => (-w / 2.0, w / 2.0),
+                    Justification::Right | Justification::JustifyRight => (-w, 0.0),
+                    _ => (0.0, w),
+                };
+                for (x, y) in [(x0, -above), (x1, -above), (x0, below), (x1, below)] {
+                    b.add(local(x, y));
+                }
             }
             for ol in &t.outlines {
                 item_bounds(ol, b);
@@ -296,12 +319,75 @@ fn item_bounds(it: &Item, b: &mut Bounds) {
     }
 }
 
-/// Does this subtree need its own layers (text or clip groups can't live inside a shape layer)?
+/// Does this item need its own layer(s)? Text, clip groups and anything with effects can't live
+/// inside another shape layer.
 fn needs_layers(it: &Item) -> bool {
     match it {
         Item::Text(_) => true,
-        Item::Group(g) => g.clip.is_some() || g.children.iter().any(needs_layers),
-        Item::Shape(_) => false,
+        Item::Group(g) => !g.effects.is_empty() || g.clip.is_some() || g.children.iter().any(needs_layers),
+        Item::Shape(s) => !s.effects.is_empty(),
+    }
+}
+
+/// Rough extent of point text from its first baseline start: (width, above, below).
+fn point_text_extent(t: &Text) -> (f64, f64, f64) {
+    let size = t.runs.iter().map(|r| r.size).fold(0.0, f64::max);
+    let leading = t.runs.iter().filter_map(|r| r.leading).fold(size * 1.2, f64::max);
+    let lines = t.content.split('\r').count().max(1);
+    let longest = t.content.split('\r').map(|l| l.chars().count()).max().unwrap_or(0);
+    (longest as f64 * size * 0.75, size, (lines - 1) as f64 * leading + size * 0.4)
+}
+
+/// How far paint reaches beyond an item's geometry (strokes, their joins and caps), so a precomp
+/// sized to geometry bounds doesn't cut it off. A clip group ends at its clip.
+fn paint_margin(it: &Item) -> f64 {
+    let stroke = |st: &Stroke| {
+        let joins = if st.join == LineJoin::Miter { st.miter_limit.clamp(1.5, 10.0) } else { 1.5 };
+        let outside = if st.alignment == StrokeAlign::Outside { 2.0 } else { 1.0 };
+        st.width / 2.0 * joins * outside
+    };
+    match it {
+        Item::Shape(s) => s.strokes.iter().map(stroke).fold(0.0, f64::max),
+        Item::Group(g) if g.clip.is_some() => 0.0,
+        Item::Group(g) => g.children.iter().map(paint_margin).fold(0.0, f64::max),
+        Item::Text(t) => t.runs.iter().filter_map(|r| r.stroke.as_ref()).map(stroke).fold(0.0, f64::max),
+    }
+}
+
+/// After Effects' Drop Shadow softness S blurs with a Gaussian standard deviation of
+/// 0.1906 * S + 0.499 px, and Gaussian Blur's blurriness B (edge pixels not repeated) with
+/// 0.2819 * B px: measured in After Effects 2025 with `tests/ae/effects-calibration.jsx`
+/// (docs/VERIFICATION.md, "Effects calibration").
+const AE_SOFTNESS_SD_SLOPE: f64 = 0.1906;
+const AE_SOFTNESS_SD_BASE: f64 = 0.499;
+const AE_BLURRINESS_SD_SLOPE: f64 = 0.2819;
+/// Largest values After Effects accepts for these parameters.
+const AE_MAX_DISTANCE: f64 = 4000.0;
+const AE_MAX_BLUR: f64 = 30_000.0;
+
+/// How an After Effects layer maps its own space to its comp. Effects are drawn in layer space,
+/// before the layer's rotation and scale, so comp-space offsets and sizes are converted back.
+#[derive(Clone, Copy)]
+struct LayerXf {
+    rot_deg: f64,
+    sx: f64,
+    sy: f64,
+}
+
+impl LayerXf {
+    const IDENTITY: LayerXf = LayerXf { rot_deg: 0.0, sx: 1.0, sy: 1.0 };
+
+    /// A comp-space vector in layer space: scale^-1 * rotation^-1 * v.
+    fn to_layer(self, v: [f64; 2]) -> (f64, f64) {
+        let (sin, cos) = (-self.rot_deg).to_radians().sin_cos();
+        let (x, y) = (v[0] * cos - v[1] * sin, v[0] * sin + v[1] * cos);
+        let div = |a: f64, s: f64| if s.abs() > 1e-9 { a / s } else { a };
+        (div(x, self.sx), div(y, self.sy))
+    }
+
+    fn mean_scale(self) -> f64 {
+        let m = (self.sx.abs() + self.sy.abs()) / 2.0;
+        if m > 1e-9 { m } else { 1.0 }
     }
 }
 
@@ -334,6 +420,55 @@ impl Gen<'_> {
     fn warn(&mut self, code: &str, it: &Item, msg: &str) {
         if self.warnings.len() < crate::limits::MAX_WARNINGS {
             self.warnings.push(Warning::new(code, Some(it.id()), Some(it.name()), msg));
+        }
+    }
+
+    /// Effects of `it` for the layer finished just before (see the module docs). `report`:
+    /// count them and warn about what is approximated (false for a second copy of the same
+    /// effects, on a text's outline fallback).
+    fn fx(&mut self, effects: &[Effect], it: &Item, xf: LayerXf, report: bool) {
+        let shadows = effects.iter().filter(|e| matches!(e, Effect::DropShadow { .. })).count();
+        if report && shadows > 1 {
+            self.warn(
+                "shadows_stacked",
+                it,
+                "Several drop shadows: in After Effects each one also falls on the shadows before it, so together they look a little stronger.",
+            );
+        }
+        // Shadows first, then blurs: a blur in the source blurs the item's shadows too.
+        let ordered = effects.iter().filter(|e| matches!(e, Effect::DropShadow { .. })).chain(effects.iter().filter(|e| matches!(e, Effect::LayerBlur { .. })));
+        for e in ordered {
+            match e {
+                Effect::DropShadow { color, opacity, offset, std_deviation, spread } => {
+                    if report && spread.abs() > 0.01 {
+                        self.warn("shadow_spread_dropped", it, "After Effects drop shadows have no spread; the shadow's spread was left out.");
+                    }
+                    let (dx, dy) = xf.to_layer(*offset);
+                    let distance = dx.hypot(dy).min(AE_MAX_DISTANCE);
+                    // After Effects measures direction clockwise from up.
+                    let direction = if distance > 1e-9 { dx.atan2(-dy).to_degrees().rem_euclid(360.0) } else { 180.0 };
+                    let sd = std_deviation / xf.mean_scale();
+                    let softness = ((sd - AE_SOFTNESS_SD_BASE) / AE_SOFTNESS_SD_SLOPE).clamp(0.0, AE_MAX_BLUR);
+                    let line = format!(
+                        "FX SHADOW {} {} {} {} {} {} {}",
+                        num(color[0]),
+                        num(color[1]),
+                        num(color[2]),
+                        op(*opacity),
+                        num(direction),
+                        num(distance),
+                        num(softness)
+                    );
+                    self.line(&line);
+                }
+                Effect::LayerBlur { std_deviation } => {
+                    let blurriness = (std_deviation / xf.mean_scale() / AE_BLURRINESS_SD_SLOPE).min(AE_MAX_BLUR);
+                    self.line(&format!("FX BLUR {}", num(blurriness)));
+                }
+            }
+            if report {
+                self.summary.effects += 1;
+            }
         }
     }
 
@@ -543,44 +678,68 @@ impl Gen<'_> {
                 self.shape_layer(&s.name, &[it], s.opacity * parent_opacity, s.blend_mode);
                 self.shape_body(s, it);
                 self.line("LEND");
+                self.fx(&s.effects, it, LayerXf::IDENTITY, true);
             }
-            Item::Group(g) => {
-                if let Some(clip) = &g.clip {
-                    self.clipped(g, clip, it, parent_opacity);
-                } else if g.children.iter().any(needs_layers) {
-                    if g.opacity < 1.0 || !matches!(g.blend_mode, BlendMode::Normal | BlendMode::PassThrough) {
-                        // Splitting would change how opacity/blend composite: precompose instead.
-                        self.precomp(&g.id, &g.name, &g.children, g.opacity * parent_opacity, g.blend_mode);
-                    } else {
-                        if !self.warned_split {
-                            self.warned_split = true;
-                            self.warn("group_split", it, "Groups containing text or clipping masks are split into several layers.");
-                        }
-                        for c in g.children.iter().rev() {
-                            self.layers_for(c, parent_opacity);
-                        }
-                    }
-                } else {
-                    let children: Vec<&Item> = g.children.iter().collect();
-                    self.id(&g.id);
-                    self.shape_layer(&g.name, &children, g.opacity * parent_opacity, g.blend_mode);
-                    for c in &g.children {
-                        self.group_item(c);
-                    }
-                    self.line("LEND");
-                }
-            }
+            Item::Group(g) => self.group_layers(g, it, parent_opacity, true),
         }
     }
 
-    fn clipped(&mut self, g: &Group, clip: &Clip, it: &Item, parent_opacity: f64) {
+    fn children_layers(&mut self, children: &[Item]) {
+        for c in children.iter().rev() {
+            self.layers_for(c, 1.0);
+        }
+    }
+
+    /// A group as layers. `own` false: an enclosing precomp layer carries the group's opacity,
+    /// blend mode and effects, so they are left out here.
+    fn group_layers(&mut self, g: &Group, it: &Item, parent_opacity: f64, own: bool) {
+        let (opacity, blend, effects): (f64, BlendMode, &[Effect]) =
+            if own { (g.opacity * parent_opacity, g.blend_mode, &g.effects) } else { (parent_opacity, BlendMode::Normal, &[]) };
         let nested = g.children.iter().any(needs_layers);
-        if nested {
-            self.precomp(&g.id, &g.name, &g.children, g.opacity * parent_opacity, g.blend_mode);
+        if !effects.is_empty() && (nested || (g.clip.is_some() && self.opts.clip_mode == ClipMode::Matte)) {
+            // The effects apply to what the group draws as a whole (a track matte would also cut
+            // the shadow off): build the group in a precomp, effects on the precomp layer.
+            self.precomp(&g.id, &g.name, &[it], opacity, blend, |b| b.group_layers(g, it, 1.0, false));
+            self.fx(effects, it, LayerXf::IDENTITY, true);
+        } else if let Some(clip) = &g.clip {
+            self.clipped(g, clip, it, opacity, blend);
+            // With effects, only reached for one layer with masks: masks apply before effects.
+            self.fx(effects, it, LayerXf::IDENTITY, true);
+        } else if nested {
+            if opacity < 1.0 || !matches!(blend, BlendMode::Normal | BlendMode::PassThrough) {
+                // Splitting would change how opacity/blend composite: precompose instead.
+                let refs: Vec<&Item> = g.children.iter().collect();
+                self.precomp(&g.id, &g.name, &refs, opacity, blend, |b| b.children_layers(&g.children));
+            } else {
+                if !self.warned_split {
+                    self.warned_split = true;
+                    self.warn("group_split", it, "Groups containing text, clipping masks or effects are split into several layers.");
+                }
+                for c in g.children.iter().rev() {
+                    self.layers_for(c, parent_opacity);
+                }
+            }
         } else {
             let children: Vec<&Item> = g.children.iter().collect();
             self.id(&g.id);
-            self.shape_layer(&g.name, &children, g.opacity * parent_opacity, g.blend_mode);
+            self.shape_layer(&g.name, &children, opacity, blend);
+            for c in &g.children {
+                self.group_item(c);
+            }
+            self.line("LEND");
+            self.fx(effects, it, LayerXf::IDENTITY, true);
+        }
+    }
+
+    fn clipped(&mut self, g: &Group, clip: &Clip, it: &Item, opacity: f64, blend: BlendMode) {
+        let nested = g.children.iter().any(needs_layers);
+        if nested {
+            let refs: Vec<&Item> = g.children.iter().collect();
+            self.precomp(&g.id, &g.name, &refs, opacity, blend, |b| b.children_layers(&g.children));
+        } else {
+            let children: Vec<&Item> = g.children.iter().collect();
+            self.id(&g.id);
+            self.shape_layer(&g.name, &children, opacity, blend);
             for c in &g.children {
                 self.group_item(c);
             }
@@ -605,6 +764,7 @@ impl Gen<'_> {
                 fill_rule: clip.fill_rule,
                 fills: vec![Paint::Solid { color: [1.0, 1.0, 1.0], opacity: 1.0 }],
                 strokes: Vec::new(),
+                effects: Vec::new(),
             };
             let item = Item::Shape(shape);
             if let Item::Shape(s) = &item {
@@ -626,12 +786,17 @@ impl Gen<'_> {
         }
     }
 
-    fn precomp(&mut self, key: &str, name: &str, children: &[Item], opacity: f64, blend: BlendMode) {
-        let refs: Vec<&Item> = children.iter().collect();
-        let b = items_bounds(&refs);
-        // The precomp spans the content bounds; layers inside use scene coordinates shifted so
-        // the bounds' top-left is the precomp origin.
-        let (min, w, h) = if b.is_empty() { (Pt::ZERO, 100.0, 100.0) } else { (b.min, b.width().ceil().max(4.0), b.height().ceil().max(4.0)) };
+    /// Build `body` inside a new precomp spanning `content`, then add the precomp as a layer.
+    fn precomp(&mut self, key: &str, name: &str, content: &[&Item], opacity: f64, blend: BlendMode, body: impl FnOnce(&mut Self)) {
+        let b = items_bounds(content);
+        let margin = content.iter().map(|i| paint_margin(i)).fold(0.0, f64::max).min(1000.0);
+        // The precomp spans the content bounds (plus room for strokes); layers inside use scene
+        // coordinates shifted so the bounds' top-left is the precomp origin.
+        let (min, w, h) = if b.is_empty() {
+            (Pt::ZERO, 100.0, 100.0)
+        } else {
+            (Pt::new(b.min.x - margin, b.min.y - margin), (b.width() + 2.0 * margin).ceil().max(4.0), (b.height() + 2.0 * margin).ceil().max(4.0))
+        };
         self.id(key);
         let line = format!("PRE {} {} {}", num(w.min(30_000.0)), num(h.min(30_000.0)), pct(name));
         self.line(&line);
@@ -639,9 +804,7 @@ impl Gen<'_> {
         let saved = self.offset;
         self.offset = Pt::new(-min.x, -min.y);
         self.depth += 1;
-        for c in children.iter().rev() {
-            self.layers_for(c, 1.0);
-        }
+        body(self);
         self.depth -= 1;
         self.offset = saved;
         // Precomp layer: its anchor is the precomp center, placed where the content was.
@@ -710,6 +873,8 @@ impl Gen<'_> {
             );
             self.line(&line);
         }
+        // Effects, in the text layer's own (rotated, scaled) space; applied when TEND builds it.
+        self.fx(&t.effects, it, LayerXf { rot_deg: rot, sx, sy }, true);
         self.line("TEND");
         self.summary.texts += 1;
         self.summary.layers += 1;
@@ -722,6 +887,7 @@ impl Gen<'_> {
                 self.group_item(o);
             }
             self.line("LEND");
+            self.fx(&t.effects, it, LayerXf::IDENTITY, false);
             self.line("FBEND");
         }
     }
@@ -847,6 +1013,90 @@ mod tests {
     const BASIC: &str = include_str!("../../../schema/examples/basic-shapes.json");
     const GRADIENTS: &str = include_str!("../../../schema/examples/gradients-compound.json");
     const CLIP_TEXT: &str = include_str!("../../../schema/examples/clip-and-text.json");
+    const EFFECTS: &str = include_str!("../../../schema/examples/effects.json");
+
+    /// The FX lines right after the first line starting with `prefix`.
+    fn fx_after<'a>(text: &'a str, prefix: &str) -> Vec<&'a str> {
+        text.lines().skip_while(|l| !l.starts_with(prefix)).skip(1).take_while(|l| l.starts_with("FX ")).collect()
+    }
+
+    #[test]
+    fn effects_follow_the_layer_they_belong_to() {
+        let p = plan(EFFECTS, AeOptions { comp: comp(), placement: Placement::Original, ..Default::default() });
+        // A group with text and a shadow: built in a precomp, the shadow on the precomp layer.
+        // Figma radius 20 -> stdDeviation 8.8 -> softness (8.8 - 0.499) / 0.1906.
+        assert!(p.text.contains("\nPRE 400 300 Card\n"), "{}", p.text);
+        assert_eq!(fx_after(&p.text, "PREEND Card "), vec!["FX SHADOW 0 0 0 25 180 8 43.5519"]);
+        // A shape: shadows first, then the blur, right after its LEND; offset (-6, 0) points left.
+        let badge: String = p.text.lines().skip_while(|l| !l.starts_with("LS Badge ")).take_while(|l| !l.starts_with("ID ")).collect::<Vec<_>>().join("\n");
+        assert!(badge.ends_with("LEND\nFX SHADOW 0 0 0 30 180 4 6.6159\nFX SHADOW 0.2 0 0 20 270 6 43.5519\nFX BLUR 10.6421"), "{badge}");
+        // A clip group with a shadow (track matte mode): precomposed, or the matte would cut the
+        // shadow off. Offset (12, 12): direction 135, distance 16.97.
+        assert!(p.text.contains("\nPRE 300 300 Clipped%20frame\n"));
+        assert_eq!(fx_after(&p.text, "PREEND Clipped%20frame "), vec!["FX SHADOW 0.1 0 0.3 60 135 16.9706 28.8615"]);
+        // A blurred child splits its group; it gets its own layer.
+        assert_eq!(fx_after(&p.text, "LS Blurred%20dot "), Vec::<&str>::new(), "FX comes after LEND, not after LS");
+        let dot: Vec<&str> = p.text.lines().skip_while(|l| !l.starts_with("LS Blurred%20dot ")).take(5).collect();
+        assert_eq!(dot[3..], ["LEND", "FX BLUR 17.7368"], "{dot:?}");
+        // Text rotated 90 degrees: the shadow must still fall down in the comp, so in the layer's
+        // own space it points right (90). It comes before TEND, which builds the layer.
+        let label: Vec<&str> = p.text.lines().skip_while(|l| !l.starts_with("LT Rotated%20label ")).collect();
+        assert_eq!(&label[3..5], &["FX SHADOW 0 0 0 50 90 10 7.8751", "TEND"], "{label:?}");
+        assert_eq!(p.summary.effects, 7);
+        let codes: Vec<&str> = p.warnings.iter().map(|w| w.code.as_str()).collect();
+        assert!(codes.contains(&"shadows_stacked") && codes.contains(&"shadow_spread_dropped"), "{codes:?}");
+    }
+
+    #[test]
+    fn clip_group_with_masks_keeps_one_layer_for_effects() {
+        // Layer masks apply before effects, so no precomp is needed.
+        let p = plan(EFFECTS, AeOptions { comp: comp(), placement: Placement::Original, clip_mode: ClipMode::Mask, ..Default::default() });
+        assert!(!p.text.contains("PRE 300 300 Clipped%20frame"));
+        let frame: Vec<&str> = p.text.lines().skip_while(|l| !l.starts_with("LS Clipped%20frame ")).take_while(|l| !l.starts_with("ID ")).collect();
+        assert!(frame.iter().any(|l| l.starts_with("MASK ")), "{frame:?}");
+        assert_eq!(frame[frame.len() - 2..], ["LEND", "FX SHADOW 0.1 0 0.3 60 135 16.9706 28.8615"]);
+    }
+
+    #[test]
+    fn merged_layers_leave_out_items_with_effects() {
+        let p = plan(EFFECTS, AeOptions { comp: comp(), placement: Placement::Original, layer_mode: LayerMode::Merge, ..Default::default() });
+        assert!(p.text.contains("\nLS Badge "), "the badge keeps its own layer for its effects");
+        assert_eq!(fx_after(&p.text, "PREEND Card ").len(), 1);
+        assert_eq!(p.summary.effects, 7);
+    }
+
+    #[test]
+    fn layer_space_undoes_rotation_and_scale() {
+        let xf = LayerXf { rot_deg: 90.0, sx: 2.0, sy: 2.0 };
+        let (x, y) = xf.to_layer([0.0, 10.0]);
+        assert!((x - 5.0).abs() < 1e-9 && y.abs() < 1e-9, "{x} {y}");
+        // Flipped vertically: down in the comp is up in the layer.
+        let (x, y) = LayerXf { rot_deg: 0.0, sx: 1.0, sy: -1.0 }.to_layer([0.0, 10.0]);
+        assert!(x.abs() < 1e-9 && (y + 10.0).abs() < 1e-9);
+        assert_eq!(LayerXf { rot_deg: 0.0, sx: 0.0, sy: 0.0 }.mean_scale(), 1.0);
+    }
+
+    #[test]
+    fn precomps_leave_room_for_strokes_and_point_text() {
+        // A stroke of width 10 with miter joins (limit 4) can reach 20 px beyond the geometry.
+        let stroked = {
+            let mut v: serde_json::Value = serde_json::from_str(EFFECTS).unwrap();
+            let card = v["items"].as_array_mut().unwrap().iter_mut().find(|i| i["name"] == "Card").unwrap();
+            card["children"][1]["strokes"] = serde_json::json!([{"paint":{"type":"solid","color":[0,0,0]},"width":10,"join":"miter","miterLimit":4}]);
+            v.to_string()
+        };
+        let p = plan(&stroked, AeOptions { comp: comp(), placement: Placement::Original, ..Default::default() });
+        assert!(p.text.contains("\nPRE 440 340 Card\n"), "{}", p.text);
+        // Point text with no outline geometry: its extent is estimated from the font size
+        // (5 characters x 40 x 0.75 wide, 40 above and 16 below the baseline).
+        let point = r#"{"schema":"pulley-scene","version":2,"source":{"app":"illustrator","appVersion":"29.5.0","pulleyVersion":"0.1.0","documentName":"t.ai"},
+            "units":{"source":"pt","pxPerSourceUnit":1},"colorSpace":"srgb","bounds":{"x":0,"y":0,"width":800,"height":600},
+            "items":[{"type":"group","id":"g","name":"G","opacity":0.5,"children":[{"type":"text","id":"t","name":"T","kind":"point","content":"Hello",
+              "matrix":[1,0,0,1,100,200],"justification":"left","runs":[{"start":0,"end":5,"font":{"postScriptName":"ArialMT","family":"Arial","style":"Regular"},
+              "size":40,"fill":{"type":"solid","color":[0,0,0]}}],"outlines":[]}]}],"warnings":[]}"#;
+        let p = plan(point, AeOptions { comp: comp(), placement: Placement::Original, ..Default::default() });
+        assert!(p.text.contains("\nPRE 150 56 G\n"), "{}", p.text);
+    }
 
     fn plan(src: &str, opts: AeOptions) -> Plan {
         build_plan(&parse_scene(src, Component::AePanel).unwrap(), &opts).unwrap()

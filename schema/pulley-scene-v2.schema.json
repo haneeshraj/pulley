@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pulley.invalid/schema/pulley-scene-v1.schema.json",
-  "title": "pulley-scene v1",
+  "$id": "https://pulley.invalid/schema/pulley-scene-v2.schema.json",
+  "title": "pulley-scene v2",
   "description": "Canonical vector scene exchanged between Pulley components. Every object rejects unknown fields (matches serde deny_unknown_fields). Coordinates are pixels, y-down, origin at the top-left of the source artboard/frame. Tangents are relative to their vertex. Colors are gamma-encoded floats 0..1 in the header colorSpace. Limits that JSON Schema cannot express (nesting depth, total vertex and item counts, total message size) are enforced by pulley-core; see schema/SCENE.md.",
   "type": "object",
   "additionalProperties": false,
@@ -20,8 +20,11 @@
       "const": "pulley-scene"
     },
     "version": {
-      "description": "Major version. Readers accept only versions they know; any change to this schema bumps it.",
-      "const": 1
+      "description": "Major version. Readers accept only versions they know; any change to this schema bumps it. v2 added `effects`; a v1 scene is a valid v2 scene without them.",
+      "enum": [
+        1,
+        2
+      ]
     },
     "source": {
       "$ref": "#/$defs/source"
@@ -283,6 +286,14 @@
           "items": {
             "$ref": "#/$defs/item"
           }
+        },
+        "effects": {
+          "description": "v2. Effects on the item as a whole (for a group: on what the group draws).",
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
         }
       }
     },
@@ -377,6 +388,14 @@
           "maxItems": 32,
           "items": {
             "$ref": "#/$defs/stroke"
+          }
+        },
+        "effects": {
+          "description": "v2. Effects on the item as a whole (for a group: on what the group draws).",
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/effect"
           }
         }
       }
@@ -781,6 +800,14 @@
           "items": {
             "$ref": "#/$defs/shapeItem"
           }
+        },
+        "effects": {
+          "description": "v2. Effects on the item as a whole (for a group: on what the group draws).",
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
         }
       }
     },
@@ -812,6 +839,74 @@
     "shapeItem": {
       "description": "A shape item (type = shape).",
       "$ref": "#/$defs/shape"
+    },
+    "effect": {
+      "description": "v2. A visual effect. Blurs are the Gaussian standard deviation in px (as SVG feGaussianBlur; a CSS box-shadow blur radius is twice this).",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "color",
+            "offset",
+            "stdDeviation"
+          ],
+          "properties": {
+            "type": {
+              "const": "dropShadow"
+            },
+            "color": {
+              "$ref": "#/$defs/rgb"
+            },
+            "opacity": {
+              "$ref": "#/$defs/unit",
+              "default": 1
+            },
+            "offset": {
+              "description": "Scene px, y-down; not rotated with the item.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -100000,
+                "maximum": 100000
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "stdDeviation": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "spread": {
+              "description": "Grows (negative: shrinks) the silhouette before blurring, px.",
+              "type": "number",
+              "minimum": -100000,
+              "maximum": 100000,
+              "default": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "stdDeviation"
+          ],
+          "properties": {
+            "type": {
+              "const": "layerBlur"
+            },
+            "stdDeviation": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            }
+          }
+        }
+      ]
     }
   }
 }

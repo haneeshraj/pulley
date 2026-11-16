@@ -298,6 +298,7 @@ fn check_item(item: &Item, depth: usize, ctx: &mut Ctx) -> Result<()> {
                 check_paths(&g.name, &clip.paths, ctx)?;
             }
             limit("items", g.children.len(), MAX_ITEMS)?;
+            check_effects(&g.name, &g.effects)?;
             for c in &g.children {
                 check_item(c, depth + 1, ctx)?;
             }
@@ -306,6 +307,7 @@ fn check_item(item: &Item, depth: usize, ctx: &mut Ctx) -> Result<()> {
         Item::Text(t) => {
             check_common(&t.name, &t.id, t.opacity, depth, ctx)?;
             ctx.stats.texts += 1;
+            check_effects(&t.name, &t.effects)?;
             check_text(t, depth, ctx)?;
         }
     }
@@ -324,6 +326,26 @@ fn check_shape(s: &Shape, depth: usize, ctx: &mut Ctx) -> Result<()> {
     }
     for st in &s.strokes {
         check_stroke(&s.name, st)?;
+    }
+    check_effects(&s.name, &s.effects)
+}
+
+fn check_effects(name: &str, effects: &[Effect]) -> Result<()> {
+    if effects.len() > MAX_EFFECTS {
+        return Err(bad(name, format!("has more than {MAX_EFFECTS} effects")));
+    }
+    for e in effects {
+        match e {
+            Effect::DropShadow { color, opacity, offset, std_deviation, spread } => {
+                check_rgb(name, *color)?;
+                range(name, "shadow opacity", *opacity, 0.0, 1.0)?;
+                range(name, "shadow offset", offset[0], -MAX_LENGTH, MAX_LENGTH)?;
+                range(name, "shadow offset", offset[1], -MAX_LENGTH, MAX_LENGTH)?;
+                range(name, "shadow blur", *std_deviation, 0.0, MAX_LENGTH)?;
+                range(name, "shadow spread", *spread, -MAX_LENGTH, MAX_LENGTH)?;
+            }
+            Effect::LayerBlur { std_deviation } => range(name, "blur", *std_deviation, 0.0, MAX_LENGTH)?,
+        }
     }
     Ok(())
 }
@@ -539,8 +561,46 @@ mod tests {
     }
 
     #[test]
+    fn effects_are_checked() {
+        let with = |e: serde_json::Value| {
+            mutate(BASIC, move |v| {
+                v["version"] = 2.into();
+                v["items"][0]["effects"] = e;
+            })
+        };
+        let ok = with(serde_json::json!([
+            {"type":"dropShadow","color":[0,0,0],"opacity":0.25,"offset":[0,4],"stdDeviation":2,"spread":1},
+            {"type":"layerBlur","stdDeviation":3}
+        ]));
+        let scene = parse_scene(&ok, Component::AePanel).unwrap();
+        let Item::Shape(s) = &scene.items[0] else { panic!("shape expected") };
+        assert_eq!(s.effects.len(), 2);
+        // Written back unchanged.
+        let back = serialize_scene(&scene).unwrap();
+        assert!(
+            back.contains(r#""effects":[{"type":"dropShadow","color":[0.0,0.0,0.0],"opacity":0.25,"offset":[0.0,4.0],"stdDeviation":2.0,"spread":1.0}"#),
+            "{back}"
+        );
+        let too_many: Vec<serde_json::Value> = (0..17).map(|_| serde_json::json!({"type":"layerBlur","stdDeviation":1})).collect();
+        for bad in [
+            serde_json::json!([{"type":"dropShadow","color":[0,0,2],"offset":[0,4],"stdDeviation":2}]),
+            serde_json::json!([{"type":"dropShadow","color":[0,0,0],"offset":[0,4],"stdDeviation":2,"opacity":1.5}]),
+            serde_json::json!([{"type":"dropShadow","color":[0,0,0],"offset":[0,1e9],"stdDeviation":2}]),
+            serde_json::json!([{"type":"layerBlur","stdDeviation":-1}]),
+            serde_json::json!([{"type":"layerBlur","stdDeviation":1,"radius":2}]),
+            serde_json::json!([{"type":"glow","stdDeviation":1}]),
+            serde_json::Value::Array(too_many),
+        ] {
+            let src = with(bad.clone());
+            assert!(parse_scene(&src, Component::Bridge).is_err(), "accepted {bad}");
+        }
+        // Scenes from before effects existed still read.
+        assert_eq!(parse_scene(BASIC, Component::AePanel).unwrap().version, 1);
+    }
+
+    #[test]
     fn version_errors_name_the_component() {
-        let newer = mutate(BASIC, |v| v["version"] = 2.into());
+        let newer = mutate(BASIC, |v| v["version"] = (SCHEMA_VERSION + 1).into());
         let e = parse_scene(&newer, Component::AePanel).unwrap_err();
         assert_eq!(e.code, ErrorCode::SchemaTooNew);
         assert!(e.hint.contains("Update the Pulley After Effects panel"), "{}", e.hint);

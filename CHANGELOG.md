@@ -12,8 +12,13 @@ with After Effects 25.5 and Illustrator 29.5; see the README for what is and isn
   are added and removed ones listed. Option in the After Effects panel to turn it off.
 - **Pairing code on the clipboard:** the tray copies it; the Figma plugin pairs as soon as it is
   pasted.
+- **Shadows and blurs from Figma** become After Effects Drop Shadow and Gaussian Blur effects,
+  sized to match (measured in After Effects); re-push updates and removes them. pulley-scene v2
+  adds `effects` (v1 scenes still read).
+- Precomps leave room for strokes and estimated point-text extents, so their edges no longer cut
+  off outer strokes or text without outlines.
 
-- **pulley-core** (Rust, also compiled to WebAssembly): pulley-scene v1 format with JSON Schema,
+- **pulley-core** (Rust, also compiled to WebAssembly): pulley-scene format (v2) with JSON Schema,
   strict validation and hard limits; Illustrator capture and Figma node conversion; SVG path and
   document parsing; shape builders; gradient geometry; After Effects build plans; `.ffx` presets
   for gradient colors; bridge protocol; fuzzing entry points.

@@ -43,7 +43,12 @@ export function frame() {
     fills: [solid(1, 1, 1)], strokes: [], strokeWeight: mixed, strokeTopWeight: 1, strokeRightWeight: 3, strokeBottomWeight: 1, strokeLeftWeight: 1,
     strokeAlign: 'INSIDE', strokeCap: 'NONE', strokeJoin: 'MITER', strokeMiterLimit: 4, dashPattern: [],
     cornerRadius: mixed, topLeftRadius: 16, topRightRadius: 16, bottomRightRadius: 0, bottomLeftRadius: 0,
-    clipsContent: true, effects: [{ type: 'DROP_SHADOW', visible: true, radius: 4 }],
+    clipsContent: true,
+    effects: [
+      { type: 'DROP_SHADOW', visible: true, color: { r: 0, g: 0, b: 0, a: 0.25 }, offset: { x: 0, y: 4 }, radius: 4, spread: 0, blendMode: 'NORMAL', showShadowBehindNode: false },
+      { type: 'LAYER_BLUR', visible: true, radius: 8, blurType: 'PROGRESSIVE', startRadius: 2, startOffset: { x: 0, y: 0 }, endOffset: { x: 0, y: 1 } },
+      { type: 'INNER_SHADOW', visible: true, color: { r: 0, g: 0, b: 0, a: 1 }, offset: { x: 0, y: 1 }, radius: 2, spread: 0, blendMode: 'NORMAL' },
+    ],
     children: [
       rect('1:2', 'Button', 120, 260, 120, 32, { cornerRadius: 8, topLeftRadius: 8, topRightRadius: 8, bottomRightRadius: 8, bottomLeftRadius: 8, strokes: [solid(0, 0, 1)], strokeWeight: 2, dashPattern: [4, 2] }),
       {

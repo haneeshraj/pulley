@@ -33,6 +33,14 @@ var PulleyApply = (function () {
     var DASH_NAMES = ["ADBE Vector Stroke Dash 1", "ADBE Vector Stroke Gap 1", "ADBE Vector Stroke Dash 2",
         "ADBE Vector Stroke Gap 2", "ADBE Vector Stroke Dash 3", "ADBE Vector Stroke Gap 3"];
 
+    // Effects Pulley adds (FX lines), by plan keyword. Parameters verified in After Effects 2025
+    // (tests/ae/effects-calibration.jsx): Drop Shadow opacity runs 0..255, direction is clockwise
+    // from up, and both effects draw in layer space.
+    var FX_KINDS = {
+        SHADOW: { match: "ADBE Drop Shadow", name: "Pulley Drop Shadow" },
+        BLUR: { match: "ADBE Gaussian Blur 2", name: "Pulley Blur" }
+    };
+
     var plugplug = null;
 
     function readFile(path) {
@@ -140,6 +148,18 @@ var PulleyApply = (function () {
         }
     }
 
+    /** Names of the effects Pulley added to a layer earlier, by kind, top to bottom. */
+    function pulleyEffectNames(L) {
+        var out = { SHADOW: [], BLUR: [] }, parade = L.property("ADBE Effect Parade");
+        for (var i = 1; i <= parade.numProperties; i++) {
+            var e = parade.property(i);
+            for (var k in FX_KINDS) {
+                if (FX_KINDS.hasOwnProperty(k) && e.matchName === FX_KINDS[k].match && e.name.indexOf(FX_KINDS[k].name) === 0) { out[k].push(e.name); }
+            }
+        }
+        return out;
+    }
+
     function propPath(prop) {
         // Indices from the layer down to this property, so it can be found again later
         // (adding siblings invalidates existing references).
@@ -176,7 +196,7 @@ var PulleyApply = (function () {
      */
     function apply(planPath, cancelPath, compOverride, ffxPrefix) {
         var t0 = new Date().getTime();
-        var res = { ok: false, layers: 0, groups: 0, paths: 0, texts: 0, comps: 0, missingFonts: [], warnings: [], gradients: 0, cancelled: false };
+        var res = { ok: false, layers: 0, groups: 0, paths: 0, texts: 0, comps: 0, effects: 0, missingFonts: [], warnings: [], gradients: 0, cancelled: false };
         var text;
         try { text = readFile(planPath); } catch (eR) { res.error = { code: "plan_unreadable", message: String(eR) }; return PulleyJSON.stringify(res); }
         if (text.indexOf("PULLEY-PLAN 1\n") !== 0) {
@@ -198,6 +218,10 @@ var PulleyApply = (function () {
         // Re-push state: layers tagged by this document in the target comp, by item.
         var docKey = null, updateOn = false, existing = {}, seenKeys = {}, pendingId = null;
         var skipContents = false, skipMasks = false, masksPending = false, skipPre = 0, preStack = [];
+        // Effects: FX lines go to the layer finished last. On a layer from an earlier push, the
+        // effects Pulley added then are updated in place, and the ones no longer in the source
+        // removed (unless animated).
+        var fxSession = null, layerIsUpdate = false;
         res.updated = 0;
         var total = 0, pos = 0, len = text.length, idx;
         for (idx = text.indexOf("\n"); idx >= 0; idx = text.indexOf("\n", idx + 1)) { total++; }
@@ -236,6 +260,57 @@ var PulleyApply = (function () {
             return list[0];
         }
         function updated(L) { curList().push(L); res.updated++; }
+
+        function endFx() {
+            var fs = fxSession;
+            fxSession = null;
+            if (!fs || !fs.update) { return; }
+            var parade = fs.layer.property("ADBE Effect Parade");
+            for (var k in fs.old) {
+                if (!fs.old.hasOwnProperty(k)) { continue; }
+                for (var i = fs.used[k]; i < fs.old[k].length; i++) {
+                    var e = parade.property(fs.old[k][i]);
+                    if (!e) { continue; }
+                    if (animated(e, 0)) { addOnce(fs.kept, "effects"); continue; }
+                    e.remove();
+                }
+            }
+            keptWarning(fs.layer, fs.kept);
+        }
+        function beginFx(L, isUpdate) {
+            endFx();
+            fxSession = { layer: L, update: isUpdate, used: { SHADOW: 0, BLUR: 0 }, old: isUpdate ? pulleyEffectNames(L) : { SHADOW: [], BLUR: [] }, kept: [] };
+        }
+        /** FX SHADOW r g b op direction distance softness | FX BLUR blurriness */
+        function applyFx(f) {
+            var fs = fxSession, kind = FX_KINDS[f[1]];
+            if (!fs || !kind) { warn("effect skipped"); return; }
+            var parade = fs.layer.property("ADBE Effect Parade");
+            var n = fs.used[f[1]]++;
+            var e = n < fs.old[f[1]].length ? parade.property(fs.old[f[1]][n]) : null;
+            var fresh = !e;
+            if (fresh) {
+                e = parade.addProperty(kind.match);
+                e.name = n === 0 ? kind.name : kind.name + " " + (n + 1);
+            }
+            function set(matchName, v, label) {
+                var p = e.property(matchName);
+                if (fresh) { p.setValue(v); } else { setStatic(p, v, fs.kept, label); }
+            }
+            if (f[1] === "SHADOW") {
+                set("ADBE Drop Shadow-0001", [+f[2], +f[3], +f[4], 1], "shadow color");
+                var opMax = e.property("ADBE Drop Shadow-0002").hasMax ? e.property("ADBE Drop Shadow-0002").maxValue : 255;
+                set("ADBE Drop Shadow-0002", +f[5] / 100 * opMax, "shadow opacity");
+                set("ADBE Drop Shadow-0003", +f[6], "shadow direction");
+                set("ADBE Drop Shadow-0004", +f[7], "shadow distance");
+                set("ADBE Drop Shadow-0005", +f[8], "shadow softness");
+            } else {
+                set("ADBE Gaussian Blur 2-0001", +f[2], "blur");
+                // The source's blur fades at the edges: don't repeat edge pixels.
+                set("ADBE Gaussian Blur 2-0003", 0, "blur");
+            }
+            res.effects++;
+        }
 
         function nextLine() {
             if (pos >= len) { return null; }
@@ -336,6 +411,8 @@ var PulleyApply = (function () {
                 setLayerBlend(L, t.blend);
                 newLayer(L);
             }
+            beginFx(L, !!old);
+            for (i = 0; i < t.fx.length; i++) { applyFx(t.fx[i]); }
             res.texts++;
         }
 
@@ -467,6 +544,7 @@ var PulleyApply = (function () {
                                 newLayer(PL);
                             }
                             layer = PL;
+                            beginFx(PL, !!entry.reuse);
                             break;
                         }
                         case "LS": {
@@ -496,8 +574,10 @@ var PulleyApply = (function () {
                                 masksPending = true;
                                 keptWarning(layer, skept);
                                 updated(layer);
+                                layerIsUpdate = true;
                                 break;
                             }
+                            layerIsUpdate = false;
                             layer = curComp().layers.addShape();
                             layer.name = dec(f[1]);
                             if (lid !== null) { layer.comment = tagFor(lid); }
@@ -587,7 +667,7 @@ var PulleyApply = (function () {
                             textState = {
                                 name: dec(f[1]), box: f[2] === "1", bw: +f[3], bh: +f[4], px: +f[5], py: +f[6],
                                 rot: +f[7], sx: +f[8], sy: +f[9], op: +f[10], blend: f[11], just: f[12],
-                                m: [+f[13], +f[14], +f[15], +f[16]], content: "", runs: [], id: pendingId
+                                m: [+f[13], +f[14], +f[15], +f[16]], content: "", runs: [], id: pendingId, fx: []
                             };
                             pendingId = null;
                             break;
@@ -640,6 +720,11 @@ var PulleyApply = (function () {
                             skipContents = false;
                             skipMasks = false;
                             masksPending = false;
+                            if (layer) { beginFx(layer, layerIsUpdate); }
+                            break;
+                        case "FX":
+                            // Before TEND they belong to the text layer TEND builds.
+                            if (textState) { textState.fx.push(f); } else { applyFx(f); }
                             break;
                         case "END":
                             res.ok = true;
@@ -659,6 +744,7 @@ var PulleyApply = (function () {
                 res.error = { code: "no_comp", message: "No composition is active in After Effects." };
             }
         }
+        try { endFx(); } catch (eFx) { warn("Effects: " + String(eFx), true); }
         // Layers from an earlier push of this document whose item isn't in this push are kept.
         if (res.ok && updateOn) {
             for (var gone in existing) {

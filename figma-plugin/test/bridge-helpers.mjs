@@ -16,7 +16,8 @@ function freePort() {
 }
 
 export async function startBridge() {
-  if (!fs.existsSync(exe)) execFileSync('cargo', ['build', '-q', '-p', 'pulley-bridge'], { cwd: root, stdio: 'inherit' });
+  // Always build: a stale bridge would test old code (cargo returns at once when up to date).
+  execFileSync('cargo', ['build', '-q', '-p', 'pulley-bridge'], { cwd: root, stdio: 'inherit' });
   const port = await freePort();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pulley-figma-test-'));
   const child = spawn(exe, ['--headless', '--stderr', '--port', String(port), '--config-dir', dir, '--start-pairing'], { stdio: 'ignore' });

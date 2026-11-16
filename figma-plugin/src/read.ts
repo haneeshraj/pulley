@@ -57,6 +57,25 @@ function color(c: AnyNode | undefined, withAlpha: boolean): Plain {
   return o;
 }
 
+/** Drop shadows and layer blurs travel with their values; other effects only by type (reported). */
+function readEffect(e: AnyNode): Plain {
+  const o: Plain = { type: String(e.type), visible: e.visible !== false };
+  if (e.type === 'DROP_SHADOW') {
+    o.color = color(e.color, true);
+    o.offset = { x: num(e.offset && e.offset.x), y: num(e.offset && e.offset.y) };
+    o.radius = num(e.radius);
+    o.spread = num(e.spread);
+    o.blendMode = String(e.blendMode || 'NORMAL');
+  } else if (e.type === 'LAYER_BLUR') {
+    o.radius = num(e.radius);
+    if (e.blurType === 'PROGRESSIVE') {
+      o.blurType = 'PROGRESSIVE';
+      o.startRadius = num(e.startRadius);
+    }
+  }
+  return o;
+}
+
 function transform(t: unknown): number[][] {
   if (Array.isArray(t) && t.length === 2 && Array.isArray(t[0]) && Array.isArray(t[1])) {
     return [[num(t[0][0], 1), num(t[0][1]), num(t[0][2])], [num(t[1][0]), num(t[1][1], 1), num(t[1][2])]];
@@ -128,7 +147,7 @@ function readNode(n: AnyNode, ctx: Ctx, depth: number): Plain {
   if (n.isMask) { o.isMask = true; }
   if ('width' in n) { o.width = num(n.width); o.height = num(n.height); }
   if (Array.isArray(n.effects) && n.effects.length) {
-    o.effects = n.effects.map((e: AnyNode) => ({ type: String(e.type), visible: e.visible !== false }));
+    o.effects = n.effects.map(readEffect);
   }
   if ('fills' in n && n.type !== 'TEXT') { o.fills = readPaints(n.fills, mixed); }
   if ('strokes' in n) { o.strokes = readPaints(n.strokes, mixed); }

@@ -45,6 +45,9 @@ const cases = [
   // Pushing the same artwork twice: clip groups (precomp + matte), gradients, text.
   ['twice-cliptext', 'schema/examples/clip-and-text.json', comp, true, 'pulleyTestPushTwice'],
   ['twice-gradients', [`${F}/gradients.capture.json`, '-'], { ...comp, placement: 'original' }, true, 'pulleyTestPushTwice'],
+  // Shadows and blurs: with track mattes (clip group precomposed) and with layer masks.
+  ['effects', 'schema/examples/effects.json', { ...comp, placement: 'original' }, true],
+  ['effects-mask', 'schema/examples/effects.json', { ...comp, placement: 'original', clipMode: 'mask' }, true],
 ].filter(([name]) => (only.length ? only.includes(name) : true))
   .filter(([name]) => !(args.includes('--skip-perf') && name.includes('perf')));
 
@@ -114,6 +117,28 @@ if (!only.length || only.includes('repush') || only.includes('repush-off')) {
     if (only.length && !only.includes(id)) continue;
     jobs.push({ id, call: 'pulleyTestRepush', args: [plans['repush-a'], plans[planB], fwd(path.join(out, `${id}.result.json`)), pre('repush-a'), pre(planB)], timeoutMs: 15 * 60 * 1000 });
   }
+}
+// Re-push with effects: A = schema/examples/effects.json, B changes and removes effects.
+if (!only.length || only.includes('repush-effects')) {
+  const a = JSON.parse(fs.readFileSync(path.join(root, 'schema/examples/effects.json'), 'utf8'));
+  const b = JSON.parse(JSON.stringify(a));
+  const find = (items, id) => { for (const it of items) { if (it.id === id) return it; const c = it.children && find(it.children, id); if (c) return c; } return null; };
+  // Badge: one shadow left, moved to the right; its second shadow and its blur are gone.
+  find(b.items, 'figma:1:2').effects = [{ type: 'dropShadow', color: [0, 0, 0], opacity: 0.3, offset: [8, 0], stdDeviation: 1.76 }];
+  // Card: a red shadow (the user animated its softness in After Effects).
+  find(b.items, 'figma:1:1').effects[0].color = [0.8, 0, 0];
+  // The blur moves from one dot to the other.
+  delete find(b.items, 'figma:1:41').effects;
+  find(b.items, 'figma:1:42').effects = [{ type: 'layerBlur', stdDeviation: 2 }];
+  const plans = {};
+  for (const [name, scene] of [['repush-effects-a', a], ['repush-effects-b', b]]) {
+    const sceneFile = path.join(out, `${name}.scene.json`);
+    fs.writeFileSync(sceneFile, JSON.stringify(scene));
+    const plan = path.join(out, `${name}.plan`);
+    execFileSync(exe, [sceneFile, plan, JSON.stringify({ ...comp, placement: 'original' })], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
+    plans[name] = fwd(plan);
+  }
+  jobs.push({ id: 'repush-effects', call: 'pulleyTestRepushEffects', args: [plans['repush-effects-a'], plans['repush-effects-b'], fwd(path.join(out, 'repush-effects.result.json'))], timeoutMs: 15 * 60 * 1000 });
 }
 jobs.push({ quit: true });
 const jobsFile = path.join(out, 'jobs.json');

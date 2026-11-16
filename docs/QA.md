@@ -59,7 +59,13 @@ text, a layout with clipping masks, a CMYK document, a Large Canvas document, a 
 - [ ] Send a frame with rectangles (individual corner radii), ellipses and arcs, polygons, stars,
       lines, vectors, boolean operations, text with mixed styles, linear and radial gradients,
       masks, clipped frames, nested auto-layout frames, component instances.
-- [ ] Effects, image fills, angular/diamond gradients: warnings shown, rest imports.
+- [ ] Drop shadows and layer blurs (on a rectangle, a frame with text, a clipped frame, a text
+      layer): After Effects shows "Pulley Drop Shadow" / "Pulley Blur" effects that look like
+      Figma's (compare side by side at 100%).
+- [ ] Inner shadows, background blurs, image fills, angular/diamond gradients: warnings shown,
+      rest imports.
+- [ ] Change a shadow in Figma and send again: the same effect updates; remove it and send: the
+      effect is removed; an effect you added yourself in After Effects stays.
 - [ ] Pull selection from After Effects while the plugin is open.
 - [ ] Save .pulley file (desktop and browser) → Import .pulley file in After Effects gives the
       same result as a direct send.

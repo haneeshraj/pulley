@@ -74,6 +74,15 @@ function checkGradientColors(n, r, name) {
 }
 const child = (node, mn) => (node.children || []).find((c) => c.mn === mn);
 const layer = (dump, name) => dump.layers.find((l) => l.name === name);
+// Effects as dumped (tests/ae/dump.jsx): Drop Shadow opacity runs 0..255 in After Effects.
+const fxOf = (l) => (l && l.fx) || [];
+const isShadow = (e, w) => !!e && e.matchName === 'ADBE Drop Shadow' && nearArr(e.params['ADBE Drop Shadow-0001'], [...w.color, 1])
+  && near(e.params['ADBE Drop Shadow-0002'], w.opacity * 255) && near(e.params['ADBE Drop Shadow-0003'], w.direction)
+  && near(e.params['ADBE Drop Shadow-0004'], w.distance) && near(e.params['ADBE Drop Shadow-0005'], w.softness);
+const isBlur = (e, b) => !!e && e.matchName === 'ADBE Gaussian Blur 2' && near(e.params['ADBE Gaussian Blur 2-0001'], b) && e.params['ADBE Gaussian Blur 2-0003'] === 0;
+const fxNames = (l) => fxOf(l).map((e) => e.name).join(', ');
+const CARD_SHADOW = { color: [0, 0, 0], opacity: 0.25, direction: 180, distance: 8, softness: 43.5519 };
+const FRAME_SHADOW = { color: [0.1, 0, 0.3], opacity: 0.6, direction: 135, distance: 16.9706, softness: 28.8615 };
 
 const tests = {
   'basic-center'(r) {
@@ -238,6 +247,49 @@ const tests = {
     const c = r.counts;
     check(this.n, c.layers2 === c.layers1 && r.res.updated === 5 && r.res.layers === 0, `second push updates the 5 layers (got ${r.res.updated} updated, ${r.res.layers} added)`);
     check(this.n, r.res.gradientsApplied === 5, 'gradient colors applied again to the updated layers');
+  },
+  effects(r) {
+    const d = r.dump;
+    check(this.n, r.res.effects === 7, `7 effects added (got ${r.res.effects})`);
+    const card = layer(d, 'Card');
+    check(this.n, !!card && !!card.precomp && card.precomp.layers.length === 2, 'a group with text and a shadow becomes a precomp of its layers');
+    check(this.n, fxNames(card) === 'Pulley Drop Shadow' && isShadow(fxOf(card)[0], CARD_SHADOW), `the shadow is on the precomp layer (got ${JSON.stringify(fxOf(card))})`);
+    const badge = layer(d, 'Badge');
+    check(this.n, fxNames(badge) === 'Pulley Drop Shadow, Pulley Drop Shadow 2, Pulley Blur', `shape: two shadows, then the blur (got ${fxNames(badge)})`);
+    const bf = fxOf(badge);
+    check(this.n, isShadow(bf[0], { color: [0, 0, 0], opacity: 0.3, direction: 180, distance: 4, softness: 6.6159 })
+      && isShadow(bf[1], { color: [0.2, 0, 0], opacity: 0.2, direction: 270, distance: 6, softness: 43.5519 }) && isBlur(bf[2], 10.6421), 'with the planned values');
+    const frame = layer(d, 'Clipped frame');
+    check(this.n, !!frame && !!frame.precomp && frame.precomp.layers.some((l) => l.trackMatte), 'a clipped group with a shadow is precomposed (the matte stays inside)');
+    check(this.n, isShadow(fxOf(frame)[0], FRAME_SHADOW), `so the matte doesn't cut its shadow off (got ${JSON.stringify(fxOf(frame))})`);
+    check(this.n, isBlur(fxOf(layer(d, 'Blurred dot'))[0], 17.7368) && fxOf(layer(d, 'Plain dot')).length === 0, 'a blurred child gets its own layer and blur');
+    const label = layer(d, 'Rotated label');
+    check(this.n, !!label && label.kind === 'text' && near(label.rotation, 90), 'rotated text stays a rotated text layer');
+    check(this.n, isShadow(fxOf(label)[0], { color: [0, 0, 0], opacity: 0.5, direction: 90, distance: 10, softness: 7.8751 }), `its shadow direction is turned back by the rotation (got ${JSON.stringify(fxOf(label))})`);
+  },
+  'effects-mask'(r) {
+    const frame = layer(r.dump, 'Clipped frame');
+    check(this.n, !!frame && frame.kind === 'shape' && frame.masks >= 1 && !frame.precomp, 'with layer masks, a clipped group with a shadow stays one layer');
+    check(this.n, fxNames(frame) === 'Pulley Drop Shadow' && isShadow(fxOf(frame)[0], FRAME_SHADOW), 'its shadow is on that layer (masks apply before effects)');
+  },
+  'repush-effects'(r) {
+    const a = JSON.parse(r.resultA);
+    const d = r.dump;
+    const byItem = (dump, item) => dump.layers.find((l) => (l.comment || '').endsWith('/' + encodeURIComponent(item)));
+    check(this.n, a.ok && a.effects === 7 && r.edits.found, 'first push: 7 effects');
+    check(this.n, r.res.updated === 6 && d.layers.length === 6, `second push updates the 6 layers, adds none (got ${r.res.updated} updated, ${d.layers.length} in the comp)`);
+    const badge = byItem(d, 'figma:1:2');
+    check(this.n, fxNames(badge) === 'Pulley Drop Shadow, Gaussian Blur', `Badge: the removed shadow and blur are gone, the user's own blur stays (got ${fxNames(badge)})`);
+    check(this.n, isShadow(fxOf(badge)[0], { color: [0, 0, 0], opacity: 0.3, direction: 90, distance: 8, softness: 6.6159 }), 'its remaining shadow was updated in place');
+    const card = byItem(d, 'figma:1:1');
+    const cs = fxOf(card)[0];
+    check(this.n, fxNames(card) === 'Pulley Drop Shadow' && nearArr(cs.params['ADBE Drop Shadow-0001'], [0.8, 0, 0, 1]) && cs.keys === 2,
+      `Card: new shadow color, the animated softness keeps its keyframes (got ${JSON.stringify(cs)})`);
+    check(this.n, r.res.warnings.some((w) => /^Card: animated .*shadow softness/.test(w)), 'the kept animation is reported');
+    check(this.n, fxOf(byItem(d, 'figma:1:41')).length === 0 && isBlur(fxOf(byItem(d, 'figma:1:42'))[0], 7.0947), 'the blur moved from one dot to the other');
+    const u = r.dumpUndo;
+    check(this.n, fxNames(byItem(u, 'figma:1:2')) === 'Pulley Drop Shadow, Pulley Drop Shadow 2, Pulley Blur, Gaussian Blur' && fxOf(byItem(u, 'figma:1:42')).length === 0,
+      'one Undo restores the effects as they were before the second push');
   },
   'repush-off'(r) {
     check(this.n, r.res.updated === 0 && r.res.layers === 4 && r.dump.layers.length === 8, `update off: the second push adds 4 new layers (got ${r.res.layers} added, ${r.dump.layers.length} total)`);

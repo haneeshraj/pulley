@@ -169,6 +169,23 @@ the import's single undo group.
 - Dashes: up to 3 dash/gap pairs plus offset; miter limit only when the join is miter (AE hides
   it otherwise).
 
+### Shadows and blurs
+
+- Figma drop shadows and layer blurs travel in the scene as `effects` with blur sizes as a
+  Gaussian standard deviation (see [SCENE.md](../schema/SCENE.md)). The plan turns them into `FX`
+  lines with After Effects values: Drop Shadow direction (clockwise from up), distance and
+  softness, Gaussian Blur blurriness, from measured relations
+  ([VERIFICATION.md](VERIFICATION.md#effects-calibration)). Effects draw in layer space, so for a
+  rotated or scaled text layer the plan turns the shadow back by the layer's rotation and scale.
+- Placement: an item with effects always gets its own layer. A shape or a shape-only group puts
+  them on its shape layer; a group whose children need several layers, or a clip group shown with
+  a track matte (the matte would cut the shadow off), is built in a precomp and the effects go on
+  the precomp layer; with layer masks a clip group stays one layer (masks apply before effects).
+- The interpreter names them "Pulley Drop Shadow", "Pulley Drop Shadow 2", "Pulley Blur". On
+  re-push it updates those in place (animated parameters kept), adds missing ones, and removes
+  the ones the source no longer has unless they are animated. Effects with other names (the
+  user's own) are never touched.
+
 ### Performance
 
 *Measured* (AE 25.5, i9-13900H, 500 paths × 20 points):
@@ -243,8 +260,8 @@ marks it saved).
   Reads the selection into `pulley-figma-nodes` v1: transforms (`absoluteTransform`), fills and
   strokes with gradient transforms, stroke settings (per-side weights become the largest), shape
   parameters (rectangle radii, ellipse arc data, polygon and star counts), `vectorPaths` for
-  vectors, `fillGeometry` for boolean operations and text, styled text segments, effects (type
-  and visibility only, to report them), masks and clipping. It never creates, changes or flattens
+  vectors, `fillGeometry` for boolean operations and text, styled text segments, effects (drop
+  shadow and layer blur values; other effects by type only, to report them), masks and clipping. It never creates, changes or flattens
   nodes. Limits: 100,000 nodes, depth 48. It also stores the pairing key in
   `figma.clientStorage`. It has no network access.
 - **UI** (`ui.ts`, built into one `dist/ui.html` with the WebAssembly core and the shared bridge

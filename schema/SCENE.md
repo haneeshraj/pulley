@@ -1,9 +1,9 @@
-# pulley-scene v1
+# pulley-scene v2
 
-**Status: v1, implemented.** The Rust types in
+**Status: v2, implemented** (readers accept v1 and v2). The Rust types in
 [`core/pulley-core/src/scene.rs`](../core/pulley-core/src/scene.rs) and the checks in
 [`validate.rs`](../core/pulley-core/src/validate.rs) are authoritative; the
-[JSON Schema](pulley-scene-v1.schema.json) mirrors them for other tools. The tests parse and
+[JSON Schema](pulley-scene-v2.schema.json) mirrors them for other tools. The tests parse and
 validate every file in [`examples/`](examples/) with the Rust types; there is no automated check
 of the examples against the JSON Schema file.
 
@@ -47,6 +47,21 @@ Strokes carry `paint`, `width`, `cap`, `join`, `miterLimit`, `dashes` (dash, gap
 `dashOffset` and `alignment`. AE shape strokes are always centered (checked in AE 25.5: there is no
 alignment property), so `inside`/`outside` are emulated at apply time and reported with a warning.
 
+**Effects** (v2): groups, shapes and text may carry `effects` (at most 16), applied to the item as
+a whole (for a group, to what the group draws):
+
+- `dropShadow`: `color`, `opacity` (default 1), `offset` (scene px, y-down, **not** rotated with
+  the item, as in Figma), `stdDeviation`, `spread` (px, default 0).
+- `layerBlur`: `stdDeviation`.
+
+Blur sizes are the **Gaussian standard deviation** in scene px, as in SVG's `feGaussianBlur`
+(a CSS box-shadow blur radius is twice this), so each app's own blur scale is converted once, on
+capture. Figma's blur values (shadow and layer blur alike) are multiplied by 0.44: Figma's blurs
+look like a CSS box-shadow blur 1/1.136364 as large ([Bjango, "Blur radius
+comparison"](https://bjango.com/articles/blurradiuscomparison/)). How pulley-core turns them into
+After Effects effect values is in [`aeplan.rs`](../core/pulley-core/src/aeplan.rs) and
+[VERIFICATION.md](../docs/VERIFICATION.md#effects-calibration).
+
 ## Versioning
 
 - `schema` is always `"pulley-scene"`; `version` is an integer.
@@ -58,6 +73,13 @@ alignment property), so `inside`/`outside` are emulated at apply time and report
   - scene older than the reader supports: "Update the Pulley Illustrator panel" (or Figma plugin;
     taken from `source.app`).
 - The bridge checks the version before forwarding, so a mismatch is reported to both sides.
+- Writers always write the current version. Readers accept every version from the oldest still
+  supported (`MIN_SCHEMA_VERSION`) to the current one (`SCHEMA_VERSION`).
+
+| Version | Change |
+|---|---|
+| 1 | First version. |
+| 2 | `effects` on groups, shapes and text (drop shadows, layer blurs). A v1 scene is a valid v2 scene without effects. |
 
 ## Limits
 
@@ -81,6 +103,7 @@ also in the schema file.
 | Warnings | 10,000 | |
 | Numbers | finite only. JSON can't carry NaN/Infinity; serde_json rejects `NaN` tokens and overflow such as `1e400` (tested in `validate.rs`). | |
 | Paints per shape | 32 | |
+| Effects per item | 16 | |
 
 ## Warning codes
 
@@ -94,7 +117,8 @@ concerns. Codes produced by the converters (in the scene):
 | `unsupported_graph`, `unsupported_plugin_item`, `unsupported_legacy_text`, `unsupported_item` | Graphs, blends/envelopes, legacy text, other objects skipped |
 | `unsupported_pattern`, `unsupported_color` | Pattern or unknown color dropped |
 | `unsupported_paint_angular`, `unsupported_paint_diamond`, `unsupported_paint_image`, `unsupported_paint_video`, `unsupported_paint` | Figma paints After Effects can't draw |
-| `unsupported_effect`, `unsupported_node` | Figma effects and node types not imported |
+| `unsupported_effect`, `unsupported_node` | Figma effects (inner shadow, background blur, noise, texture, glass) and node types not imported |
+| `shadow_blend_dropped`, `progressive_blur_even`, `too_many_effects` | A shadow's blend mode dropped, a progressive blur made even, effects past the 16th dropped |
 | `appearance_not_imported` | The item looks larger than its path (art brush, live effect, extra stroke); only the basic fill and stroke are imported |
 | `gradient_transform_approximated`, `radial_highlight_approximated`, `gradient_geometry_missing` | Gradient geometry simplified or unreadable |
 | `clip_appearance_dropped`, `clip_missing`, `mask_unsupported` | Clipping path appearance dropped, or a clip/mask that couldn't be read |
@@ -106,7 +130,8 @@ concerns. Codes produced by the converters (in the scene):
 
 Codes added when the After Effects plan is built (shown the same way):
 `stroke_alignment_emulated`, `dash_pattern_truncated`, `group_split`, `clip_matte_used`,
-`text_gradient_simplified`, `text_skew_ignored`.
+`text_gradient_simplified`, `text_skew_ignored`, `shadows_stacked` (several shadows on one
+item), `shadow_spread_dropped`.
 
 ## Examples
 
@@ -117,3 +142,5 @@ Codes added when the After Effects plan is built (shown the same way):
   alignment.
 - [`examples/clip-and-text.json`](examples/clip-and-text.json): a clip group containing point text
   with two style runs, plus warnings.
+- [`examples/effects.json`](examples/effects.json) (v2): shadows and blurs on a group with text,
+  a shape (two shadows and a blur), a clipped frame, one child of a group, and rotated text.

@@ -39,3 +39,5 @@ pub const MAX_PATH_DATA_LEN: usize = 16 * 1024 * 1024;
 pub const MAX_SVG_BYTES: usize = 64 * 1024 * 1024;
 /// Largest stroke width, dash or font size-like length, in pixels.
 pub const MAX_LENGTH: f64 = 100_000.0;
+/// Effects (shadows, blurs) on one item.
+pub const MAX_EFFECTS: usize = 16;

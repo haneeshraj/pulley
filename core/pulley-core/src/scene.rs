@@ -1,6 +1,6 @@
 //! pulley-scene v1: the only data format exchanged between Pulley components.
 //!
-//! Must match `schema/pulley-scene-v1.schema.json` exactly. Every struct denies unknown
+//! Must match `schema/pulley-scene-v2.schema.json` exactly. Every struct denies unknown
 //! fields. See `schema/SCENE.md` for conventions (scene space is pixels, y-down; tangents
 //! are relative to their vertex; colors are gamma-encoded 0..1).
 
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 pub const SCHEMA_NAME: &str = "pulley-scene";
 /// The scene version this build reads and writes.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 /// Oldest scene version this build still reads.
 pub const MIN_SCHEMA_VERSION: u32 = 1;
 
@@ -187,6 +187,14 @@ impl Item {
             Item::Text(t) => t.visible,
         }
     }
+
+    pub fn effects(&self) -> &[Effect] {
+        match self {
+            Item::Group(g) => &g.effects,
+            Item::Shape(s) => &s.effects,
+            Item::Text(t) => &t.effects,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -203,6 +211,9 @@ pub struct Group {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clip: Option<Clip>,
     pub children: Vec<Item>,
+    /// v2: effects on the group as a whole.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<Effect>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -243,6 +254,9 @@ pub struct Shape {
     /// Bottom-most first.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub strokes: Vec<Stroke>,
+    /// v2: effects on this shape.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<Effect>,
 }
 
 /// AE's path model: absolute vertices, tangents relative to their vertex.
@@ -274,6 +288,30 @@ pub struct GradientStop {
     pub opacity: f64,
     #[serde(default = "half", skip_serializing_if = "is_half")]
     pub midpoint: f64,
+}
+
+/// A visual effect on an item (pulley-scene v2). Blurs are given as the Gaussian standard
+/// deviation in scene px (`stdDeviation`, as in SVG's feGaussianBlur; a CSS box-shadow blur
+/// radius is twice this), so each source app's own blur scale is converted once, on capture.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
+pub enum Effect {
+    /// The item's silhouette, offset (scene px, y down, not rotated with the item), blurred,
+    /// and drawn behind the item.
+    #[serde(rename_all = "camelCase")]
+    DropShadow {
+        color: [f64; 3],
+        #[serde(default = "one", skip_serializing_if = "is_one")]
+        opacity: f64,
+        offset: [f64; 2],
+        std_deviation: f64,
+        /// Grows (or, negative, shrinks) the silhouette before blurring, px.
+        #[serde(default, skip_serializing_if = "is_zero")]
+        spread: f64,
+    },
+    /// A Gaussian blur of the item itself.
+    #[serde(rename_all = "camelCase")]
+    LayerBlur { std_deviation: f64 },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -448,6 +486,9 @@ pub struct Text {
     pub runs: Vec<TextRun>,
     /// Fallback geometry: only `Item::Shape` entries are allowed.
     pub outlines: Vec<Item>,
+    /// v2: effects on this text.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<Effect>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

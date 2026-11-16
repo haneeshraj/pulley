@@ -193,6 +193,53 @@ after *Save As* under another name ([`tests/ai/uuid-stability.jsx`](../tests/ai/
 They are small per-document numbers (for example 433–439), so the document name is part of the
 tag.
 
+### Shadows and blurs
+
+#### Effects calibration
+
+Measured in After Effects 2025 (25.5) with
+[`tests/ae/effects-calibration.jsx`](../tests/ae/effects-calibration.jsx), run through the
+harness in a separate instance: a white 200 px square in a 600 px comp, each effect applied, the
+alpha read across the square's edge with `sampleImage()`, and a Gaussian edge profile fitted by
+least squares (fit error under 0.003 everywhere).
+
+| Effect parameter | Gaussian standard deviation it gives |
+|---|---|
+| Drop Shadow *Softness* S (5 to 80) | 0.1906 × S + 0.499 px |
+| Gaussian Blur *Blurriness* B (5 to 80, *Repeat Edge Pixels* off) | 0.2819 × B px |
+
+Other facts from the same run, used by the plan and the interpreter:
+
+- Drop Shadow *Opacity* runs 0–255 in scripting (the default 50% reads 127.5); half of the maximum
+  gives alpha 0.50 exactly. *Shadow Color* takes 3 or 4 components.
+- *Direction* is clockwise from up: 135° with distance 50 moved the shadow's edges by 35 px right
+  and 35 px down.
+- Effects draw in **layer space**: on a layer rotated 90°, a shadow set to fall down fell to the
+  left. Pulley turns the direction (and scales distance and softness) back for rotated or scaled
+  text layers; its shape and precomp layers are never rotated.
+- Shadows and blurs draw **outside the layer's bounds**: on a precomp exactly the size of its
+  content, the shadow and the blur both showed beyond its edges.
+- Gaussian Blur's *Repeat Edge Pixels* is **on** by default and keeps the edges hard, unlike
+  Figma's layer blur, so Pulley turns it off.
+
+Figma's side is not measured by Pulley: Figma's blurs are taken to look like a CSS box-shadow blur
+1/1.136364 as large ([Bjango, "Blur radius
+comparison"](https://bjango.com/articles/blurradiuscomparison/), which gives the same factor for
+Figma's drop shadow, layer blur and background blur), so a Figma blur value r becomes a standard
+deviation of 0.44 r. Figma forum threads report that Figma shadows do not rotate with their layer,
+so offsets are kept as they are. **Not yet compared side by side with Figma.**
+
+#### After Effects suite cases (all passing)
+
+| Case | What it checks |
+|---|---|
+| effects | [`effects.json`](../schema/examples/effects.json): 7 effects. A group with text and a shadow becomes a precomp with the shadow on its layer; a shape gets its two shadows and then its blur, named "Pulley Drop Shadow", "Pulley Drop Shadow 2", "Pulley Blur", with the planned values (color, opacity × 255, direction, distance, softness; blurriness, edge pixels not repeated); a clipped frame with a shadow is precomposed with its matte inside; a blurred child of a group gets its own layer; text rotated 90° keeps its rotation and its shadow direction is turned back to 90° |
+| effects-mask | With layer masks, the clipped frame stays one shape layer with its masks and the shadow |
+| repush-effects | Push A, then add an effect of the user's own to one layer and keyframe the softness of Pulley's shadow on another, then push B (one shadow moved and the other shadow and blur removed; a shadow recolored; a blur moved from one item to another). Result: all 6 layers updated, none added; the remaining shadow updated in place, the removed effects gone, the user's own effect kept; the recolored shadow keeps its animated softness (reported); the blur moved; one Undo restores every effect |
+
+Plugin: the reader sends drop shadow and layer blur values; the Node tests check them and their
+conversion by the real WebAssembly core.
+
 ## Latest runs (2026-11-15)
 
 **After Effects suite** (`node tests/ae/run.mjs`, full run): **60 checks passed, 0 failed**

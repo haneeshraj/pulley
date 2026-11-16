@@ -810,7 +810,7 @@ impl Gen<'_> {
             } else {
                 if !self.warned_split {
                     self.warned_split = true;
-                    self.warn("group_split", it, "Groups containing text, clipping masks or effects are split into several layers.");
+                    self.warn("group_split", it, "Groups containing text, images, clipping masks or effects are split into several layers.");
                 }
                 for c in g.children.iter().rev() {
                     self.layers_for(c, parent_opacity);

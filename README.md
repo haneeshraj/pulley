@@ -279,7 +279,7 @@ machine; CI.
   fills on text aren't imported.
   Rounded polygon/star corners (Figma) become sharp. Decorative stroke caps (arrows) become plain
   caps. The clipping path's own fill and stroke are dropped.
-- Groups containing text, clipping masks or effects are split into several layers; nested
+- Groups containing text, images, clipping masks or effects are split into several layers; nested
   clipping masks become a track matte on a precomp.
 - **Effects** (Figma only): drop shadows and layer blurs are imported. Inner shadows, background
   blurs, noise, texture and glass effects are not (each is reported). Illustrator effects (Effect

@@ -171,7 +171,8 @@ biggest saving found. The 3-second target is met only for smaller selections or 
   `file://` (CEP, *verified* on Windows) or `null` (Figma). Anything else is refused before the
   upgrade. Then `hello` within 5 seconds with the right credential for that origin and role:
   the per-start session token (`<config>/session.token`) for the Adobe extensions, a pairing key
-  for Figma. Pairing: *Pair Figma plugin…* shows an 8-character code for 2 minutes;
+  for Figma. Pairing: *Pair Figma plugin…* shows an 8-character code for 2 minutes and copies it
+  to the clipboard (`arboard`), so it can be pasted into the plugin;
   `pair_request` with the code returns a new 256-bit key, stored in `settings.json` (up to 16
   kept) and in the plugin's `figma.clientStorage`.
 - **Protocol** (JSON text frames, `{protocol: 1, id, type, …}`, unknown fields rejected,

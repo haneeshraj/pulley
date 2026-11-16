@@ -93,8 +93,9 @@ cargo build --release -p pulley-bridge
 ```
 
 Run `target/release/pulley-bridge` (Windows: `pulley-bridge.exe`). It shows a Pulley icon in the
-system tray (menu bar on macOS) whose menu has: status, **Pair Figma plugin…**, **Forget paired
-Figma plugins**, **Launch at login**, **Debug logging**, the log folder, and **Quit Pulley**.
+system tray (menu bar on macOS) whose menu has: status, **Pair Figma plugin…**, **Copy pairing
+code**, **Forget paired Figma plugins**, **Launch at login**, **Debug logging**, the log folder,
+and **Quit Pulley**.
 
 Or build the installer with `node tools/package-bridge.mjs` (Windows:
 `dist/installers/pulley-bridge_0.1.0_x64-setup.exe`, a per-user install that needs no
@@ -129,8 +130,9 @@ In the Figma **desktop app**: **Plugins → Development → Import plugin from m
 `figma-plugin/manifest.json`. Run it from **Plugins → Development → Pulley**.
 
 The first time, the plugin asks for a pairing code: in the Pulley tray menu choose **Pair Figma
-plugin…**; the code appears in the menu for 2 minutes. Type it into the plugin (dashes, spaces and
-case don't matter). The plugin then keeps a pairing key on your computer
+plugin…**. The code is copied to your clipboard (and shown in the menu) and works for 2 minutes:
+paste it into the plugin with Ctrl+V (⌘V on a Mac) and it pairs right away. Typing it works too;
+dashes, spaces and case don't matter. The plugin then keeps a pairing key on your computer
 (`figma.clientStorage`), and the bridge keeps a copy in its settings file. **Forget paired Figma
 plugins** in the tray menu revokes all pairings.
 

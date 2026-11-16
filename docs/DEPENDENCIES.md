@@ -39,6 +39,7 @@ Build tools (not linked): `wasm-bindgen-cli` 0.2.130, Binaryen 133 (`wasm-opt -O
 | `tao` | 0.37.2 | Event loop for the tray on the main thread (required on macOS). |
 | `png` | 0.18.1 | Decoding the tray icon PNGs generated from the icon registry. |
 | `auto-launch` | 0.6.0 | *Launch at login* (Windows Run key, macOS LaunchAgent). |
+| `arboard` | 3.7 | Copies the Figma pairing code to the clipboard (text only; image support turned off). From 1Password. On Windows it brings `clipboard-win` and `error-code`, under the Boost Software License 1.0 (permissive, allowed in `deny.toml`). |
 
 Dev-only: `tokio-tungstenite` with the client feature and `directories` for the end-to-end tests.
 
@@ -50,7 +51,7 @@ checks only the shipped targets (see `deny.toml`) and passes.
 
 One indirect dependency is under MPL-2.0: `option-ext` (via `dirs-sys`, used by `directories`
 and `dirs`). MPL's copyleft applies to modified files of that crate only; it is used unmodified.
-Everything else is MIT, Apache-2.0, BSD, Zlib or Unicode-3.0.
+Everything else is MIT, Apache-2.0, BSD, Zlib, Unicode-3.0 or BSL-1.0.
 
 ## xtask (icon pipeline, development only)
 

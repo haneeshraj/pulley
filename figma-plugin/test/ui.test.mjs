@@ -97,9 +97,10 @@ test('plugin UI: pair, send, save a .pulley file, answer a pull', { skip: !brows
   assert.equal(await ui().$eval('#pairing', (el) => el.classList.contains('hidden')), false);
   await page.screenshot({ path: path.join(root, 'target', 'figma-ui-unpaired.png') });
 
-  // Pair with the code, typed in lower case with a space instead of the dash.
+  // The code field has focus, ready for Ctrl+V; a complete code pairs without clicking Pair.
+  // Typed in lower case with a space instead of the dash.
+  assert.equal(await ui().evaluate(() => document.activeElement && document.activeElement.id), 'code');
   await ui().type('#code', b.code.toLowerCase().replace('-', ' '));
-  await ui().click('#pairBtn');
   await waitText('#stateText', /^Connected$/, 'connected after pairing');
   await waitFor(async () => /^[0-9a-f]{64}$/.test(String(await page.evaluate(() => window.secret))), 'secret stored by the host');
   assert.equal(await ui().$eval('#pairing', (el) => el.classList.contains('hidden')), true);

@@ -23,7 +23,8 @@ Mark each item ✅ / ❌ and file what fails.
       lists Illustrator and Figma correctly.
 - [ ] Quit the bridge: panels show *Not connected* and recover by themselves when it restarts
       (and the AE panel can start an installed bridge).
-- [ ] Pair Figma: tray → *Pair Figma plugin…* → code in the menu → typed in the plugin → *Connected*.
+- [ ] Pair Figma: tray → *Pair Figma plugin…* → Ctrl+V in the plugin → *Connected* without
+      clicking Pair. *Copy pairing code* copies it again; typing the code by hand also works.
       A wrong code shows an error; 5 wrong codes invalidate it; the code expires after 2 minutes.
 - [ ] Close and reopen the Figma plugin: it connects without a new code.
 - [ ] Tray → *Forget paired Figma plugins*: the plugin returns to *Not paired*.

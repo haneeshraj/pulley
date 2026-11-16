@@ -48,7 +48,9 @@ Any page can try to open `ws://127.0.0.1:47290`.
     sending a **pairing code** that the bridge shows in its tray menu after you choose *Pair Figma
     plugin…*. A code is 8 characters from a 32-symbol alphabet, valid for 2 minutes, single use,
     and invalidated after 5 wrong attempts; each failure also costs 300 ms (*tested*). A page
-    therefore has 5 guesses at a 40-bit code during a window you opened yourself.
+    therefore has 5 guesses at a 40-bit code during a window you opened yourself. For
+    convenience the code is also copied to the clipboard; a page can't read the clipboard
+    without your permission, and a program running as you is out of scope (section 4).
   - Credentials are compared in constant time. A role must match its origin (an extension can't
     claim to be Figma and the reverse) (*tested*).
 - **Browser protection.** Chrome 147+ also asks before a public site may reach local

@@ -37,6 +37,8 @@ tao = "0.37"
 png = "0.18"
 # Optional launch at login (Windows Run key / macOS LaunchAgent).
 auto-launch = "0.6"
+# Copying the Figma pairing code to the clipboard (text only: no image support).
+arboard = { version = "3.7", default-features = false }
 
 [dev-dependencies]
 directories = "6"

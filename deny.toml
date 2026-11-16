@@ -26,6 +26,8 @@ allow = [
   "Zlib",
   "Unicode-3.0",
   "0BSD",
+  # clipboard-win and error-code (Windows clipboard, via arboard): Boost license, permissive.
+  "BSL-1.0",
   # option-ext (via dirs-sys, used by directories/dirs): file-level copyleft that only applies
   # to changes of its own files; used unmodified.
   "MPL-2.0",

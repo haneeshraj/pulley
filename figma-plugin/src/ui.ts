@@ -116,6 +116,8 @@ function render(): void {
   $('detail').textContent = d;
   show('detail', !!d);
   show('pairing', state === 'unpaired' || state === 'pairing');
+  // Ready for Ctrl+V as soon as the pairing form shows.
+  if (state === 'unpaired' && document.activeElement !== $('code')) { ($('code') as HTMLInputElement).focus(); }
   ($('pairBtn') as HTMLButtonElement).disabled = state === 'pairing';
   show('reconnect', state === 'disconnected');
   show('forget', !!secret && state !== 'unpaired');
@@ -381,6 +383,11 @@ $('cancel').addEventListener('click', () => {
 });
 $('reconnect').addEventListener('click', () => { failedConnects = 0; client.reconnect(); });
 $('helpBtn').addEventListener('click', () => { $('help').classList.toggle('hidden'); });
+// A complete code (pasted or typed) pairs right away.
+$('code').addEventListener('input', () => {
+  const code = ($('code') as HTMLInputElement).value.replace(/[^A-Za-z0-9]/g, '');
+  if (code.length === 8 && state === 'unpaired') { client.pair(code.toUpperCase(), 'Figma'); }
+});
 $('pairForm').addEventListener('submit', (ev) => {
   ev.preventDefault();
   const code = ($('code') as HTMLInputElement).value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();

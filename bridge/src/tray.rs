@@ -35,6 +35,21 @@ fn status_text(s: &Summary) -> String {
     format!("After Effects: {} · Illustrator: {} · Figma: {}", mark(s.ae), mark(s.illustrator), mark(s.figma))
 }
 
+/// Put the pairing code on the clipboard, so it can be pasted into the Figma plugin.
+fn copy_to_clipboard(text: &str) -> bool {
+    match arboard::Clipboard::new().and_then(|mut c| c.set_text(text.to_string())) {
+        Ok(()) => true,
+        Err(e) => {
+            tracing::warn!("could not copy the pairing code: {e}");
+            false
+        }
+    }
+}
+
+fn code_text(code: &str, copied: bool) -> String {
+    if copied { format!("Pairing code: {code} (copied, valid 2 minutes)") } else { format!("Pairing code: {code} (valid 2 minutes)") }
+}
+
 fn launcher() -> Option<auto_launch::AutoLaunch> {
     let exe = std::env::current_exe().ok()?;
     let path = exe.to_str()?.to_string();
@@ -70,6 +85,8 @@ pub fn run(hub: Arc<Hub>, mut summary: watch::Receiver<Summary>, paths: Paths) {
     let status = MenuItem::new("Pulley: starting", false, None);
     let pair = MenuItem::new("Pair Figma plugin…", true, None);
     let code = MenuItem::new("No pairing code active", false, None);
+    let copy = MenuItem::new("Copy pairing code", false, None);
+    let mut active_code: Option<String> = None;
     let revoke = MenuItem::new("Forget paired Figma plugins", true, None);
     let login = CheckMenuItem::new("Launch at login", true, settings.launch_at_login, None);
     let debug = CheckMenuItem::new("Debug logging (after restart)", true, settings.debug_logging, None);
@@ -81,6 +98,7 @@ pub fn run(hub: Arc<Hub>, mut summary: watch::Receiver<Summary>, paths: Paths) {
         &PredefinedMenuItem::separator(),
         &pair,
         &code,
+        &copy,
         &revoke,
         &PredefinedMenuItem::separator(),
         &login,
@@ -110,10 +128,20 @@ pub fn run(hub: Arc<Hub>, mut summary: watch::Receiver<Summary>, paths: Paths) {
             }
             Event::UserEvent(UserEvent::Summary(s)) => {
                 status.set_text(status_text(&s));
-                code.set_text(match &s.pairing_code {
-                    Some(c) => format!("Pairing code: {c} (valid 2 minutes)"),
-                    None => "No pairing code active".into(),
-                });
+                match &s.pairing_code {
+                    Some(c) => {
+                        if active_code.as_deref() != Some(c.as_str()) {
+                            code.set_text(code_text(c, false));
+                        }
+                        active_code = Some(c.clone());
+                        copy.set_enabled(true);
+                    }
+                    None => {
+                        code.set_text("No pairing code active");
+                        active_code = None;
+                        copy.set_enabled(false);
+                    }
+                }
                 let st = state_of(&s);
                 if st != current {
                     current = st;
@@ -132,8 +160,15 @@ pub fn run(hub: Arc<Hub>, mut summary: watch::Receiver<Summary>, paths: Paths) {
             }
             Event::UserEvent(UserEvent::Menu(e)) => {
                 if e.id == pair.id() {
+                    // A new code, copied right away: paste it into the plugin.
                     let c = hub.start_pairing();
-                    code.set_text(format!("Pairing code: {c} (valid 2 minutes)"));
+                    code.set_text(code_text(&c, copy_to_clipboard(&c)));
+                    copy.set_enabled(true);
+                    active_code = Some(c);
+                } else if e.id == copy.id() {
+                    if let Some(c) = &active_code {
+                        code.set_text(code_text(c, copy_to_clipboard(c)));
+                    }
                 } else if e.id == revoke.id() {
                     hub.revoke_figma();
                 } else if e.id == login.id() {

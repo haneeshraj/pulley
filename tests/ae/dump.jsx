@@ -57,6 +57,9 @@ function pulleyDumpComp(comp) {
         };
         try { d.trackMatte = L.trackMatteLayer ? L.trackMatteLayer.name : null; } catch (eT) {}
         try { d.masks = L.property("ADBE Mask Parade").numProperties; } catch (eM) {}
+        d.comment = L.comment;
+        try { d.effects = L.property("ADBE Effect Parade").numProperties; } catch (eE) {}
+        try { d.posKeys = tr.property("ADBE Position").numKeys; } catch (eK) {}
         if (d.kind === "shape") { d.contents = pulleyDumpProp(L.property("ADBE Root Vectors Group"), 0).children; }
         if (d.kind === "text") {
             var td = L.property("ADBE Text Properties").property("ADBE Text Document").value;
@@ -168,6 +171,67 @@ function pulleyTestSelectionKept(planPath, withComp, outPath, ffxPrefix) {
     var sel = comp.selectedLayers, names = [];
     for (var i = 0; i < sel.length; i++) { names.push(sel[i].name); }
     var text = PulleyJSON.stringify({ result: res, selection: names, dump: pulleyDumpComp(comp) });
+    var f = new File(outPath);
+    f.encoding = "UTF-8";
+    f.open("w");
+    f.write(text);
+    f.close();
+    return res;
+}
+
+/** The first top-level layer whose Pulley tag ends with this source item id. */
+function pulleyTestLayerByItem(comp, item) {
+    for (var i = 1; i <= comp.numLayers; i++) {
+        var c = comp.layer(i).comment;
+        if (c && c.length >= item.length && c.substring(c.length - item.length) === item) { return comp.layer(i); }
+    }
+    return null;
+}
+
+/**
+ * Re-push: apply plan A into a fresh comp, make the edits a user would (rename a layer and add
+ * an effect; animate another layer's position), apply plan B into the same comp, dump it, then
+ * Undo once (the whole second push) and dump again.
+ */
+function pulleyTestRepush(planA, planB, outPath, ffxA, ffxB) {
+    pulleyTestNewProject("1");
+    var comp = app.project.activeItem;
+    var resA = pulleyApplyPlan(planA, planA + ".cancel", ffxA || null);
+    var rounded = pulleyTestLayerByItem(comp, "4f1c2a");
+    var circle = pulleyTestLayerByItem(comp, "4f1c2b");
+    var edits = { found: !!rounded && !!circle };
+    if (rounded) {
+        rounded.name = "My rounded";
+        rounded.property("ADBE Effect Parade").addProperty("ADBE Gaussian Blur 2");
+    }
+    if (circle) {
+        var pos = circle.property("ADBE Transform Group").property("ADBE Position");
+        pos.setValueAtTime(0, [100, 100]);
+        pos.setValueAtTime(1, [300, 300]);
+    }
+    var resB = pulleyApplyPlan(planB, planB + ".cancel", ffxB || null);
+    var dumpB = pulleyDumpComp(comp);
+    app.executeCommand(16); // Edit > Undo: the second push only
+    var dumpUndo = pulleyDumpComp(comp);
+    var text = PulleyJSON.stringify({ result: resB, resultA: resA, edits: edits, dump: dumpB, dumpUndo: dumpUndo });
+    var f = new File(outPath);
+    f.encoding = "UTF-8";
+    f.open("w");
+    f.write(text);
+    f.close();
+    return resB;
+}
+
+/** Apply the same plan twice into one comp: the second push must update, not duplicate. */
+function pulleyTestPushTwice(planPath, withComp, outPath, ffxPrefix) {
+    pulleyTestNewProject("1");
+    var comp = app.project.activeItem;
+    var first = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
+    var counts = { layers1: comp.numLayers, items1: app.project.numItems };
+    var res = pulleyApplyPlan(planPath, planPath + ".cancel", ffxPrefix || null);
+    counts.layers2 = comp.numLayers;
+    counts.items2 = app.project.numItems;
+    var text = PulleyJSON.stringify({ result: res, resultFirst: first, counts: counts, dump: pulleyDumpComp(comp) });
     var f = new File(outPath);
     f.encoding = "UTF-8";
     f.open("w");

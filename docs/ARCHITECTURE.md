@@ -128,6 +128,28 @@ native JSON (*verified*), a JSON parser in ExtendScript took 6.2 s for a 431 KB 
 arrays are pathologically slow there (51 s to walk one 60,000-element array); one split per line
 keeps every array small.
 
+### Re-push: updating earlier layers
+
+Every top-level layer Pulley creates gets a tag in its comment:
+`pulley:<source app>:<document name>/<item id>` (percent-encoded). The plan says which item
+each layer comes from (`DOC` and `ID` lines, see `aeplan.rs`). When *Update layers from
+earlier pushes* is on, the interpreter first collects the target comp's tagged layers for this
+document, then for each top-level layer in the plan:
+
+- **No tagged layer:** create it, as before, and tag it.
+- **Tagged layer found:** update it in place. Each transform property is set unless it is
+  animated (keyframes or an expression). Shape contents are rebuilt unless any of them is
+  animated; masks are replaced unless animated; text is restyled unless the text properties are
+  animated; a precomp's contents are rebuilt inside the same comp item unless anything inside is
+  animated. Names, effects, stacking order, timing and parenting are left alone. Everything kept
+  is listed in the result.
+- **Tagged layers not in this push** (item deleted or hidden in the source) are kept and listed.
+
+Items with ids that aren't stable are never tagged (Illustrator items without a uuid), so they
+can't be matched by mistake. Illustrator uuids survive closing, reopening and *Save As*
+(*verified*, Part 1 of VERIFICATION.md); Figma node ids are stable by design. It is all inside
+the import's single undo group.
+
 ### Text and fonts
 
 - Fonts are found with `app.fonts.getFontsByPostScriptName` (Illustrator gives PostScript names),

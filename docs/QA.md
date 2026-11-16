@@ -66,6 +66,18 @@ text, a layout with clipping masks, a CMYK document, a Large Canvas document, a 
 - [ ] The Figma file shows no changes and nothing in its undo history.
 - [ ] Display P3 file: the warning appears.
 
+## Re-push
+
+- [ ] Push a selection, push it again unchanged: nothing is added; the result says "updated".
+- [ ] Change colors, move things, edit text in the source and push: the same layers change.
+- [ ] Animate a layer's position (and, separately, a shape's path) in After Effects, then push a
+      change: the animation stays and the result lists what was kept.
+- [ ] Rename a layer and add an effect, then push: the name and effect stay.
+- [ ] Delete an item in the source and push: its layer stays and is listed. Add an item: it
+      appears as a new layer.
+- [ ] Turn off *Update layers from earlier pushes* and push: copies are added.
+- [ ] Ctrl+Z after a re-push restores the previous state.
+
 ## After Effects behavior
 
 - [ ] One Edit → Undo removes the whole import (including a new comp); Redo restores it.

@@ -18,14 +18,16 @@
     C.fs.write(optsPath, JSON.stringify({
       layerMode: $('layerMode').value,
       placement: $('keepPositions').checked ? 'original' : 'center',
-      clipMode: $('clipMode').value
+      clipMode: $('clipMode').value,
+      updateExisting: $('updateExisting').checked
     }));
   }
   var o = loadOptions();
   $('layerMode').value = o.layerMode || 'perItem';
   $('keepPositions').checked = o.placement === 'original';
   $('clipMode').value = o.clipMode || 'matte';
-  ['layerMode', 'keepPositions', 'clipMode'].forEach(function (id) { $(id).addEventListener('change', saveOptions); });
+  $('updateExisting').checked = o.updateExisting !== false;
+  ['layerMode', 'keepPositions', 'clipMode', 'updateExisting'].forEach(function (id) { $(id).addEventListener('change', saveOptions); });
 
   function render(s) {
     lastSeen = Date.now();

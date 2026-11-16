@@ -20,12 +20,13 @@
   function emit() { C.dispatch('dev.pulley.ae.state', state); }
 
   function readOptions() {
-    var d = { layerMode: 'perItem', placement: 'center', clipMode: 'matte' };
+    var d = { layerMode: 'perItem', placement: 'center', clipMode: 'matte', updateExisting: true };
     try {
       var o = JSON.parse(C.fs.read(C.pulleyDir('ae-options.json')) || '{}');
       if (['perItem', 'merge', 'precompose'].indexOf(o.layerMode) >= 0) { d.layerMode = o.layerMode; }
       if (['center', 'original'].indexOf(o.placement) >= 0) { d.placement = o.placement; }
       if (['matte', 'mask'].indexOf(o.clipMode) >= 0) { d.clipMode = o.clipMode; }
+      if (o.updateExisting === false) { d.updateExisting = false; }
     } catch (e) { /* defaults */ }
     return d;
   }
@@ -102,7 +103,7 @@
     var t0 = performance.now();
     state.progress = { done: 0, total: 1, stage: 'Checking the scene' };
     emit();
-    var summary = { ok: false, layers: 0, groups: 0, paths: 0, texts: 0, missingFonts: [], warnings: [], errors: [], cancelled: false, timings: {} };
+    var summary = { ok: false, layers: 0, updated: 0, groups: 0, paths: 0, texts: 0, missingFonts: [], warnings: [], errors: [], cancelled: false, timings: {} };
     var planPath = tmpDir + '/plan-' + safe + '.txt';
     var ffxFiles = [];
     var ffxPrefix = tmpDir + '/grad-' + safe + '-';
@@ -112,7 +113,7 @@
       var comp = JSON.parse(await C.call('pulleyAeCompInfo', [], 20000));
       var o = readOptions();
       var plan = JSON.parse(core.sceneToPlan(text, JSON.stringify({
-        layerMode: o.layerMode, placement: o.placement, clipMode: o.clipMode,
+        layerMode: o.layerMode, placement: o.placement, clipMode: o.clipMode, updateExisting: o.updateExisting,
         comp: comp.active ? { width: comp.width, height: comp.height } : null
       })));
       var t1 = performance.now();
@@ -132,7 +133,7 @@
       (plan.warnings || []).forEach(function (w) { warnings.push((w.itemName ? w.itemName + ': ' : '') + w.message); });
       (res.warnings || []).forEach(function (w) { warnings.push(w); });
       summary = {
-        ok: !!res.ok, layers: res.layers || 0, groups: res.groups || 0, paths: res.paths || 0, texts: res.texts || 0,
+        ok: !!res.ok, layers: res.layers || 0, updated: res.updated || 0, groups: res.groups || 0, paths: res.paths || 0, texts: res.texts || 0,
         missingFonts: res.missingFonts || [], warnings: warnings.slice(0, 500),
         errors: res.error ? [res.error.message] : [], cancelled: !!res.cancelled,
         timings: { plan: Math.round(t1 - t0), apply: res.ms || 0, total: Math.round(performance.now() - t0) }
@@ -158,7 +159,7 @@
   }
 
   function stripForWire(s) {
-    return { ok: s.ok, layers: s.layers, groups: s.groups, paths: s.paths, texts: s.texts, missingFonts: s.missingFonts,
+    return { ok: s.ok, layers: s.layers, updated: s.updated || 0, groups: s.groups, paths: s.paths, texts: s.texts, missingFonts: s.missingFonts,
       warnings: s.warnings, errors: s.errors, cancelled: s.cancelled, timings: s.timings };
   }
 

@@ -58,8 +58,12 @@ pub struct ClientInfo {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ImportSummary {
     pub ok: bool,
+    /// Layers added.
     #[serde(default)]
     pub layers: u32,
+    /// Existing layers from an earlier push that were updated in place.
+    #[serde(default)]
+    pub updated: u32,
     #[serde(default)]
     pub groups: u32,
     #[serde(default)]

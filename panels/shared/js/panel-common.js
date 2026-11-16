@@ -100,7 +100,10 @@
     t.className = 'grow';
     if (s.cancelled) { text(t, 'Import cancelled.'); }
     else if (s.ok) {
-      text(t, 'Imported ' + s.layers + ' layer' + (s.layers === 1 ? '' : 's') + ' (' + s.paths + ' paths' + (s.texts ? ', ' + s.texts + ' text' : '') + ')' + (s.timings && s.timings.total ? ' in ' + (s.timings.total / 1000).toFixed(1) + ' s' : '') + '.');
+      var what = s.updated
+        ? 'Added ' + s.layers + ' layer' + (s.layers === 1 ? '' : 's') + ', updated ' + s.updated
+        : 'Imported ' + s.layers + ' layer' + (s.layers === 1 ? '' : 's');
+      text(t, what + ' (' + s.paths + ' paths' + (s.texts ? ', ' + s.texts + ' text' : '') + ')' + (s.timings && s.timings.total ? ' in ' + (s.timings.total / 1000).toFixed(1) + ' s' : '') + '.');
     } else { text(t, 'The import failed.'); }
     head.appendChild(t);
     box.appendChild(head);

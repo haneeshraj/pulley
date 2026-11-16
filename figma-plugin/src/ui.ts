@@ -14,7 +14,7 @@ interface PulleyError { code?: string; message: string; hint?: string }
 interface Core { figmaToScene(nodes: string, options: string): string }
 interface ClientInfo { role: string; clientVersion?: string; active?: boolean }
 interface ImportSummary {
-  ok: boolean; layers?: number; groups?: number; paths?: number; texts?: number;
+  ok: boolean; layers?: number; updated?: number; groups?: number; paths?: number; texts?: number;
   missingFonts?: string[]; warnings?: string[]; errors?: string[]; cancelled?: boolean;
   timings?: Record<string, number>;
 }
@@ -188,6 +188,7 @@ function renderResult(kind: string, r: ImportSummary & { savedAs?: string; scene
     if (r.groups) { parts.push(`${r.groups} group${r.groups === 1 ? '' : 's'}`); }
     if (r.paths) { parts.push(`${r.paths} path${r.paths === 1 ? '' : 's'}`); }
     if (r.texts) { parts.push(`${r.texts} text layer${r.texts === 1 ? '' : 's'}`); }
+    if (r.updated) { parts.push(`${r.updated} updated`); }
     add('ok', `${kind === 'pull' ? 'After Effects pulled' : 'Imported'} ${parts.join(', ')}${secs}.`, 'ui.success');
   }
   (r.errors || []).forEach((e) => add('error', e, 'ui.error'));

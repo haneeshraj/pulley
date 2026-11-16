@@ -177,6 +177,22 @@ libFuzzer runtime, which needs nightly and sanitizers this machine lacks); they 
 - Bridge installers on a clean machine.
 - CI: the workflow has never run (no remote repository).
 
+### Re-push (milestone 11)
+
+After Effects suite cases (all passing):
+
+| Case | What it checks |
+|---|---|
+| repush | Push A (4 items), then edit in After Effects as a user would (rename a layer and add an effect; keyframe another layer's position), then push B (one item recolored and moved, one recolored, one removed, the text changed, one added). Result: 3 updated, 1 added, no duplicates; the renamed layer keeps its name and effect and gets its new color and position; the animated position keeps its keyframes while that layer's shape color updates, and the kept animation is reported; the removed item's layer is kept and reported; the text is updated in place; one Undo restores the state before push B, including the user's edits |
+| repush-off | With the option off, push B adds 4 new layers |
+| twice-cliptext | Pushing clipped text twice: no new layers or comps; the precomp is rebuilt in place and keeps its matte |
+| twice-gradients | Pushing 5 gradient shapes twice: 5 updated, gradient colors applied again |
+
+Illustrator: item uuids of two fixture documents were identical after closing and reopening, and
+after *Save As* under another name ([`tests/ai/uuid-stability.jsx`](../tests/ai/uuid-stability.jsx)).
+They are small per-document numbers (for example 433–439), so the document name is part of the
+tag.
+
 ## Latest runs (2026-11-15)
 
 **After Effects suite** (`node tests/ae/run.mjs`, full run): **60 checks passed, 0 failed**

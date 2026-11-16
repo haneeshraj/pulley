@@ -7,6 +7,12 @@ with After Effects 25.5 and Illustrator 29.5; see the README for what is and isn
 
 ### Added
 
+- **Re-push updates earlier layers** (milestone 11): pushing the same artwork again updates the
+  layers it created instead of adding copies, keeping animation and your own edits; new items
+  are added and removed ones listed. Option in the After Effects panel to turn it off.
+- **Pairing code on the clipboard:** the tray copies it; the Figma plugin pairs as soon as it is
+  pasted.
+
 - **pulley-core** (Rust, also compiled to WebAssembly): pulley-scene v1 format with JSON Schema,
   strict validation and hard limits; Illustrator capture and Figma node conversion; SVG path and
   document parsing; shape builders; gradient geometry; After Effects build plans; `.ffx` presets

@@ -200,6 +200,48 @@ const tests = {
     check(this.n, r.res.gradientsApplied === 2, 'gradient presets were applied');
     check(this.n, r.selection.length === 1 && r.selection[0] === 'User layer', `only the user's layer is selected afterwards (got ${JSON.stringify(r.selection)})`);
   },
+  repush(r) {
+    const a = JSON.parse(r.resultA);
+    const d = r.dump;
+    const byItem = (dump, item) => dump.layers.find((l) => (l.comment || '').endsWith('/' + item));
+    const fillOf = (l) => { const f = findProps(l.contents, 'ADBE Vector Graphic - Fill')[0]; return f && child(f, 'ADBE Vector Fill Color').value; };
+    check(this.n, a.ok && a.layers === 4 && r.edits.found, `first push: 4 layers, tagged (got ${a.layers})`);
+    check(this.n, r.res.updated === 3 && r.res.layers === 1, `second push: 3 updated, 1 added (got ${r.res.updated} updated, ${r.res.layers} added)`);
+    check(this.n, d.layers.length === 5, `no duplicates: 4 earlier layers + 1 new (got ${d.layers.length})`);
+    check(this.n, d.layers.every((l) => (l.comment || '').startsWith('pulley:illustrator%3Abasic.ai/')), 'every layer carries its Pulley tag');
+    const rounded = byItem(d, '4f1c2a');
+    check(this.n, rounded && rounded.name === 'My rounded' && rounded.effects === 1, 'the renamed layer keeps its name and the effect added in After Effects');
+    check(this.n, rounded && nearArr(fillOf(rounded), [0.2, 0.8, 0.3]) && nearArr(rounded.position, [250, 175]), 'its shape was updated (new color, moved 50 px)');
+    const circle = byItem(d, '4f1c2b');
+    check(this.n, circle && circle.posKeys === 2, 'the animated position kept its keyframes');
+    check(this.n, circle && nearArr(fillOf(circle), [0.9, 0.6, 0.1]), 'the animated layer still got its new shape color');
+    check(this.n, r.res.warnings.some((w) => /Circle group: animated .*position/.test(w)), 'the kept animation is reported');
+    const square = byItem(d, '4f1c2d');
+    check(this.n, !!square && r.res.warnings.some((w) => /^Square: not in this push/.test(w)), 'a layer whose item left the source is kept and reported');
+    const title = byItem(d, 't-1');
+    check(this.n, title && title.text === 'Hello again', `text updated in place (got ${title && JSON.stringify(title.text)})`);
+    check(this.n, !!byItem(d, '4f1c2e'), 'the new item was added');
+    const u = r.dumpUndo;
+    const ur = byItem(u, '4f1c2a');
+    check(this.n, u.layers.length === 4 && ur && nearArr(fillOf(ur), [0.95, 0.3, 0.2]) && byItem(u, 't-1').text === 'Hello' && !byItem(u, '4f1c2e'),
+      'one Undo restores the layers as they were before the second push');
+    check(this.n, ur && ur.effects === 1 && ur.name === 'My rounded', 'edits made before the second push survive its Undo');
+  },
+  'twice-cliptext'(r) {
+    const c = r.counts;
+    check(this.n, c.layers2 === c.layers1 && c.items2 === c.items1, `second push adds no layers or comps (layers ${c.layers1} -> ${c.layers2}, items ${c.items1} -> ${c.items2})`);
+    check(this.n, r.res.updated === c.layers1, `every top-level layer was updated (${r.res.updated} of ${c.layers1})`);
+    const content = r.dump.layers.find((l) => l.precomp);
+    check(this.n, !!content && content.trackMatte === r.dump.layers[0].name && content.precomp.layers.length === 1, 'the precomp was rebuilt in place and still uses its matte');
+  },
+  'twice-gradients'(r) {
+    const c = r.counts;
+    check(this.n, c.layers2 === c.layers1 && r.res.updated === 5 && r.res.layers === 0, `second push updates the 5 layers (got ${r.res.updated} updated, ${r.res.layers} added)`);
+    check(this.n, r.res.gradientsApplied === 5, 'gradient colors applied again to the updated layers');
+  },
+  'repush-off'(r) {
+    check(this.n, r.res.updated === 0 && r.res.layers === 4 && r.dump.layers.length === 8, `update off: the second push adds 4 new layers (got ${r.res.layers} added, ${r.dump.layers.length} total)`);
+  },
   'ai-perf-merge'(r) {
     check(this.n, r.res.ok && r.dump.layers.length === 1, 'one layer, 500 groups');
     console.log(`  perf: 500 paths x 20 vertices, one layer: ${r.res.ms} ms`);

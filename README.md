@@ -158,6 +158,21 @@ whichever you used last, for its current selection. Options (gear icon):
   everything precomposed into one comp.
 - **Keep original artboard/frame positions:** otherwise the import is centered in the comp.
 - **Clipping masks:** track mattes (default) or layer masks.
+- **Update layers from earlier pushes** (on by default): see below.
+
+**Pushing the same artwork again** updates the layers it created before, in the active comp,
+instead of adding copies:
+
+- Shapes, text, colors and positions are updated in place. Anything you've animated in After
+  Effects (a keyframed position, animated shapes or text, masks) keeps its animation and is
+  listed in the result.
+- Your own changes stay: layer names you changed, effects you added, the layer's place in the
+  stack, timing and parenting.
+- New items are added as new layers on top. Layers whose item is gone from the source (deleted
+  or hidden) are kept and listed.
+- Each layer remembers its source item in its After Effects **comment** (`pulley:…`); deleting
+  or editing that comment makes the next push add a new layer instead.
+- Turn the option off to always add new layers.
 
 Each import is **one undo step** ("Pulley Import"). The panel shows what was imported, how long
 it took, missing fonts, and a warning for everything that was approximated or skipped.
@@ -248,6 +263,13 @@ machine; CI.
 - Colors are passed as numbers, without color management. CMYK documents are converted by
   Illustrator (`convertSampleColor`). Display P3 Figma files are flagged: After Effects receives
   the same numbers.
+
+**Re-push:** layers are matched by source item within the same document name (rename the file
+or frame's document and the next push adds new layers). If an item changes between point and
+area text, a new layer is added and the old one kept. A layer duplicated in After Effects keeps
+the same tag; only the top copy is updated. New layers go on top of the comp rather than next to
+their neighbours. In *Merge* mode, a merged layer is matched by the items it holds, so adding or
+removing items adds a new merged layer.
 
 **Gradient colors** can't be set from ExtendScript (After Effects reports the property as having
 no value). Pulley writes a small animation preset (`.ffx`) per gradient and applies it, which

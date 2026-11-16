@@ -11,6 +11,10 @@
 //! PULLEY-PLAN 1
 //! UNDO <name%>
 //! COMP <w> <h> <fps> <seconds> <name%>          create and open a comp (no active comp)
+//! DOC <key%> <update 0|1>                       source document key; 1 = update layers from earlier pushes
+//! ID <key%>                                     the next top-level layer (LS, LT or PRE) comes from this
+//!                                               source item: it is tagged with it, and with update on, an
+//!                                               existing layer with the same tag is updated instead
 //! PRE <w> <h> <name%>                           start building inside a new precomp
 //! PREEND <name%> <ax> <ay> <px> <py> <op> <blend>  finish it and add it as a layer
 //! LS <name%> <ax> <ay> <px> <py> <op> <blend>   new shape layer (becomes current)
@@ -34,6 +38,11 @@
 //! ```
 //! Opacity is 0..100, blend is an AE `BlendingMode` name, rule is 1 (non-zero) or 2
 //! (even-odd), type is 1 (linear) or 2 (radial), cap/join are AE's 1..3 values.
+//!
+//! Re-push (milestone 11): every top-level layer is tagged (layer comment) with the document
+//! key and its source item id. Items with ids that aren't stable across pushes (Illustrator
+//! items without a uuid) get no tag, so they are never matched by mistake. Layers inside
+//! precomps aren't tagged: a matched precomp is rebuilt as a whole.
 
 use crate::error::{Error, ErrorCode, Result};
 use crate::geom::{Bounds, Pt, path_bounds};
@@ -81,7 +90,7 @@ pub struct CompInfo {
 }
 
 /// Options chosen in the AE panel plus facts about the active comp.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AeOptions {
     #[serde(default)]
@@ -93,6 +102,19 @@ pub struct AeOptions {
     /// The active comp, or `None` to create a new comp sized to the artboard/frame.
     #[serde(default)]
     pub comp: Option<CompInfo>,
+    /// Update layers created by earlier pushes of the same items instead of adding copies.
+    #[serde(default = "yes")]
+    pub update_existing: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+impl Default for AeOptions {
+    fn default() -> Self {
+        AeOptions { layer_mode: LayerMode::default(), placement: Placement::default(), clip_mode: ClipMode::default(), comp: None, update_existing: true }
+    }
 }
 
 /// A gradient whose colors must be applied through a generated `.ffx` preset.
@@ -291,12 +313,22 @@ struct Gen<'a> {
     gradients: Vec<PlanGradient>,
     warnings: Vec<Warning>,
     warned_split: bool,
+    /// Precomp nesting: only layers at depth 0 (in the target comp) are tagged.
+    depth: usize,
 }
 
 impl Gen<'_> {
     fn line(&mut self, s: &str) {
         self.out.push_str(s);
         self.out.push('\n');
+    }
+
+    /// Tag the next top-level layer with the source item it comes from (see the module docs).
+    fn id(&mut self, key: &str) {
+        if self.depth == 0 && !key.is_empty() && !key.starts_with("ai-token:") {
+            let line = format!("ID {}", pct(key));
+            self.line(&line);
+        }
     }
 
     fn warn(&mut self, code: &str, it: &Item, msg: &str) {
@@ -507,6 +539,7 @@ impl Gen<'_> {
         match it {
             Item::Text(t) => self.text_layer(t, it, parent_opacity),
             Item::Shape(s) => {
+                self.id(&s.id);
                 self.shape_layer(&s.name, &[it], s.opacity * parent_opacity, s.blend_mode);
                 self.shape_body(s, it);
                 self.line("LEND");
@@ -517,7 +550,7 @@ impl Gen<'_> {
                 } else if g.children.iter().any(needs_layers) {
                     if g.opacity < 1.0 || !matches!(g.blend_mode, BlendMode::Normal | BlendMode::PassThrough) {
                         // Splitting would change how opacity/blend composite: precompose instead.
-                        self.precomp(&g.name, &g.children, g.opacity * parent_opacity, g.blend_mode);
+                        self.precomp(&g.id, &g.name, &g.children, g.opacity * parent_opacity, g.blend_mode);
                     } else {
                         if !self.warned_split {
                             self.warned_split = true;
@@ -529,6 +562,7 @@ impl Gen<'_> {
                     }
                 } else {
                     let children: Vec<&Item> = g.children.iter().collect();
+                    self.id(&g.id);
                     self.shape_layer(&g.name, &children, g.opacity * parent_opacity, g.blend_mode);
                     for c in &g.children {
                         self.group_item(c);
@@ -542,9 +576,10 @@ impl Gen<'_> {
     fn clipped(&mut self, g: &Group, clip: &Clip, it: &Item, parent_opacity: f64) {
         let nested = g.children.iter().any(needs_layers);
         if nested {
-            self.precomp(&g.name, &g.children, g.opacity * parent_opacity, g.blend_mode);
+            self.precomp(&g.id, &g.name, &g.children, g.opacity * parent_opacity, g.blend_mode);
         } else {
             let children: Vec<&Item> = g.children.iter().collect();
+            self.id(&g.id);
             self.shape_layer(&g.name, &children, g.opacity * parent_opacity, g.blend_mode);
             for c in &g.children {
                 self.group_item(c);
@@ -573,6 +608,7 @@ impl Gen<'_> {
             };
             let item = Item::Shape(shape);
             if let Item::Shape(s) = &item {
+                self.id(&s.id);
                 self.shape_layer(&name, &[&item], 1.0, BlendMode::Normal);
                 self.shape_body(s, &item);
                 self.line("LEND");
@@ -590,20 +626,23 @@ impl Gen<'_> {
         }
     }
 
-    fn precomp(&mut self, name: &str, children: &[Item], opacity: f64, blend: BlendMode) {
+    fn precomp(&mut self, key: &str, name: &str, children: &[Item], opacity: f64, blend: BlendMode) {
         let refs: Vec<&Item> = children.iter().collect();
         let b = items_bounds(&refs);
         // The precomp spans the content bounds; layers inside use scene coordinates shifted so
         // the bounds' top-left is the precomp origin.
         let (min, w, h) = if b.is_empty() { (Pt::ZERO, 100.0, 100.0) } else { (b.min, b.width().ceil().max(4.0), b.height().ceil().max(4.0)) };
+        self.id(key);
         let line = format!("PRE {} {} {}", num(w.min(30_000.0)), num(h.min(30_000.0)), pct(name));
         self.line(&line);
         self.summary.comps += 1;
         let saved = self.offset;
         self.offset = Pt::new(-min.x, -min.y);
+        self.depth += 1;
         for c in children.iter().rev() {
             self.layers_for(c, 1.0);
         }
+        self.depth -= 1;
         self.offset = saved;
         // Precomp layer: its anchor is the precomp center, placed where the content was.
         let a = Pt::new(w / 2.0, h / 2.0);
@@ -627,6 +666,7 @@ impl Gen<'_> {
             (TextKind::Area, Some(bx)) => (1, bx.width, bx.height),
             _ => (0, 0.0, 0.0),
         };
+        self.id(&t.id);
         let line = format!(
             "LT {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",
             pct(&t.name),
@@ -676,6 +716,7 @@ impl Gen<'_> {
         if !t.outlines.is_empty() {
             self.line("FB");
             let refs: Vec<&Item> = t.outlines.iter().collect();
+            self.id(&format!("{}/outlines", t.id));
             self.shape_layer(&format!("{} (outlines)", t.name), &refs, t.opacity * parent_opacity, t.blend_mode);
             for o in &t.outlines {
                 self.group_item(o);
@@ -683,6 +724,13 @@ impl Gen<'_> {
             self.line("LEND");
             self.line("FBEND");
         }
+    }
+}
+
+fn source_app_key(app: SourceApp) -> &'static str {
+    match app {
+        SourceApp::Illustrator => "illustrator",
+        SourceApp::Figma => "figma",
     }
 }
 
@@ -697,6 +745,7 @@ pub fn build_plan(scene: &Scene, opts: &AeOptions) -> Result<Plan> {
         gradients: Vec::new(),
         warnings: Vec::new(),
         warned_split: false,
+        depth: 0,
     };
     g.line("PULLEY-PLAN 1");
     g.line("UNDO Pulley%20Import");
@@ -717,6 +766,10 @@ pub fn build_plan(scene: &Scene, opts: &AeOptions) -> Result<Plan> {
             (w, h)
         }
     };
+    // The document the items come from: layers tagged with it can be updated by a later push.
+    let doc = format!("{}:{}", source_app_key(scene.source.app), scene.source.document_name.as_deref().unwrap_or(""));
+    let line = format!("DOC {} {}", pct(&doc), u8::from(opts.update_existing));
+    g.line(&line);
     let all: Vec<&Item> = scene.items.iter().filter(|i| i.visible()).collect();
     let content = items_bounds(&all);
     g.offset = match opts.placement {
@@ -738,6 +791,9 @@ pub fn build_plan(scene: &Scene, opts: &AeOptions) -> Result<Plan> {
                 if run.is_empty() {
                     return;
                 }
+                // A merged layer is matched by the items it holds (first, last, count).
+                let key = format!("merge/{}/{}/{}", run[0].id(), run[run.len() - 1].id(), run.len());
+                g.id(&key);
                 g.shape_layer(&name, run, 1.0, BlendMode::Normal);
                 // Topmost first inside the layer.
                 for it in run.iter().rev() {
@@ -761,13 +817,16 @@ pub fn build_plan(scene: &Scene, opts: &AeOptions) -> Result<Plan> {
             // A precomp the size of the artboard/frame, so "original" positions hold inside it.
             let w = scene.bounds.width.ceil().clamp(4.0, 30_000.0);
             let h = scene.bounds.height.ceil().clamp(4.0, 30_000.0);
+            g.id("precompose");
             g.line(&format!("PRE {} {} {}", num(w), num(h), pct(&name)));
             g.summary.comps += 1;
             let saved = g.offset;
             g.offset = Pt::ZERO;
+            g.depth += 1;
             for it in scene.items.iter().rev() {
                 g.layers_for(it, 1.0);
             }
+            g.depth -= 1;
             g.offset = saved;
             let a = Pt::new(w / 2.0, h / 2.0);
             let p = a + saved;
@@ -938,5 +997,69 @@ mod tests {
         let scene = parse_scene(BASIC, Component::AePanel).unwrap();
         let e = build_plan(&scene, &AeOptions { comp: Some(CompInfo { width: f64::NAN, height: 10.0 }), ..Default::default() }).unwrap_err();
         assert_eq!(e.code, ErrorCode::InvalidOptions);
+    }
+
+    /// The line right after each ID line, and whether every top-level layer start has an ID.
+    fn tagged(p: &Plan) -> Vec<(String, String)> {
+        let lines: Vec<&str> = p.text.lines().collect();
+        let mut out = Vec::new();
+        for (i, l) in lines.iter().enumerate() {
+            if let Some(key) = l.strip_prefix("ID ") {
+                let next = lines.get(i + 1).copied().unwrap_or("");
+                out.push((key.to_string(), next.split(' ').next().unwrap_or("").to_string()));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn top_level_layers_are_tagged_with_their_source_items() {
+        let p = plan(BASIC, AeOptions { comp: comp(), ..Default::default() });
+        assert!(p.text.contains("\nDOC illustrator%3Abasic.ai 1\n"), "{}", p.text);
+        // Bottom first: the circle group, then the rounded rectangle.
+        assert_eq!(tagged(&p), vec![("4f1c2b".to_string(), "LS".to_string()), ("4f1c2a".to_string(), "LS".to_string())]);
+        // Update can be turned off; layers are still tagged for later pushes.
+        let off = plan(BASIC, AeOptions { comp: comp(), update_existing: false, ..Default::default() });
+        assert!(off.text.contains("\nDOC illustrator%3Abasic.ai 0\n"));
+        assert_eq!(tagged(&off).len(), 2);
+    }
+
+    #[test]
+    fn only_layers_in_the_target_comp_are_tagged() {
+        // Clip + text: the group becomes a precomp (tagged); layers inside it are not.
+        let p = plan(CLIP_TEXT, AeOptions { comp: comp(), ..Default::default() });
+        let tags = tagged(&p);
+        assert!(!tags.is_empty());
+        let mut depth = 0i32;
+        let mut untagged_top = Vec::new();
+        let lines: Vec<&str> = p.text.lines().collect();
+        for (i, l) in lines.iter().enumerate() {
+            let op = l.split(' ').next().unwrap_or("");
+            let starts_layer = matches!(op, "LS" | "LT" | "PRE");
+            if starts_layer && depth == 0 && !lines[i.saturating_sub(1)].starts_with("ID ") {
+                untagged_top.push(l.to_string());
+            }
+            if starts_layer && depth > 0 {
+                assert!(!lines[i - 1].starts_with("ID "), "layer inside a precomp is tagged: {l}");
+            }
+            if op == "PRE" {
+                depth += 1;
+            } else if op == "PREEND" {
+                depth -= 1;
+            }
+        }
+        assert!(untagged_top.is_empty(), "untagged top-level layers: {untagged_top:?}");
+        // Mattes are tagged as "<group>/clip"; precompose mode tags its one precomp.
+        let pre = plan(BASIC, AeOptions { comp: comp(), layer_mode: LayerMode::Precompose, ..Default::default() });
+        assert_eq!(tagged(&pre), vec![("precompose".to_string(), "PRE".to_string())]);
+        let merged = plan(BASIC, AeOptions { comp: comp(), layer_mode: LayerMode::Merge, ..Default::default() });
+        assert_eq!(tagged(&merged), vec![("merge%2F4f1c2b%2F4f1c2a%2F2".to_string(), "LS".to_string())]);
+    }
+
+    #[test]
+    fn unstable_ids_are_never_tagged() {
+        let src = BASIC.replace("\"4f1c2a\"", "\"ai-token:p7\"");
+        let p = plan(&src, AeOptions { comp: comp(), ..Default::default() });
+        assert_eq!(tagged(&p).len(), 1, "{}", p.text);
     }
 }

@@ -41,14 +41,12 @@ fn main() {
     if let Some(w) = settings_warning {
         tracing::warn!("{w}");
     }
-    let token = match config::new_session_token(&paths) {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::error!("cannot write the session token: {e}");
-            std::process::exit(1);
-        }
-    };
+    // The token is written to disk only after this copy owns the port (below), so starting a
+    // second copy can't replace the running bridge's token.
+    let token = config::random_session_token();
     let port = settings.port;
+    let token_paths = paths.clone();
+    let token_for_file = token.clone();
     let (hub, summary) = hub::Hub::new(token, paths.clone(), settings);
     let hub = Arc::new(hub);
 
@@ -69,6 +67,10 @@ fn main() {
             rt.block_on(async move {
                 match server::bind(port).await {
                     Ok(listener) => {
+                        if let Err(e) = config::write_session_token(&token_paths, &token_for_file) {
+                            let _ = ready_tx.send(Err(format!("cannot write the session token: {e}")));
+                            return;
+                        }
                         let _ = ready_tx.send(Ok(()));
                         server::run(listener, server_hub).await;
                     }
@@ -83,8 +85,8 @@ fn main() {
     match ready_rx.recv() {
         Ok(Ok(())) => {}
         Ok(Err(e)) => {
-            // Usually another Pulley bridge is already running on this port.
-            tracing::error!("cannot listen on 127.0.0.1:{port}: {e}");
+            // Usually another Pulley bridge is already running on this port; its token is left alone.
+            tracing::error!("cannot start on 127.0.0.1:{port}: {e}");
             std::process::exit(2);
         }
         Err(_) => {

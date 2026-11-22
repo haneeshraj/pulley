@@ -134,10 +134,23 @@ impl Settings {
 }
 
 /// Create a fresh per-session token and write it where the CEP panels can read it.
+#[cfg(test)]
 pub fn new_session_token(paths: &Paths) -> std::io::Result<String> {
-    let token = random_hex(32);
-    write_private(&paths.token, token.as_bytes())?;
+    let token = random_session_token();
+    write_session_token(paths, &token)?;
     Ok(token)
+}
+
+/// A fresh session token, not yet written anywhere.
+pub fn random_session_token() -> String {
+    random_hex(32)
+}
+
+/// Publishes the session token for the panels. Only the bridge that owns the port may call this:
+/// a second copy that writes it and then fails to bind leaves the running bridge with a token
+/// nobody can present.
+pub fn write_session_token(paths: &Paths, token: &str) -> std::io::Result<()> {
+    write_private(&paths.token, token.as_bytes())
 }
 
 /// Seconds since the Unix epoch, as text (for "created" stamps).

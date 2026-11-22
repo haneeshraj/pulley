@@ -39,7 +39,8 @@ fn start(extra: &[&str]) -> Bridge {
     args.extend(extra.iter().map(|s| s.to_string()));
     let child = Command::new(env!("CARGO_BIN_EXE_pulley-bridge")).args(&args).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();
     let start = Instant::now();
-    while std::net::TcpStream::connect(("127.0.0.1", port)).is_err() {
+    // The bridge writes its session token just after it claims the port, so wait for both.
+    while std::net::TcpStream::connect(("127.0.0.1", port)).is_err() || !dir.join("session.token").exists() {
         assert!(start.elapsed() < Duration::from_secs(10), "bridge did not start");
         std::thread::sleep(Duration::from_millis(50));
     }
@@ -140,6 +141,23 @@ async fn hello_requires_the_session_token_and_matching_origin() {
     let mut f = connect(b.port, "null").await;
     let r = hello(&mut f, "figma", &b.token()).await;
     assert_eq!(r["code"], "not_paired");
+}
+
+#[tokio::test]
+async fn a_second_copy_leaves_the_running_bridges_token_alone() {
+    // Launch at login starts one bridge; starting it again by hand must not lock the panels out.
+    let b = start(&[]);
+    let before = b.token();
+    let status = Command::new(env!("CARGO_BIN_EXE_pulley-bridge"))
+        .args(["--headless", "--port", &b.port.to_string(), "--config-dir", &b.dir.display().to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(!status.success(), "the second copy should exit");
+    assert_eq!(b.token(), before, "the second copy must not replace the session token");
+    let mut ws = connect(b.port, "file://").await;
+    assert_eq!(hello(&mut ws, "ae", &b.token()).await["type"], "welcome");
 }
 
 #[tokio::test]

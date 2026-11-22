@@ -67,6 +67,9 @@ pub enum LayerMode {
     /// One layer per top-level selected item (default).
     #[default]
     PerItem,
+    /// Groups are broken apart: every shape, text and image gets its own layer. Groups that
+    /// clip or carry effects become precomps with their contents as separate layers inside.
+    PerShape,
     /// Everything in as few layers as possible.
     Merge,
     /// Build the layers inside a new comp and add that comp as one layer.
@@ -792,7 +795,8 @@ impl Gen<'_> {
     fn group_layers(&mut self, g: &Group, it: &Item, parent_opacity: f64, own: bool) {
         let (opacity, blend, effects): (f64, BlendMode, &[Effect]) =
             if own { (g.opacity * parent_opacity, g.blend_mode, &g.effects) } else { (parent_opacity, BlendMode::Normal, &[]) };
-        let nested = g.children.iter().any(needs_layers);
+        let split = self.opts.layer_mode == LayerMode::PerShape;
+        let nested = split || g.children.iter().any(needs_layers);
         if !effects.is_empty() && (nested || (g.clip.is_some() && self.opts.clip_mode == ClipMode::Matte)) {
             // The effects apply to what the group draws as a whole (a track matte would also cut
             // the shadow off): build the group in a precomp, effects on the precomp layer.
@@ -808,7 +812,7 @@ impl Gen<'_> {
                 let refs: Vec<&Item> = g.children.iter().collect();
                 self.precomp(&g.id, &g.name, &refs, opacity, blend, |b| b.children_layers(&g.children));
             } else {
-                if !self.warned_split {
+                if !self.warned_split && !split {
                     self.warned_split = true;
                     self.warn("group_split", it, "Groups containing text, images, clipping masks or effects are split into several layers.");
                 }
@@ -829,7 +833,7 @@ impl Gen<'_> {
     }
 
     fn clipped(&mut self, g: &Group, clip: &Clip, it: &Item, opacity: f64, blend: BlendMode) {
-        let nested = g.children.iter().any(needs_layers);
+        let nested = self.opts.layer_mode == LayerMode::PerShape || g.children.iter().any(needs_layers);
         if nested {
             let refs: Vec<&Item> = g.children.iter().collect();
             self.precomp(&g.id, &g.name, &refs, opacity, blend, |b| b.children_layers(&g.children));
@@ -1043,7 +1047,7 @@ pub fn build_plan(scene: &Scene, opts: &AeOptions) -> Result<Plan> {
         Placement::Center => Pt::new(cw / 2.0, ch / 2.0) - content.center(),
     };
     match opts.layer_mode {
-        LayerMode::PerItem => {
+        LayerMode::PerItem | LayerMode::PerShape => {
             for it in scene.items.iter().rev() {
                 g.layers_for(it, 1.0);
             }
@@ -1353,6 +1357,63 @@ mod tests {
         assert!(pre.text.contains("\nPRE 800 600 basic.ai\n"));
         assert!(pre.text.contains("\nPREEND basic.ai 400 300 "));
         assert_eq!(pre.summary.layers, 3);
+    }
+
+    #[test]
+    fn per_shape_breaks_groups_apart() {
+        let shape_layers = |p: &Plan| p.text.lines().filter(|l| l.starts_with("LS ")).count();
+        // basic-shapes with its group made plain (full opacity, normal blend) and holding three
+        // shapes, then nested inside a second group: like a grouped logo.
+        let mut v: serde_json::Value = serde_json::from_str(BASIC).unwrap();
+        v["items"][1]["opacity"] = 1.0.into();
+        v["items"][1]["blendMode"] = "normal".into();
+        let child = v["items"][1]["children"][0].clone();
+        for n in 1..3 {
+            let mut c = child.clone();
+            c["id"] = format!("4f1c2c{n}").into();
+            c["name"] = format!("Circle {n}").into();
+            v["items"][1]["children"].as_array_mut().unwrap().push(c);
+        }
+        let inner = v["items"][1].clone();
+        v["items"][1] = serde_json::json!({ "type": "group", "id": "outer", "name": "Logo", "children": [inner] });
+        let src = v.to_string();
+        let per_item = plan(&src, AeOptions { comp: comp(), ..Default::default() });
+        assert_eq!(shape_layers(&per_item), 2, "the group stays one layer: {}", per_item.text);
+        let per_shape = plan(&src, AeOptions { comp: comp(), layer_mode: LayerMode::PerShape, ..Default::default() });
+        assert_eq!(shape_layers(&per_shape), 4, "{}", per_shape.text);
+        assert_eq!(per_shape.summary.layers, 4);
+        assert!(!per_shape.text.contains("\nPRE "), "plain groups need no precomp: {}", per_shape.text);
+        assert!(!per_shape.text.contains("\nG "), "no shape groups inside layers: {}", per_shape.text);
+        assert!(!format!("{:?}", per_shape.warnings).contains("group_split"), "no split warning when splitting was asked for");
+        // Every layer still carries its item id, so a later push updates instead of duplicating.
+        assert_eq!(per_shape.text.lines().filter(|l| l.starts_with("ID ")).count(), 4, "{}", per_shape.text);
+        // A group with its own opacity or blend mode is kept as a precomp so it looks the same.
+        let blended = plan(BASIC, AeOptions { comp: comp(), layer_mode: LayerMode::PerShape, ..Default::default() });
+        assert!(blended.text.contains("\nPRE ") && blended.text.contains(" MULTIPLY"), "{}", blended.text);
+
+        // A clipped group keeps its clip: its shapes become separate layers in a precomp with a matte.
+        let mut scene = parse_scene(&src, Component::AePanel).unwrap();
+        if let Item::Group(outer) = &mut scene.items[1] {
+            let inner = outer.children.remove(0);
+            scene.items[1] = inner;
+        }
+        let clip = Clip {
+            source_id: None,
+            name: Some("Mask".into()),
+            paths: match &scene.items[0] {
+                Item::Shape(s) => s.paths.clone(),
+                _ => unreachable!(),
+            },
+            fill_rule: FillRule::Nonzero,
+        };
+        if let Item::Group(g) = &mut scene.items[1] {
+            g.clip = Some(clip);
+        }
+        let p = build_plan(&scene, &AeOptions { comp: comp(), layer_mode: LayerMode::PerShape, ..Default::default() }).unwrap();
+        assert!(p.text.contains("\nPRE "), "{}", p.text);
+        assert!(p.text.contains("\nMATTE\n"), "{}", p.text);
+        let inside: Vec<&str> = p.text.lines().skip_while(|l| !l.starts_with("PRE ")).take_while(|l| !l.starts_with("PREEND")).filter(|l| l.starts_with("LS ")).collect();
+        assert_eq!(inside.len(), 3, "{}", p.text);
     }
 
     #[test]

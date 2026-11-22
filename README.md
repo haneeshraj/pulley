@@ -164,8 +164,10 @@ appearance become plain shapes. Each item with effects adds about a second to th
 comp the size of the artboard or frame. **Pull selection** asks Illustrator or the Figma plugin,
 whichever you used last, for its current selection. Options (gear icon):
 
-- **Layers:** one layer per selected item (default), everything merged into one shape layer, or
-  everything precomposed into one comp.
+- **Layers:** one layer per selected item (default); **one layer per shape**, which breaks groups
+  apart so every path, text and image gets its own layer (a group that clips, or has its own
+  opacity, blend mode or effects, becomes a precomp with its pieces as separate layers inside, so it
+  looks the same); everything merged into one shape layer; or everything precomposed into one comp.
 - **Keep original artboard/frame positions:** otherwise the import is centered in the comp.
 - **Clipping masks:** track mattes (default) or layer masks.
 - **Update layers from earlier pushes** (on by default): see below.

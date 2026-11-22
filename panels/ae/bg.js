@@ -24,7 +24,7 @@
     var d = { layerMode: 'perItem', placement: 'center', clipMode: 'matte', updateExisting: true };
     try {
       var o = JSON.parse(C.fs.read(C.pulleyDir('ae-options.json')) || '{}');
-      if (['perItem', 'merge', 'precompose'].indexOf(o.layerMode) >= 0) { d.layerMode = o.layerMode; }
+      if (['perItem', 'perShape', 'merge', 'precompose'].indexOf(o.layerMode) >= 0) { d.layerMode = o.layerMode; }
       if (['center', 'original'].indexOf(o.placement) >= 0) { d.placement = o.placement; }
       if (['matte', 'mask'].indexOf(o.clipMode) >= 0) { d.clipMode = o.clipMode; }
       if (o.updateExisting === false) { d.updateExisting = false; }

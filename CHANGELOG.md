@@ -2,6 +2,13 @@
 
 ## 0.1.0 (unreleased)
 
+- After Effects: new **Layers** option, *One layer per shape (break groups apart)*: every path,
+  text and image from Illustrator or Figma becomes its own layer. Groups that clip or carry their
+  own opacity, blend mode or effects become precomps with their pieces as separate layers inside.
+- Panels: CSEvents now carry the sender's extension id; CEP 12 dropped them otherwise, so the
+  panels showed Not connected and their buttons did nothing.
+- Bridge: a second copy no longer replaces the running bridge's session token.
+
 First development build. Created by Haneesh Raj Banisetti; MIT License. Tested on Windows 11
 with After Effects 25.5 and Illustrator 29.5; see the README for what is and isn't tested.
 

@@ -1,0 +1,41 @@
+PULLEY 0.1.0 for Windows
+Send artwork from Illustrator to After Effects as real, editable shape layers.
+Created by Haneesh Raj Banisetti. MIT License (see LICENSE.txt).
+
+WHAT YOU NEED
+- Windows 10 or 11
+- Illustrator 2025 and After Effects 2025 (other versions are untested)
+
+INSTALL
+1. Unzip this whole folder somewhere, for example your Desktop. (Don't run it from inside the zip.)
+2. Close Illustrator and After Effects.
+3. Double-click "Install Pulley.bat".
+   - If Windows says "Windows protected your PC", click "More info", then "Run anyway".
+     Pulley isn't signed with a paid certificate yet, so Windows doesn't recognize it.
+4. The Pulley bridge installer opens. Click through it. A Pulley icon appears in the system tray
+   (bottom-right, you may need to click the ^ arrow). That small app carries artwork between
+   Illustrator and After Effects and only talks to your own computer.
+
+USE IT
+1. Open After Effects and a comp. Go to Window > Extensions > Pulley. The dot should turn green.
+2. Open Illustrator and your file. Go to Window > Extensions > Pulley.
+3. Select artwork in Illustrator and click "Push to After Effects".
+4. It appears as layers in the active comp.
+
+TIPS
+- Every shape as its own layer: in the After Effects Pulley panel, click the gear icon, then under
+  Layers choose "One layer per shape (break groups apart)".
+- Push the same artwork again to update the layers instead of getting copies. Animation you added
+  in After Effects is kept.
+- Illustrator effects (drop shadows, glows, blurs) come in as picture layers under the shapes.
+  Untick "Effects as pictures" in the Illustrator panel to skip them.
+
+IF IT SAYS "NOT CONNECTED"
+- Check the Pulley icon is in the system tray. If not, open "Pulley" from the Start menu.
+- Click the circular arrow next to "Not connected" in the panel.
+- Still stuck: quit and reopen Illustrator and After Effects.
+
+UNINSTALL
+- Settings > Apps > Installed apps > Pulley > Uninstall (removes the bridge).
+- Delete the folders dev.pulley.illustrator and dev.pulley.ae from
+  %APPDATA%\Adobe\CEP\extensions (paste that into File Explorer's address bar).

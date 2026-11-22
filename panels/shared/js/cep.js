@@ -44,9 +44,17 @@
     });
   }
 
+  /**
+   * Send a CSEvent to the other Pulley extension in this app. The sender's own extension id is
+   * required: CEP 12 (Illustrator and After Effects 2025) silently drops events whose
+   * extensionId is empty or missing, so the panel and its background extension never hear
+   * each other. Checked live over the CEP debugger on 2026-11-22.
+   */
   function dispatch(type, data) {
     var env = hostEnv();
-    cep.dispatchEvent({ type: type, scope: 'APPLICATION', appId: env.appId || '', extensionId: '', data: typeof data === 'string' ? data : JSON.stringify(data || {}) });
+    var self = '';
+    try { self = cep.getExtensionId(); } catch (e) { /* very old host */ }
+    cep.dispatchEvent({ type: type, scope: 'APPLICATION', appId: env.appId || '', extensionId: self, data: typeof data === 'string' ? data : JSON.stringify(data || {}) });
   }
 
   function listen(type, fn) {

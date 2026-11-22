@@ -416,7 +416,7 @@ weigh yet.
 |---|---|---|
 | After Effects 25.5 | **Works.** A `<Type>Custom</Type>` extension with `<AutoVisible>false</AutoVisible>` and StartOn events `com.adobe.csxs.events.ApplicationActivate` + `applicationActivate` started with no window about 15 s after launch. It then ran ExtendScript, opened a WebSocket and quit AE. | **TESTED** (three launches). Context: the CEP 10–12 cookbook event tables omit AE, and Adobe staff said AE was "missing from that chart" ([**STAFF**](https://community.adobe.com/questions-628/launch-invisible-html5-panel-on-host-app-launch-685190)). AE 26.5 reported working with the same pattern ([after-effects-mcp PR #286](https://github.com/Engine-Room-Games/after-effects-mcp/pull/286), **COMMUNITY**). |
 | Illustrator 29.5 | **Works**, with the same manifest | **TESTED** (three launches). The cookbook lists Illustrator as supporting invisible extensions and `applicationActivate` (**OFFICIAL**) |
-| Panel ↔ background extension | Use `CSEvent` with scope `APPLICATION` (dispatchEvent/addEventListener) | **OFFICIAL** ([cookbook](https://github.com/Adobe-CEP/CEP-Resources/blob/master/CEP_12.x/Documentation/CEP%2012%20HTML%20Extension%20Cookbook.md)). Not tested yet (milestone 3). |
+| Panel ↔ background extension | Use `CSEvent` with scope `APPLICATION` (dispatchEvent/addEventListener) | **OFFICIAL** ([cookbook](https://github.com/Adobe-CEP/CEP-Resources/blob/master/CEP_12.x/Documentation/CEP%2012%20HTML%20Extension%20Cookbook.md)). **TESTED** 2026-11-22 on Illustrator and After Effects 2025 over the CEP debugger: an event whose `extensionId` is empty or missing is silently dropped, so neither side heard the other. The sender must put its own id (`getExtensionId()`) in `extensionId`; then delivery works both ways. |
 
 **Conclusion:** Pull works with the visible panel closed. The release manifest will also list
 `com.adobe.csxs.events.ApplicationInitialized`, as several community projects recommend for AE
@@ -670,7 +670,7 @@ All of these are untested here.
 
 | Item | Outcome |
 |---|---|
-| Panel ↔ background extension CSEvents | Built and used for every panel action. |
+| Panel ↔ background extension CSEvents | Built and used for every panel action. Fixed 2026-11-22: events now carry the sender's extension id (CEP drops them otherwise); confirmed live in both apps. |
 | Undo group spanning a long apply | One undo step per import, *tested* (Part 1). |
 | Progress via CSXSEvent from ExtendScript; cancel-flag polling | Built: progress every 50 plan operations, cancel file checked at the same time. |
 | Illustrator: DOM read vs SVG export on real selections | DOM read chosen; SVG only for outlines, symbols and very long paths ([ILLUSTRATOR_READ_BENCHMARK.md](ILLUSTRATOR_READ_BENCHMARK.md)). |

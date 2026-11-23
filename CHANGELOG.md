@@ -1,7 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
-
+## 0.1.0 (2026-11-23)
 - After Effects: new **Layers** option, *One layer per shape (break groups apart)*: every path,
   text and image from Illustrator or Figma becomes its own layer. Groups that clip or carry their
   own opacity, blend mode or effects become precomps with their pieces as separate layers inside.
@@ -32,7 +31,7 @@ with After Effects 25.5 and Illustrator 29.5; see the README for what is and isn
   off outer strokes or text without outlines.
 - A Figma frame's opacity and blend mode were applied twice to its background; fixed.
 - **Faster imports:** new shape layers are copies of one empty template layer, and the comp is
-  hidden while building any import of 8 or more layers: 500 layers in 3.2 s instead of 9–16 s;
+  hidden while building any import of 8 or more layers: 500 layers in 3.2 s instead of 9â€“16 s;
   20 layers in about a third of a second instead of 1.3 s.
 
 - **pulley-core** (Rust, also compiled to WebAssembly): pulley-scene format (v2) with JSON Schema,

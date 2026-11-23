@@ -1,0 +1,157 @@
+# Builds and publishes a release when a version tag (v1.2.3) is pushed, usually by tools/release.ps1.
+# Produces: the Windows download zip (both signed .zxp packages, the bridge installer, the installer
+# script, readme and license), plus the .zxp packages and the bridge installer on their own.
+#
+# Optional repository secrets (Settings > Secrets and variables > Actions):
+#   ZXP_CERT_P12_BASE64, ZXP_CERT_PASSWORD   sign the extensions with your own certificate
+#                                            (otherwise a fresh self-signed one is made per release)
+#   PULLEY_WIN_SIGN_PFX_BASE64, PULLEY_WIN_SIGN_PFX_PASSWORD
+#                                            code-sign the bridge installer (otherwise unsigned)
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build again, for example v0.1.0
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  WASM_BINDGEN_VERSION: 0.2.130
+  BINARYEN_VERSION: "133"
+  # Adobe's ZXPSignCmd 4.1.103 for Windows and its git blob hash (see docs/PACKAGING.md).
+  ZXPSIGNCMD_URL: https://raw.githubusercontent.com/Adobe-CEP/CEP-Resources/master/ZXPSignCMD/4.1.103/win64/ZXPSignCmd.exe
+  ZXPSIGNCMD_BLOB: a62ef2f2b123f3c19284d3bbdafaab9192131777
+  TSA_URL: http://timestamp.digicert.com
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Check the tag matches the version
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::Tag $TAG doesn't match the version in Cargo.toml ($VERSION). Release with tools/release.ps1."
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Rust toolchain
+        shell: bash
+        run: rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown && rustup default stable
+
+      - name: Build tools (wasm-bindgen, cargo-packager)
+        shell: bash
+        run: |
+          cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked
+          cargo install cargo-packager --locked
+
+      - name: Binaryen (wasm-opt)
+        shell: bash
+        run: |
+          mkdir -p .tools/binaryen
+          curl -sSfL -o binaryen.tar.gz "https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-windows.tar.gz"
+          tar -xzf binaryen.tar.gz -C .tools/binaryen
+
+      - name: ZXPSignCmd (checked against its known hash)
+        shell: bash
+        run: |
+          mkdir -p .tools/zxpsigncmd
+          curl -sSfL -o .tools/zxpsigncmd/ZXPSignCmd.exe "$ZXPSIGNCMD_URL"
+          GOT=$(git hash-object .tools/zxpsigncmd/ZXPSignCmd.exe)
+          if [ "$GOT" != "$ZXPSIGNCMD_BLOB" ]; then
+            echo "::error::ZXPSignCmd.exe hash $GOT doesn't match $ZXPSIGNCMD_BLOB"
+            exit 1
+          fi
+
+      - name: Sign the extensions (.zxp)
+        shell: pwsh
+        env:
+          ZXP_CERT_P12_BASE64: ${{ secrets.ZXP_CERT_P12_BASE64 }}
+          PULLEY_ZXP_CERT_PASSWORD: ${{ secrets.ZXP_CERT_PASSWORD }}
+        run: |
+          if ($env:ZXP_CERT_P12_BASE64 -and $env:PULLEY_ZXP_CERT_PASSWORD) {
+            New-Item -ItemType Directory -Force .tools/certs | Out-Null
+            [IO.File]::WriteAllBytes("$PWD/.tools/certs/release.p12", [Convert]::FromBase64String($env:ZXP_CERT_P12_BASE64))
+            node tools/package-zxp.mjs --cert .tools/certs/release.p12 --tsa $env:TSA_URL
+          } else {
+            Write-Host "No ZXP_CERT_* secrets: signing with a fresh self-signed certificate."
+            node tools/package-zxp.mjs --self-signed --tsa $env:TSA_URL
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item .tools/certs -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Bridge installer
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.PULLEY_WIN_SIGN_PFX_BASE64 }}
+          PULLEY_WIN_SIGN_PFX_PASSWORD: ${{ secrets.PULLEY_WIN_SIGN_PFX_PASSWORD }}
+        run: |
+          if ($env:PFX_BASE64) {
+            $pfx = "$env:RUNNER_TEMP/sign.pfx"
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+            $env:PULLEY_WIN_SIGN_PFX = $pfx
+          }
+          node tools/package-bridge.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Windows download zip
+        shell: pwsh
+        run: ./tools/share/build-bundle.ps1
+
+      - name: Release notes from CHANGELOG.md
+        shell: bash
+        run: |
+          awk -v v="$VERSION" '
+            /^## / { if (found) exit; if (index($0, "## " v) == 1) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then echo "See CHANGELOG.md." > notes.md; fi
+          {
+            echo
+            echo "### Install (Windows)"
+            echo "Download **Pulley-$VERSION-Windows.zip**, unzip it, close Illustrator and After Effects, and run **Install Pulley.bat**. Details in READ ME FIRST.txt inside the zip."
+          } >> notes.md
+
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FILES=(
+            "dist/share/Pulley-$VERSION-Windows.zip"
+            "dist/zxp/Pulley-Illustrator-$VERSION.zxp"
+            "dist/zxp/Pulley-AfterEffects-$VERSION.zxp"
+            "dist/installers/pulley-bridge_${VERSION}_x64-setup.exe"
+          )
+          PRE=""
+          case "$VERSION" in 0.*|*-*) PRE="--prerelease" ;; esac
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" "${FILES[@]}" --title "Pulley $VERSION" --notes-file notes.md --verify-tag $PRE
+          fi

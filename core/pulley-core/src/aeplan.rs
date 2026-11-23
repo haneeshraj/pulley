@@ -1412,7 +1412,8 @@ mod tests {
         let p = build_plan(&scene, &AeOptions { comp: comp(), layer_mode: LayerMode::PerShape, ..Default::default() }).unwrap();
         assert!(p.text.contains("\nPRE "), "{}", p.text);
         assert!(p.text.contains("\nMATTE\n"), "{}", p.text);
-        let inside: Vec<&str> = p.text.lines().skip_while(|l| !l.starts_with("PRE ")).take_while(|l| !l.starts_with("PREEND")).filter(|l| l.starts_with("LS ")).collect();
+        let inside: Vec<&str> =
+            p.text.lines().skip_while(|l| !l.starts_with("PRE ")).take_while(|l| !l.starts_with("PREEND")).filter(|l| l.starts_with("LS ")).collect();
         assert_eq!(inside.len(), 3, "{}", p.text);
     }
 

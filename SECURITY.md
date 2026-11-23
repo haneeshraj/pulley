@@ -159,5 +159,9 @@ Any page can try to open `ws://127.0.0.1:47290`.
 
 ## Reporting a problem
 
-There is no public issue tracker yet. Please report security problems privately to the project
-owner rather than in a public place.
+Please report security problems **privately**, not in a public issue: on GitHub, open the
+repository's **Security** tab and choose **Report a vulnerability**. Include the Pulley version,
+your operating system, the app versions involved, and steps or a file that shows the problem.
+You'll get an answer as soon as possible; fixes are released before details are made public.
+
+Ordinary bugs (crashes, wrong colors, missing layers) can go in the public issue tracker.

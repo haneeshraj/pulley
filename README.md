@@ -23,6 +23,18 @@ internet access. The pieces talk through a small local app, the **Pulley bridge*
 > browser. See [What has been tested](#what-has-been-tested) and
 > [Known limitations](#known-limitations).
 
+## Install (Windows)
+
+1. Download `Pulley-<version>-Windows.zip` from the [Releases](../../releases) page and unzip it.
+2. Close Illustrator and After Effects, then double-click **Install Pulley.bat**. It installs both
+   extensions and opens the installer for the Pulley bridge (per user, no administrator rights).
+   The bridge isn't code-signed yet, so Windows may say it protected your PC: click
+   **More info → Run anyway**.
+3. In After Effects and in Illustrator: **Window → Extensions → Pulley**.
+
+`READ ME FIRST.txt` in the download covers using it, troubleshooting and uninstalling. To build
+Pulley yourself instead, see [Build and install (development)](#build-and-install-development).
+
 ## How it fits together
 
 ```
@@ -391,6 +403,11 @@ slower to add to.
 - [docs/ICONS.md](docs/ICONS.md) and [docs/ICON_HANDOFF.md](docs/ICON_HANDOFF.md): the icon
   system and how to deliver final icons.
 - [CHANGELOG.md](CHANGELOG.md).
+
+## Contributing
+
+Bug reports, test files and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Please report security problems privately, as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

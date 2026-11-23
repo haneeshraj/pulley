@@ -1,0 +1,54 @@
+name: Bug report
+description: Something didn't import, looked wrong, or Pulley didn't connect.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security problems go through the Security tab (Report a vulnerability), not here.
+  - type: input
+    id: version
+    attributes:
+      label: Pulley version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows 11, Windows 10, macOS, Other]
+    validations:
+      required: true
+  - type: input
+    id: apps
+    attributes:
+      label: App versions
+      description: Help > About in each app you used.
+      placeholder: "After Effects 25.5, Illustrator 29.5"
+    validations:
+      required: true
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Where were you sending from?
+      options: [Illustrator, Figma desktop app, Figma in a browser, A .pulley file, Not sending (connection problem)]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got. Screenshots of the source and the After Effects result help a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Bridge log
+      description: Click the document icon in a Pulley panel, copy the last lines, and paste them here.
+      render: text
+  - type: markdown
+    attributes:
+      value: |
+        If you can, attach a small file that shows the problem (a cut-down `.ai`, or a `.pulley` file saved from the Figma plugin).

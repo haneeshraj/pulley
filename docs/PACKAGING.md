@@ -46,6 +46,15 @@ signing development builds is worthwhile too.
    Distribution portal. Adobe's review process and policies apply; nothing in Pulley depends on
    it.
 
+## Windows download (share bundle)
+
+[`tools/share`](../tools/share) holds what goes next to the packages in the download people
+install from: `Install Pulley.bat` runs `install.ps1`, which unpacks both `.zxp` packages into the
+per-user CEP folder (`%APPDATA%AdobeCEPextensions`), sets `PlayerDebugMode` for CSXS 11 and 12
+so self-signed extensions load, and opens the bridge installer. It needs no Adobe installer tool;
+the Unified Plugin Installer Agent isn't present on every machine. `build-bundle.ps1` assembles
+and zips it (see the release checklist).
+
 ## Bridge installers
 
 Configuration: `[package.metadata.packager]` in [`bridge/Cargo.toml`](../bridge/Cargo.toml).
@@ -115,6 +124,11 @@ Publishing (organization-private or Community):
 3. Build and sign: `node tools/package-zxp.mjs --cert … --tsa …`, `node tools/package-bridge.mjs`
    (with signing configured), `cd figma-plugin && npm run build`.
 4. Go through [QA.md](QA.md) with the signed packages on Windows and macOS, 2025 and 2026 apps.
+5. Build the Windows download: `powershell -ExecutionPolicy Bypass -File toolsshareuild-bundle.ps1`
+   writes `dist/share/Pulley-<version>-Windows.zip` (both `.zxp` packages, the bridge installer,
+   `Install Pulley.bat`, `install.ps1`, `READ ME FIRST.txt` and the license).
+6. Tag the release (`git tag v<version>`, push the tag) and create a GitHub Release from it with
+   the zip attached. The README's install section points people to the Releases page.
 
 ## Status
 

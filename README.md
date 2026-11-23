@@ -61,23 +61,10 @@ Pulley yourself instead, see [Build and install (development)](#build-and-instal
 
 ## How it fits together
 
-```
- Illustrator (CEP extension)      Figma plugin (main thread + UI)
-   capture (read-only DOM)          read-only node reader
-   pulley-core (WebAssembly)        pulley-core (WebAssembly)
-            │ pulley-scene                  │ pulley-scene
-            ▼                               ▼
-      ┌────────────────────────────────────────────┐
-      │ Pulley bridge (tray app, Rust)             │
-      │ WebSocket on 127.0.0.1:47290, checks every │
-      │ connection and every scene                 │
-      └─────────────────────┬──────────────────────┘
-                            │ pulley-scene
-                            ▼
- After Effects (CEP extension)
-   pulley-core (WebAssembly) turns the scene into a build plan;
-   one fixed ExtendScript interpreter builds the layers (one undo step)
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/overview-dark.png">
+  <img alt="Illustrator and Figma each turn the selection into a scene with pulley-core (WebAssembly) and send it to the Pulley bridge, a tray app on 127.0.0.1:47290 that checks every connection and validates every scene. The bridge passes the scene to After Effects, which validates it again, builds a plan and creates the layers in one ExtendScript call and one undo step. A .pulley file from Figma can go straight to After Effects without the bridge. Everything stays on your computer." src="docs/images/overview-light.png" width="880">
+</picture>
 
 All parsing, geometry, color and validation code is one Rust library, `pulley-core`, compiled
 natively into the bridge and to WebAssembly for the panels and the plugin. The only format that
@@ -172,6 +159,8 @@ dashes, spaces and case don't matter. The plugin then keeps a pairing key on you
 (`figma.clientStorage`), and the bridge keeps a copy in its settings file. **Forget paired Figma
 plugins** in the tray menu revokes all pairings.
 
+<img alt="The Pulley Figma plugin asking for a pairing code: open the Pulley menu in the system tray, choose Pair Figma plugin, and paste the code here" src="docs/images/figma-pairing.png" width="320">
+
 In Chrome or Edge, Figma may ask to let the site access apps on your device (local network
 access): allow it. Safari blocks connections from web pages to local apps; use **Save .pulley
 file** there.
@@ -185,16 +174,21 @@ The plugin is a development plugin. Publishing notes: [docs/PACKAGING.md](docs/P
 only if the font is missing), *Effects as pictures* (on by default, see below) and *Pixels per
 point*.
 
+<img alt="The Illustrator panel with its settings open: Include text outlines, Effects as pictures, Pixels per point" src="docs/images/illustrator-options.png" width="320">
+
 **Illustrator effects** (Effect menu: drop shadows, glows, blurs, and other appearance such as
 art brushes) can't be read by scripts, so Pulley expands a *copy* of each item that has them in
 a temporary document (Object > Expand Appearance; your document is never changed). The shapes
 and live text stay editable layers; what the effect draws (a shadow, a glow) comes in as a
-picture layer under them, named "<item> effect", at the effect's own resolution (Document Raster
+picture layer under them, named after the item plus " effect" (for example "Logo effect"), at the effect's own resolution (Document Raster
 Effects Settings, 300 ppi by default). A blurred item becomes one picture. Brushes and other
 appearance become plain shapes. Each item with effects adds about a second to the push. Turn
 *Effects as pictures* off to bring only the basic fill and stroke.
 
-**Figma:** select layers, then **Send to After Effects**, or **Save .pulley file**.
+**Figma:** select layers, then **Send to After Effects**, or **Save .pulley file**. The plugin
+shows what After Effects imported and lists everything it approximated or left out.
+
+<img alt="The Pulley Figma plugin after sending a frame: Imported 9 layers, with four warnings such as an inner shadow that was not imported" src="docs/images/figma-sent.png" width="320">
 
 **After Effects:** the import goes into the active comp. With no active comp, Pulley creates a
 comp the size of the artboard or frame. **Pull selection** asks Illustrator or the Figma plugin,
@@ -210,6 +204,11 @@ whichever you used last, for its current selection. Options (gear icon):
 - **Clipping masks:** track mattes (default) or layer masks.
 - **Update layers from earlier pushes** (on by default): see below.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/layer-modes-dark.png">
+  <img alt="The same Illustrator selection (a text item Title and two groups, Badge with a rectangle and a star, Logo with a circle and an arc) in each layer mode. One layer per item: 3 layers, Title, Badge and Logo. One layer per shape: 5 layers, Title, Rectangle, Star, Circle and Arc. Merge into one layer: 2 layers, Title and one shape layer named Poster.ai. Precompose the import: 1 precomp layer named Poster.ai with Title, Badge and Logo inside." src="docs/images/layer-modes-light.png" width="880">
+</picture>
+
 **Pushing the same artwork again** updates the layers it created before, in the active comp,
 instead of adding copies:
 
@@ -223,6 +222,11 @@ instead of adding copies:
 - Each layer remembers its source item in its After Effects **comment** (`pulley:…`); deleting
   or editing that comment makes the next push add a new layer instead.
 - Turn the option off to always add new layers.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/repush-dark.png">
+  <img alt="Pushing the same artwork again. Badge, new since the last push, becomes a new layer on top. Logo (recolored) and Headline (text edited) are matched by their tags and updated in place, and Logo keeps its position keyframes. Old badge, deleted in Illustrator, keeps its layer and is listed in the result." src="docs/images/repush-light.png" width="880">
+</picture>
 
 **Shadows and blurs** from Figma become After Effects effects: a drop shadow becomes a *Drop
 Shadow* effect and a layer blur a *Gaussian Blur* effect, named "Pulley Drop Shadow" and "Pulley
@@ -241,7 +245,10 @@ a "Pulley images" folder in the project; After Effects links to them there, so k
 (or use *File > Dependencies > Collect Files* when you move a project). Pulley never deletes them.
 
 Each import is **one undo step** ("Pulley Import"). The panel shows what was imported, how long
-it took, missing fonts, and a warning for everything that was approximated or skipped.
+it took, missing fonts, and a warning for everything that was approximated or skipped. A big
+import shows its progress and can be cancelled.
+
+<img alt="The After Effects panel while importing: Building layers (62%) with a progress bar and a Cancel button" src="docs/images/after-effects-progress.png" width="320"> <img alt="The After Effects panel after a second push: Added 2 layers, updated 14, with notes about a missing font, a layer whose animation was kept, and a layer kept because its item was deleted" src="docs/images/after-effects-repush.png" width="320">
 
 ## Debugging
 
@@ -254,7 +261,10 @@ it took, missing fonts, and a warning for everything that was approximated or sk
 - **Bridge flags (development):** `--headless` (no tray), `--port <n>`, `--config-dir <dir>`,
   `--stderr` (log to the console).
 - **Panels:** the visible panel only shows state; the hidden background extension does the work.
-  If the panel says the bridge isn't running, start it and click **Reconnect**.
+  If the panel says the bridge isn't running, start it and click **Reconnect** (the circular
+  arrow next to the status).
+
+  <img alt="The After Effects panel when the bridge isn't running: Not connected, The Pulley bridge is not running, with the Pull selection button disabled" src="docs/images/after-effects-disconnected.png" width="320">
 - **Figma:** **Plugins → Development → Open console** shows the plugin's console.
 
 ## Tests

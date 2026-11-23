@@ -1,0 +1,68 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>components</title>
+<link rel="stylesheet" href="style.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'light';</script>
+<style>
+  .diagram { width: 880px; height: 618px; }
+  .group { position: absolute; box-sizing: border-box; border: 1.5px dashed var(--line); border-radius: 14px; }
+  .group > .caps { position: absolute; left: 16px; top: 12px; }
+  .box { padding: 9px 12px; font-size: 12.5px; }
+  .box b { font-weight: 650; }
+  .box .d { color: var(--muted); }
+</style></head>
+<body>
+<div class="diagram">
+  <!-- Illustrator -->
+  <div class="group" style="left: 0; top: 0; width: 420px; height: 214px;"><span class="caps">Illustrator (CEP 12)</span></div>
+  <div class="box tint-ai" style="left: 16px; top: 40px; width: 388px; height: 56px;"><b>Panel</b> (visible)<div class="d">Push button, state, options</div></div>
+  <div class="box tint-ai" style="left: 16px; top: 140px; width: 388px; height: 58px;"><b>Background extension</b> (hidden, starts with the app)<div class="d">bridge client · pulley-core (WASM) · capture.jsx (read-only DOM)</div></div>
+
+  <!-- Figma -->
+  <div class="group" style="left: 460px; top: 0; width: 420px; height: 214px;"><span class="caps">Figma (desktop app or browser)</span></div>
+  <div class="box tint-figma" style="left: 476px; top: 40px; width: 388px; height: 56px;"><b>Main thread</b> (no network access)<div class="d">read-only node reader · pairing key storage</div></div>
+  <div class="box tint-figma" style="left: 476px; top: 140px; width: 388px; height: 58px;"><b>UI iframe</b><div class="d">pulley-core (WASM) · bridge client · .pulley download</div></div>
+
+  <!-- Bridge -->
+  <div class="box tint-bridge" style="left: 170px; top: 286px; width: 540px; height: 112px;">
+    <b>pulley-bridge</b> <span class="d">tray / menu bar app · Rust, tokio</span>
+    <ul style="margin-top: 6px;">
+      <li><span class="mono">127.0.0.1:47290</span> · Host and Origin checks · session token or pairing key</li>
+      <li>validates every scene (pulley-core, native)</li>
+      <li>routes pushes, pulls, results, progress and cancels · logs</li>
+    </ul>
+  </div>
+
+  <!-- After Effects -->
+  <div class="group" style="left: 0; top: 462px; width: 880px; height: 156px;"><span class="caps">After Effects (CEP 12)</span></div>
+  <div class="box tint-ae" style="left: 16px; top: 502px; width: 556px; height: 100px;"><b>Background extension</b> (hidden, starts with the app)
+    <ul style="margin-top: 4px;">
+      <li>validates the scene again and builds the <b>AE plan</b> (pulley-core, WASM)</li>
+      <li>writes the plan and one <span class="mono">.ffx</span> preset per gradient to Pulley's temp folder</li>
+      <li>one call to the fixed ExtendScript interpreter (<span class="mono">apply.jsx</span>) builds the layers</li>
+    </ul>
+  </div>
+  <div class="box tint-ae" style="left: 640px; top: 502px; width: 224px; height: 100px;"><b>Panel</b> (visible)<div class="d" style="margin-top: 4px;">Pull selection · Import .pulley file · options · last result</div></div>
+
+  <svg class="edges" width="880" height="618" viewBox="0 0 880 618">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0 0L10 5L0 10z"/></marker>
+    </defs>
+    <!-- inside the apps -->
+    <path d="M210 98 L 210 138" marker-start="url(#a)" marker-end="url(#a)"/>
+    <text x="222" y="122">CSEvents (application scope)</text>
+    <path d="M670 98 L 670 138" marker-start="url(#a)" marker-end="url(#a)"/>
+    <text x="682" y="122">postMessage</text>
+    <path d="M574 552 L 638 552" marker-start="url(#a)" marker-end="url(#a)"/>
+    <text x="606" y="543" text-anchor="middle">CSEvents</text>
+    <!-- to and from the bridge -->
+    <path d="M210 200 C 210 248, 300 240, 300 284" marker-start="url(#a)" marker-end="url(#a)"/>
+    <text x="440" y="250" text-anchor="middle">pulley-scene over WebSocket</text>
+    <path d="M670 200 C 670 248, 580 240, 580 284" marker-start="url(#a)" marker-end="url(#a)"/>
+    <path d="M440 400 C 440 450, 296 450, 296 500" marker-start="url(#a)" marker-end="url(#a)"/>
+    <text x="452" y="446" text-anchor="start">pulley-scene</text>
+    <!-- the file path that skips the bridge -->
+    <path class="dashed" d="M846 200 L 846 500" marker-end="url(#a)"/>
+    <text x="834" y="345" text-anchor="end">.pulley file</text>
+  </svg>
+</div>
+</body></html>

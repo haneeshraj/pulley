@@ -1,0 +1,72 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>overview</title>
+<link rel="stylesheet" href="style.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'light';</script>
+<style>
+  .diagram { width: 880px; height: 430px; }
+  .frame { position: absolute; inset: 0; border: 1.5px dashed var(--line); border-radius: 16px; }
+  .ai { left: 24px; top: 50px; width: 240px; height: 150px; }
+  .figma { left: 24px; top: 236px; width: 240px; height: 150px; }
+  .bridge { left: 320px; top: 120px; width: 236px; height: 200px; }
+  .ae { left: 636px; top: 100px; width: 220px; height: 240px; }
+</style></head>
+<body>
+<div class="diagram">
+  <div class="frame"></div>
+  <div class="label caps" style="left: 24px; top: 18px;">Your computer · nothing goes online</div>
+
+  <div class="box tint-ai ai">
+    <h3>Illustrator 2025</h3>
+    <div class="sub">Pulley panel (CEP extension)</div>
+    <ul>
+      <li>Reads the selection; never changes your document</li>
+      <li>pulley-core (WebAssembly) turns it into a scene</li>
+    </ul>
+  </div>
+
+  <div class="box tint-figma figma">
+    <h3>Figma</h3>
+    <div class="sub">Pulley plugin (desktop app or browser)</div>
+    <ul>
+      <li>Reads the selection; never changes your file</li>
+      <li>pulley-core (WebAssembly) turns it into a scene</li>
+    </ul>
+  </div>
+
+  <div class="box tint-bridge bridge">
+    <h3>Pulley bridge</h3>
+    <div class="sub">Tray app (Rust)</div>
+    <ul>
+      <li>Listens on <span class="mono">127.0.0.1:47290</span> only</li>
+      <li>Checks every connection: session token or pairing key</li>
+      <li>Validates every scene</li>
+      <li>Routes pushes, pulls and results</li>
+    </ul>
+  </div>
+
+  <div class="box tint-ae ae">
+    <h3>After Effects 2025</h3>
+    <div class="sub">Pulley panel (CEP extension)</div>
+    <ul>
+      <li>Validates the scene again</li>
+      <li>pulley-core (WebAssembly) builds a plan with your options</li>
+      <li>One ExtendScript call builds native shape, text and image layers</li>
+      <li>One undo step</li>
+    </ul>
+  </div>
+
+  <svg class="edges" width="880" height="430" viewBox="0 0 880 430">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0 0L10 5L0 10z"/></marker>
+    </defs>
+    <path d="M264 125 C 296 125, 296 190, 318 190" marker-end="url(#a)"/>
+    <path d="M264 311 C 296 311, 296 250, 318 250" marker-end="url(#a)"/>
+    <path d="M556 220 L 634 220" marker-end="url(#a)"/>
+    <path class="dashed" d="M264 362 C 400 420, 560 420, 720 342" marker-end="url(#a)"/>
+    <text x="271" y="116">scene</text>
+    <text x="271" y="330">scene</text>
+    <text x="595" y="211" text-anchor="middle">scene</text>
+    <text x="483" y="392" text-anchor="middle">or a .pulley file, no bridge needed</text>
+  </svg>
+</div>
+</body></html>

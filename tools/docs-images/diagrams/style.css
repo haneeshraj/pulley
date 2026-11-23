@@ -1,0 +1,45 @@
+/* Shared look for the docs diagrams. render.mjs opens each page with ?theme=light and
+   ?theme=dark and keeps the background transparent, so the pictures sit on GitHub's own page
+   color. */
+:root {
+  --text: #1f2328; --muted: #59636e; --faint: #818b98;
+  --box: #f6f8fa; --box2: #ffffff; --line: #d1d9e0; --edge: #818b98;
+  --accent: #0969da; --ai: #c96a00; --figma: #8250df; --ae: #4f4fd1; --bridge: #0969da;
+  --ok: #1a7f37; --warn: #9a6700; --new: #0969da; --chip: #eaeef2;
+}
+html[data-theme="dark"] {
+  --text: #e6edf3; --muted: #9198a1; --faint: #656c76;
+  --box: #151b23; --box2: #0d1117; --line: #3d444d; --edge: #8b949e;
+  --accent: #4493f8; --ai: #ffa657; --figma: #bc8cff; --ae: #a5a5ff; --bridge: #4493f8;
+  --ok: #3fb950; --warn: #d29922; --new: #4493f8; --chip: #262c36;
+}
+html, body { margin: 0; padding: 0; background: transparent; }
+body { font-family: "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif; color: var(--text); font-size: 13px; line-height: 1.4; }
+.diagram { position: relative; margin: 0; }
+.diagram > svg.edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.edges path, .edges line { fill: none; stroke: var(--edge); stroke-width: 1.6; }
+.edges .dashed { stroke-dasharray: 5 4; }
+.edges .accent { stroke: var(--accent); }
+.edges text { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.edges .arrowhead { fill: var(--edge); stroke: none; }
+.edges .arrowhead.accent { fill: var(--accent); }
+
+.box { position: absolute; box-sizing: border-box; background: var(--box); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.box.tint-ai { border-top: 3px solid var(--ai); }
+.box.tint-figma { border-top: 3px solid var(--figma); }
+.box.tint-ae { border-top: 3px solid var(--ae); }
+.box.tint-bridge { border-top: 3px solid var(--bridge); }
+.box h3 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: .1px; }
+.box .sub { margin: 1px 0 8px; color: var(--muted); font-size: 12px; }
+.box ul { margin: 0; padding: 0 0 0 16px; }
+.box li { margin: 2px 0; }
+.box li::marker { color: var(--faint); }
+.inner { background: var(--box2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.inner b { font-weight: 650; }
+.label { position: absolute; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.caps { text-transform: uppercase; letter-spacing: .8px; font-size: 11px; font-weight: 650; color: var(--muted); }
+code, .mono { font-family: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace; font-size: 11.5px; }
+.chip { display: inline-block; padding: 0 7px; border-radius: 9px; font-size: 10.5px; font-weight: 700; letter-spacing: .4px; line-height: 17px; text-transform: uppercase; background: var(--chip); color: var(--muted); }
+.chip.ok { color: var(--ok); }
+.chip.new { color: var(--new); }
+.chip.warn { color: var(--warn); }

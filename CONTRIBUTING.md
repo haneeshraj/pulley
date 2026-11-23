@@ -53,6 +53,9 @@ Guidelines:
 - Record anything you verified against Adobe's or Figma's behavior in
   [docs/VERIFICATION.md](docs/VERIFICATION.md), with its source.
 - Add a line to [CHANGELOG.md](CHANGELOG.md).
+- If you change what a panel or the plugin shows, or something a diagram describes, update the
+  pictures in `docs/images` with `node tools/docs-images/render.mjs` (see
+  [tools/docs-images/README.md](tools/docs-images/README.md)).
 
 ## License
 

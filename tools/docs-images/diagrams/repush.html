@@ -1,0 +1,64 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>re-push</title>
+<link rel="stylesheet" href="style.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'light';</script>
+<style>
+  .diagram { width: 880px; height: 352px; }
+  .card { position: absolute; box-sizing: border-box; height: 48px; display: flex; align-items: center; gap: 9px; padding: 0 12px; background: var(--box); border: 1px solid var(--line); border-radius: 9px; font-size: 13px; }
+  .card.src { left: 0; width: 240px; }
+  .card.dst { left: 560px; width: 320px; }
+  .card.gone { background: transparent; border-style: dashed; color: var(--muted); }
+  .card .t { flex: 1; min-width: 0; line-height: 1.25; }
+  .card .t small { display: block; color: var(--muted); font-size: 11px; }
+  .ic { width: 15px; height: 15px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
+  .ic svg { width: 15px; height: 15px; }
+  .ic .s { fill: none; stroke: currentColor; stroke-width: 1.5; }
+  .src .ic { color: var(--ai); }
+  .dst .ic { color: var(--ae); }
+  .ic.text { font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: 14px; }
+  .kf { color: var(--warn); font-size: 11px; }
+  .notes { position: absolute; left: 0; top: 272px; width: 880px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .notes .inner { font-size: 12px; color: var(--muted); }
+  .notes .inner b { color: var(--text); }
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="star" viewBox="0 0 14 14"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M7 1.6l1.6 3.4 3.7.4-2.8 2.5.8 3.7L7 9.7l-3.3 1.9.8-3.7L1.7 5.4l3.7-.4z"/></symbol>
+    <symbol id="group" viewBox="0 0 14 14"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M1.5 3.5h4l1.2 1.5h5.8v6.5h-11z"/></symbol>
+  </defs>
+</svg>
+<div class="diagram">
+  <div class="label caps" style="left: 0; top: 4px;">Illustrator: push the same artwork again</div>
+  <div class="label caps" style="left: 560px; top: 4px;">After Effects: the same comp</div>
+
+  <div class="card src" style="top: 36px;"><span class="ic"><svg><use href="#group"/></svg></span><span class="t">Badge<small>new since the last push</small></span></div>
+  <div class="card src" style="top: 94px;"><span class="ic"><svg><use href="#group"/></svg></span><span class="t">Logo<small>recolored</small></span></div>
+  <div class="card src" style="top: 152px;"><span class="ic text">T</span><span class="t">Headline<small>text edited</small></span></div>
+  <div class="card src gone" style="top: 210px;"><span class="ic"><svg><use href="#group"/></svg></span><span class="t">Old badge<small>deleted</small></span></div>
+
+  <div class="card dst" style="top: 36px;"><span class="ic"><svg><use href="#star"/></svg></span><span class="t">Badge<small>a new layer, on top</small></span><span class="chip new">added</span></div>
+  <div class="card dst" style="top: 94px;"><span class="ic"><svg><use href="#star"/></svg></span><span class="t">Logo<small>new colors; <span class="kf">◆</span> position keyframes kept</small></span><span class="chip ok">updated</span></div>
+  <div class="card dst" style="top: 152px;"><span class="ic text">T</span><span class="t">Headline<small>new text, same layer</small></span><span class="chip ok">updated</span></div>
+  <div class="card dst" style="top: 210px;"><span class="ic"><svg><use href="#star"/></svg></span><span class="t">Old badge<small>left as it is, listed in the result</small></span><span class="chip">kept</span></div>
+
+  <svg class="edges" width="880" height="352" viewBox="0 0 880 352">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrowhead" d="M0 0L10 5L0 10z"/></marker>
+    </defs>
+    <path d="M240 60 L 557 60" marker-end="url(#a)"/>
+    <path d="M240 118 L 557 118" marker-end="url(#a)"/>
+    <path d="M240 176 L 557 176" marker-end="url(#a)"/>
+    <path class="dashed" d="M240 234 L 557 234"/>
+    <text x="400" y="52" text-anchor="middle">no layer carries its tag yet</text>
+    <text x="400" y="110" text-anchor="middle">tag found: updated in place</text>
+    <text x="400" y="168" text-anchor="middle">tag found: updated in place</text>
+    <text x="400" y="226" text-anchor="middle">nothing left to match</text>
+  </svg>
+
+  <div class="notes">
+    <div class="inner"><b>How layers are matched.</b> Each layer Pulley makes carries a tag in its After Effects comment, <span class="mono">pulley:illustrator:Poster.ai/&lt;item id&gt;</span>. Delete the comment and the next push adds a new layer instead.</div>
+    <div class="inner"><b>Your changes stay.</b> Layer names, effects you added, stacking order, timing and parenting are left alone. Anything you animated keeps its animation and is listed in the result.</div>
+  </div>
+</div>
+</body></html>

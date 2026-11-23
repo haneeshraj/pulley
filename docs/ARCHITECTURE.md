@@ -12,35 +12,10 @@ apps and Figma only read their own data and apply precomputed values. Everything
 
 ## Components
 
-```
- Illustrator (CEP 12)                     Figma (desktop or browser)
- ┌──────────────────────────────┐         ┌──────────────────────────────────┐
- │ panel (visible): Push, state │         │ main thread: read-only node      │
- │   ⇅ CSEvents (app scope)     │         │ reader, pairing key storage      │
- │ background extension:        │         │   ⇅ postMessage                  │
- │   bridge client, pulley-core │         │ UI iframe: pulley-core (WASM),   │
- │   (WASM), capture.jsx        │         │ bridge client, .pulley download  │
- └──────────────┬───────────────┘         └────────────────┬─────────────────┘
-                │ pulley-scene over WebSocket               │ pulley-scene
-                ▼                                           ▼
-        ┌───────────────────────────────────────────────────────────┐
-        │ pulley-bridge (tray / menu bar app, Rust, tokio)          │
-        │ 127.0.0.1:47290 · Host/Origin checks · token or pairing   │
-        │ key · validates every scene (pulley-core, native) ·       │
-        │ routes pushes, pulls, results, progress, cancels · logs   │
-        └──────────────────────────────┬────────────────────────────┘
-                                       │ pulley-scene
-                                       ▼
- After Effects (CEP 12)
- ┌───────────────────────────────────────────────────────────────────┐
- │ background extension: validates the scene again and builds an     │
- │ "AE plan" (pulley-core, WASM); writes it and one .ffx preset per  │
- │ gradient to Pulley's temp folder; one call to the fixed           │
- │ ExtendScript interpreter (apply.jsx) builds the layers            │
- │   ⇅ CSEvents                                                      │
- │ panel: Pull selection, Import .pulley file, options, last result  │
- └───────────────────────────────────────────────────────────────────┘
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/components-dark.png">
+  <img alt="Illustrator (CEP 12): a visible panel and a hidden background extension that talk over application-scope CSEvents; the background extension holds the bridge client, pulley-core (WebAssembly) and capture.jsx (read-only DOM). Figma: a main thread with no network access (read-only node reader, pairing key storage) and a UI iframe (pulley-core, bridge client, .pulley download) that talk over postMessage. Both send pulley-scene over WebSocket to pulley-bridge (tray or menu bar app, Rust and tokio; 127.0.0.1:47290, Host and Origin checks, session token or pairing key, validates every scene natively, routes pushes, pulls, results, progress and cancels, logs). The bridge sends pulley-scene to the After Effects background extension, which validates it again, builds the AE plan, writes the plan and one .ffx preset per gradient to the temp folder, and builds the layers with one call to apply.jsx; it talks to the visible After Effects panel over CSEvents. A .pulley file from Figma goes straight to the After Effects panel." src="images/components-light.png" width="880">
+</picture>
 
 ### Rust workspace
 
@@ -58,7 +33,7 @@ apps and Figma only read their own data and apply precomputed values. Everything
 |---|---|---|---|
 | Illustrator capture (`pulley-ai-capture` v2 JSON, plus an SVG when copies were needed) | `capture.jsx` | pulley-core in the same extension | No |
 | Figma nodes (`pulley-figma-nodes` v1 JSON) | plugin main thread (`read.ts`) | pulley-core in the plugin UI | No |
-| **pulley-scene v1** | pulley-core in a client | the bridge (validates), the AE extension | **Yes: the only format between components** |
+| **pulley-scene v2** | pulley-core in a client | the bridge (validates), the AE extension | **Yes: the only format between components** |
 | AE plan (line-based text) | pulley-core in the AE extension | `apply.jsx` | No |
 | `.ffx` gradient presets | pulley-core in the AE extension | `apply.jsx` (`applyPreset`) | No |
 
@@ -81,6 +56,11 @@ closed. If the panel finds no background extension, it starts it.
 - The only process launch: the bridge from its install location, without a shell or arguments.
 
 ## After Effects import
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/ae-import-dark.png">
+  <img alt="The five steps of an After Effects import: 1 Receive a scene (push, pull answer or .pulley file). 2 Plan: pulley-core checks it again and builds the plan with the panel options. 3 Write the plan and the gradient presets to the temp folder. 4 Build: one evalScript call runs apply.jsx inside one undo group, with progress and cancel checks every 50 operations. 5 Finish: gradient colors applied from the presets, the layer selection restored, the result sent to the panel and the sender, temp files deleted." src="images/ae-import-light.png" width="880">
+</picture>
 
 1. The background extension receives a scene (bridge push, answer to a pull, or a `.pulley`
    file). pulley-core validates it again and builds the **plan** with the panel's options: one
@@ -129,6 +109,11 @@ arrays are pathologically slow there (51 s to walk one 60,000-element array); on
 keeps every array small.
 
 ### Re-push: updating earlier layers
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/repush-dark.png">
+  <img alt="Pushing the same artwork again: a new item becomes a new layer on top; items whose tag is found are updated in place, keeping animated properties; a layer whose item was deleted is kept and listed." src="images/repush-light.png" width="880">
+</picture>
 
 Every top-level layer Pulley creates gets a tag in its comment:
 `pulley:<source app>:<document name>/<item id>` (percent-encoded). The plan says which item
@@ -228,6 +213,11 @@ more than 200 lines), reopening your comp afterwards. Building in a never-opened
 and copying the layers in (`copyToComp`) was slower (29 ms per layer).
 
 ## Bridge
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/connect-dark.png">
+  <img alt="How clients connect to the bridge. Adobe extensions, every start: WebSocket upgrade with Host 127.0.0.1:47290 and Origin file://, then hello with the session token from session.token within 5 seconds, then welcome and status updates. Figma plugin, the first time: Pair Figma plugin in the tray shows an 8-character code for 2 minutes and copies it; the plugin opens a WebSocket (Origin null), sends pair_request with the code, receives paired with a new 256-bit key kept in settings.json and figma.clientStorage, then sends hello with the key and receives welcome and status. Afterwards: hello with the key, then welcome. Any other Host or Origin, no hello within 5 seconds, or a wrong token or key is refused." src="images/connect-light.png" width="880">
+</picture>
 
 - **Runtime:** tokio on worker threads; the tray (`tray-icon`, `muda`) on the main thread
   through `tao`, as macOS requires. `--headless` runs without the tray (tests).
@@ -343,4 +333,4 @@ fuzzing; no source code built from data, no `eval`, no shell; documents never mo
   which may change how presets apply. Untested here.
 - **Figma review** may reject plugins that need a local app; use development or private
   distribution.
-- **macOS** has not been built or run.
+- **macOS:** the bridge builds and its tests pass on macOS in CI, but Pulley has not been run there with the apps.

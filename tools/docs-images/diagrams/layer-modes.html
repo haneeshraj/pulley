@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>layer modes</title>
+<link rel="stylesheet" href="style.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'light';</script>
+<style>
+  .diagram { width: 880px; display: grid; grid-template-columns: 170px 34px repeat(4, 1fr); column-gap: 12px; align-items: start; }
+  .col h4 { margin: 0 0 2px; font-size: 13px; white-space: nowrap; font-weight: 650; }
+  .col .what { color: var(--muted); font-size: 11.5px; margin-bottom: 8px; min-height: 16px; }
+  .panel { background: var(--box); border: 1px solid var(--line); border-radius: 9px; padding: 6px 0; }
+  .row { display: flex; align-items: center; gap: 7px; padding: 3px 10px; font-size: 12.5px; white-space: nowrap; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row .n { width: 12px; color: var(--faint); font-size: 11px; text-align: right; }
+  .row .sub { color: var(--muted); font-size: 11px; margin-left: 2px; }
+  .row.in { padding-left: 26px; }
+  .tree .row { border-top: 0; }
+  .tree .row.in { padding-left: 30px; }
+  .ic { width: 14px; height: 14px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: var(--muted); }
+  .ic svg { width: 14px; height: 14px; }
+  .ic .s { fill: none; stroke: currentColor; stroke-width: 1.5; }
+  .ic.shape { color: var(--ae); }
+  .ic.text { color: var(--ae); font-family: Georgia, "Times New Roman", serif; font-size: 13px; }
+  .ic.pre { color: var(--ae); }
+  .note { margin-top: 8px; color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+  .note b { color: var(--text); font-weight: 650; }
+  .arrow { align-self: center; margin-top: 18px; }
+  .arrow path { fill: none; stroke: var(--edge); stroke-width: 1.6; }
+  .arrow .head { fill: var(--edge); stroke: none; }
+  .chip { margin-left: 4px; vertical-align: 0; line-height: 15px; }
+  .src .ic { color: var(--ai); }
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="star" viewBox="0 0 14 14"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M7 1.6l1.6 3.4 3.7.4-2.8 2.5.8 3.7L7 9.7l-3.3 1.9.8-3.7L1.7 5.4l3.7-.4z"/></symbol>
+    <symbol id="pre" viewBox="0 0 14 14"><rect fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" x="1.5" y="1.5" width="11" height="11" rx="1.5"/><rect fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" x="4.5" y="4.5" width="5" height="5" rx=".8"/></symbol>
+    <symbol id="group" viewBox="0 0 14 14"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M1.5 3.5h4l1.2 1.5h5.8v6.5h-11z"/></symbol>
+    <symbol id="path" viewBox="0 0 14 14"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M2 11c2-7 8-7 10-8"/><circle cx="2" cy="11" r="1.3" fill="currentColor"/><circle cx="12" cy="3" r="1.3" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+<div class="diagram">
+  <div class="col src">
+    <h4>Your selection</h4>
+    <div class="what">In Illustrator: Poster.ai</div>
+    <div class="panel tree">
+      <div class="row"><span class="ic text">T</span>Title</div>
+      <div class="row"><span class="ic"><svg><use href="#group"/></svg></span>Badge</div>
+      <div class="row in"><span class="ic"><svg><use href="#path"/></svg></span>Rectangle</div>
+      <div class="row in"><span class="ic"><svg><use href="#path"/></svg></span>Star</div>
+      <div class="row"><span class="ic"><svg><use href="#group"/></svg></span>Logo</div>
+      <div class="row in"><span class="ic"><svg><use href="#path"/></svg></span>Circle</div>
+      <div class="row in"><span class="ic"><svg><use href="#path"/></svg></span>Arc</div>
+    </div>
+  </div>
+
+  <svg class="arrow" width="34" height="16" viewBox="0 0 34 16"><path d="M2 8h24"/><path class="head" d="M24 2l9 6-9 6z"/></svg>
+
+  <div class="col">
+    <h4>One layer per item</h4>
+    <div class="what">In After Effects <span class="chip">default</span></div>
+    <div class="panel">
+      <div class="row"><span class="n">1</span><span class="ic text">T</span>Title</div>
+      <div class="row"><span class="n">2</span><span class="ic shape"><svg><use href="#star"/></svg></span>Badge</div>
+      <div class="row"><span class="n">3</span><span class="ic shape"><svg><use href="#star"/></svg></span>Logo</div>
+    </div>
+    <div class="note"><b>3 layers.</b> Each group's shapes stay together as groups inside its shape layer.</div>
+  </div>
+
+  <div class="col">
+    <h4>One layer per shape</h4>
+    <div class="what">In After Effects</div>
+    <div class="panel">
+      <div class="row"><span class="n">1</span><span class="ic text">T</span>Title</div>
+      <div class="row"><span class="n">2</span><span class="ic shape"><svg><use href="#star"/></svg></span>Rectangle</div>
+      <div class="row"><span class="n">3</span><span class="ic shape"><svg><use href="#star"/></svg></span>Star</div>
+      <div class="row"><span class="n">4</span><span class="ic shape"><svg><use href="#star"/></svg></span>Circle</div>
+      <div class="row"><span class="n">5</span><span class="ic shape"><svg><use href="#star"/></svg></span>Arc</div>
+    </div>
+    <div class="note"><b>5 layers.</b> Groups are broken apart: every path, text and image gets its own layer.</div>
+  </div>
+
+  <div class="col">
+    <h4>Merge into one layer</h4>
+    <div class="what">In After Effects</div>
+    <div class="panel">
+      <div class="row"><span class="n">1</span><span class="ic text">T</span>Title</div>
+      <div class="row"><span class="n">2</span><span class="ic shape"><svg><use href="#star"/></svg></span>Poster.ai</div>
+    </div>
+    <div class="note"><b>2 layers.</b> All the shapes share one shape layer; text stays a text layer.</div>
+  </div>
+
+  <div class="col">
+    <h4>Precompose the import</h4>
+    <div class="what">In After Effects</div>
+    <div class="panel">
+      <div class="row"><span class="n">1</span><span class="ic pre"><svg><use href="#pre"/></svg></span>Poster.ai</div>
+      <div class="row in"><span class="ic text">T</span>Title</div>
+      <div class="row in"><span class="ic shape"><svg><use href="#star"/></svg></span>Badge</div>
+      <div class="row in"><span class="ic shape"><svg><use href="#star"/></svg></span>Logo</div>
+    </div>
+    <div class="note"><b>1 layer:</b> a precomp the size of the artboard, with one layer per item inside.</div>
+  </div>
+</div>
+</body></html>

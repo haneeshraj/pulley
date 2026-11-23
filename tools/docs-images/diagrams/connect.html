@@ -1,0 +1,79 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>connecting to the bridge</title>
+<link rel="stylesheet" href="style.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'light';</script>
+<style>
+  .diagram { width: 880px; height: 596px; }
+  .lane { position: absolute; top: 0; width: 220px; height: 52px; box-sizing: border-box; text-align: center; padding-top: 8px; }
+  .lane b { display: block; font-size: 13.5px; font-weight: 650; }
+  .lane span { color: var(--muted); font-size: 11.5px; }
+  .section { position: absolute; left: 0; width: 880px; display: flex; align-items: center; gap: 10px; }
+  .section .caps { white-space: nowrap; }
+  .section::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+  .note { position: absolute; box-sizing: border-box; background: var(--box2); border: 1px solid var(--line); border-left: 3px solid var(--bridge); border-radius: 8px; padding: 7px 10px; font-size: 12px; color: var(--muted); }
+  .note b { color: var(--text); font-weight: 650; }
+  .edges text.m { fill: var(--text); font-size: 12px; }
+  .edges text.d { fill: var(--muted); font-size: 11px; }
+  .edges .life { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 3 4; }
+  .foot { position: absolute; left: 0; top: 566px; width: 880px; color: var(--muted); font-size: 12px; }
+</style></head>
+<body>
+<div class="diagram">
+  <div class="box tint-ae lane" style="left: 20px;"><b>Adobe extension</b><span>After Effects or Illustrator</span></div>
+  <div class="box tint-bridge lane" style="left: 330px;"><b>Pulley bridge</b><span>127.0.0.1:47290</span></div>
+  <div class="box tint-figma lane" style="left: 640px;"><b>Figma plugin</b><span>UI iframe</span></div>
+
+  <div class="section" style="top: 66px;"><span class="caps">Adobe extensions, every start</span></div>
+  <div class="section" style="top: 226px;"><span class="caps">Figma plugin, the first time</span></div>
+  <div class="section" style="top: 492px;"><span class="caps">Figma plugin, afterwards</span></div>
+
+  <div class="note" style="left: 452px; top: 250px; width: 284px;"><b>Pair Figma plugin…</b> in the tray menu: the bridge shows an 8-character code for 2 minutes and copies it; you paste it into the plugin.</div>
+
+  <svg class="edges" width="880" height="596" viewBox="0 0 880 596">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrowhead" d="M0 0L10 5L0 10z"/></marker>
+    </defs>
+    <line class="life" x1="130" y1="54" x2="130" y2="62"/>
+    <line class="life" x1="130" y1="84" x2="130" y2="222"/>
+    <line class="life" x1="130" y1="244" x2="130" y2="488"/>
+    <line class="life" x1="130" y1="510" x2="130" y2="548"/>
+    <line class="life" x1="440" y1="54" x2="440" y2="62"/>
+    <line class="life" x1="440" y1="84" x2="440" y2="222"/>
+    <line class="life" x1="440" y1="244" x2="440" y2="488"/>
+    <line class="life" x1="440" y1="510" x2="440" y2="548"/>
+    <line class="life" x1="750" y1="54" x2="750" y2="62"/>
+    <line class="life" x1="750" y1="84" x2="750" y2="222"/>
+    <line class="life" x1="750" y1="244" x2="750" y2="488"/>
+    <line class="life" x1="750" y1="510" x2="750" y2="548"/>
+
+    <!-- Adobe extension -->
+    <text class="m" x="285" y="104" text-anchor="middle">WebSocket upgrade</text>
+    <text class="d" x="285" y="119" text-anchor="middle">Host 127.0.0.1:47290 · Origin file://</text>
+    <path d="M132 126 L 437 126" marker-end="url(#a)"/>
+    <text class="m" x="285" y="152" text-anchor="middle">hello + session token, within 5 s</text>
+    <text class="d" x="285" y="167" text-anchor="middle">read from session.token, new every start</text>
+    <path d="M132 174 L 437 174" marker-end="url(#a)"/>
+    <text class="m" x="285" y="200" text-anchor="middle">welcome, then status updates</text>
+    <path d="M438 208 L 133 208" marker-end="url(#a)"/>
+
+    <!-- Figma, first time -->
+    <text class="m" x="595" y="334" text-anchor="middle">WebSocket upgrade · Origin null</text>
+    <path d="M748 342 L 443 342" marker-end="url(#a)"/>
+    <text class="m" x="595" y="368" text-anchor="middle">pair_request + code</text>
+    <path d="M748 376 L 443 376" marker-end="url(#a)"/>
+    <text class="m" x="595" y="402" text-anchor="middle">paired + a new 256-bit key</text>
+    <text class="d" x="595" y="417" text-anchor="middle">kept in settings.json and figma.clientStorage</text>
+    <path d="M442 424 L 747 424" marker-end="url(#a)"/>
+    <text class="m" x="595" y="450" text-anchor="middle">hello + key</text>
+    <path d="M748 458 L 443 458" marker-end="url(#a)"/>
+    <text class="m" x="595" y="476" text-anchor="middle">welcome, then status updates</text>
+    <path d="M442 482 L 747 482" marker-end="url(#a)"/>
+
+    <!-- Figma, afterwards -->
+    <text class="m" x="595" y="526" text-anchor="middle">hello + key → welcome</text>
+    <path d="M748 534 L 443 534" marker-end="url(#a)"/>
+  </svg>
+
+  <div class="foot">Refused before the upgrade or closed right away: any other Host or Origin, no hello within 5 seconds, a wrong token or key.</div>
+</div>
+</body></html>

@@ -117,11 +117,15 @@ pub fn run(hub: Arc<Hub>, mut summary: watch::Receiver<Summary>, paths: Paths) {
                 // macOS: the icon must be created once the event loop is running.
                 let mut b = TrayIconBuilder::new().with_menu(Box::new(menu.clone())).with_tooltip("Pulley");
                 if let Some(i) = icon(TrayState::Idle) {
-                    b = b.with_icon(i);
-                }
-                #[cfg(target_os = "macos")]
-                {
-                    b = b.with_icon_as_template(true);
+                    // macOS draws the menu bar icon as a template, so it follows light and dark menu bars.
+                    #[cfg(target_os = "macos")]
+                    {
+                        b = b.with_icon_templated(i);
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        b = b.with_icon(i);
+                    }
                 }
                 tray = b.build().ok();
                 status.set_text(status_text(&Summary::default()));
@@ -146,6 +150,10 @@ pub fn run(hub: Arc<Hub>, mut summary: watch::Receiver<Summary>, paths: Paths) {
                 if st != current {
                     current = st;
                     if let Some(t) = &tray {
+                        // set_icon would draw it as a plain image on macOS; keep it a template there.
+                        #[cfg(target_os = "macos")]
+                        let _ = t.set_icon_templated(icon(st));
+                        #[cfg(not(target_os = "macos"))]
                         let _ = t.set_icon(icon(st));
                     }
                 }

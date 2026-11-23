@@ -115,20 +115,47 @@ Publishing (organization-private or Community):
 6. The plugin works only with the bridge on port 47290 (the address list is fixed in the
    manifest).
 
-## Release checklist
+## Releasing
 
-1. Update `version` in `Cargo.toml` (workspace) and `figma-plugin/package.json`; add a
-   CHANGELOG entry.
-2. `cargo test --workspace`, `node tests/ae/run.mjs`, `cd figma-plugin && npm test`, the CI
-   workflow green.
-3. Build and sign: `node tools/package-zxp.mjs --cert … --tsa …`, `node tools/package-bridge.mjs`
-   (with signing configured), `cd figma-plugin && npm run build`.
-4. Go through [QA.md](QA.md) with the signed packages on Windows and macOS, 2025 and 2026 apps.
-5. Build the Windows download: `powershell -ExecutionPolicy Bypass -File toolsshareuild-bundle.ps1`
-   writes `dist/share/Pulley-<version>-Windows.zip` (both `.zxp` packages, the bridge installer,
-   `Install Pulley.bat`, `install.ps1`, `READ ME FIRST.txt` and the license).
-6. Tag the release (`git tag v<version>`, push the tag) and create a GitHub Release from it with
-   the zip attached. The README's install section points people to the Releases page.
+Releases are one command, run from a clean `main`:
+
+1. Add a `## <version>` section to [CHANGELOG.md](../CHANGELOG.md) listing what changed
+   (`## <version> (unreleased)` also works).
+2. Run `.\release <version>`, for example `.\release 0.1.1`. Add `-DryRun` to see what would
+   happen without changing anything.
+
+[`tools/release.ps1`](../tools/release.ps1) checks the branch, the working tree and that the tag is
+new; bumps the version in `Cargo.toml`, `Cargo.lock` and the Figma plugin; dates the changelog
+section; runs the checks CI runs (skip with `-SkipTests`); then commits "Release v<version>", tags
+it and pushes. If anything fails before the push succeeds, it undoes its changes.
+
+The pushed tag starts [`.github/workflows/release.yml`](../.github/workflows/release.yml) on a
+GitHub Windows runner. It checks that the tag matches the version, builds and signs both `.zxp`
+packages (timestamped), builds the bridge installer and the Windows zip, and publishes a GitHub
+Release with the changelog section as its notes and these files attached:
+`Pulley-<version>-Windows.zip`, both `.zxp` packages and the bridge installer. `0.x` and
+`-beta` versions are marked as pre-releases. To rebuild an existing release, run the workflow by
+hand (**Actions → Release → Run workflow**) with its tag.
+
+Repository secrets (**Settings → Secrets and variables → Actions**), all optional:
+
+| Secret | Effect |
+|---|---|
+| `ZXP_CERT_P12_BASE64`, `ZXP_CERT_PASSWORD` | Sign the extensions with your certificate, so every release is signed by the same one. Without them, each release gets a fresh self-signed certificate. |
+| `PULLEY_WIN_SIGN_PFX_BASE64`, `PULLEY_WIN_SIGN_PFX_PASSWORD` | Code-sign the bridge installer, which removes the SmartScreen warning. |
+
+To use the existing self-signed certificate, copy it as base64 with
+`[Convert]::ToBase64String([IO.File]::ReadAllBytes(".tools\certs\pulley-self-signed.p12")) | Set-Clipboard`,
+paste that into `ZXP_CERT_P12_BASE64`, and put the contents of
+`.tools\certs\pulley-self-signed.password` into `ZXP_CERT_PASSWORD`.
+
+Before a bigger release, also run the After Effects suite locally (`node tests/ae/run.mjs`, which
+CI can't run) and go through [QA.md](QA.md) with the published packages.
+
+To build everything locally instead: `node tools/package-zxp.mjs --self-signed`,
+`node tools/package-bridge.mjs`, then
+`powershell -ExecutionPolicy Bypass -File tools\share\build-bundle.ps1`, which writes
+`dist/share/Pulley-<version>-Windows.zip`.
 
 ## Status
 

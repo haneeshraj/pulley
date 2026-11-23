@@ -1,4 +1,28 @@
-# Pulley
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/icons/out/docs/readme-logo-dark.svg">
+    <img alt="Pulley" src="assets/icons/out/docs/readme-logo-light.svg" width="300">
+  </picture>
+</h1>
+
+<p align="center">
+  <strong>Illustrator and Figma artwork into After Effects as native, editable shape and text layers.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/haneeshraj/pulley/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/haneeshraj/pulley/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Platform: Windows" src="https://img.shields.io/badge/platform-Windows-0078D6.svg">
+  <img alt="After Effects 2025" src="https://img.shields.io/badge/After%20Effects-2025-9999FF.svg">
+  <img alt="Illustrator 2025" src="https://img.shields.io/badge/Illustrator-2025-FF9A00.svg">
+  <img alt="Figma plugin" src="https://img.shields.io/badge/Figma-plugin-A259FF.svg">
+</p>
+
+<p align="center">
+  <img alt="The Pulley panels: Push to After Effects in Illustrator, and the import result in the After Effects panel" src="docs/images/pulley-panels.png" width="860">
+  <br>
+  <sub>The real Illustrator and After Effects panels, shown with sample data.</sub>
+</p>
 
 Created by **Haneesh Raj Banisetti**. [MIT License](LICENSE).
 
@@ -176,6 +200,8 @@ appearance become plain shapes. Each item with effects adds about a second to th
 comp the size of the artboard or frame. **Pull selection** asks Illustrator or the Figma plugin,
 whichever you used last, for its current selection. Options (gear icon):
 
+<img alt="The After Effects panel with its options open: Layers set to one layer per shape, Clipping masks set to track mattes" src="docs/images/after-effects-options.png" width="320">
+
 - **Layers:** one layer per selected item (default); **one layer per shape**, which breaks groups
   apart so every path, text and image gets its own layer (a group that clips, or has its own
   opacity, blend mode or effects, becomes a precomp with its pieces as separate layers inside, so it
@@ -245,8 +271,7 @@ it took, missing fonts, and a warning for everything that was approximated or sk
 | Dependency audit | `cargo deny check`, `cargo audit`, `npm audit` (in `figma-plugin`) | cargo-deny, cargo-audit |
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the build, tests, lints, audits
-and short libFuzzer runs on Windows, macOS and Linux runners. It has not run yet: the repository
-has not been pushed anywhere.
+and short libFuzzer runs on Windows, macOS and Linux runners on every push and pull request.
 
 ## What has been tested
 
@@ -272,10 +297,12 @@ On Windows 11 (i9-13900H, 16 GB), After Effects 25.5, Illustrator 29.5; details 
 - Fuzzing: 500,000 mutated inputs across the five parsers, no crashes; it found one quadratic
   slowdown on very long names, now fixed ([docs/VERIFICATION.md](docs/VERIFICATION.md#fuzzing)).
   A short pass runs in every `cargo test`.
+- CI on GitHub: the Rust tests, lints and bridge build pass on Windows and macOS runners, and the
+  WebAssembly, panel and Figma plugin builds, the dependency audit and libFuzzer pass too.
 
-Not tested: macOS; After Effects 2026 / Illustrator 2026; Figma in a browser, and pulling into
-the plugin inside Figma; installing the signed ZXP packages and the bridge installer on a clean
-machine; CI.
+Not tested: using Pulley on macOS (it builds and its tests pass there, but nobody has run it with
+the apps); After Effects 2026 / Illustrator 2026; Figma in a browser, and pulling into the plugin
+inside Figma; installing the signed ZXP packages and the bridge installer on a clean machine.
 
 ## Known limitations
 
